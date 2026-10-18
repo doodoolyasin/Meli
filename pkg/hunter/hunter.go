@@ -134,6 +134,22 @@ func (h *ResolverHunter) GetPriorityPool(maxCount int) []net.IP {
 	return out
 }
 
+// Best returns the single best resolver (lowest RTT).
+func (h *ResolverHunter) Best() net.IP {
+	pool := h.GetPriorityPool(1)
+	if len(pool) > 0 {
+		return pool[0]
+	}
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	for _, r := range h.resolvers {
+		if r.IP != nil {
+			return r.IP
+		}
+	}
+	return nil
+}
+
 // probeOnce measures a single resolver with a DNS query
 func (h *ResolverHunter) probeOnce(idx int) {
 	r := h.resolvers[idx]
