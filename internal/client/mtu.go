@@ -342,7 +342,9 @@ func (c *Client) RunInitialMTUTests(ctx context.Context) error {
 		jobs := make(chan int, len(scanConnections))
 		var wg sync.WaitGroup
 		for range workerCount {
-			wg.Go(func() {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
 				for idx := range jobs {
 					if err := ctx.Err(); err != nil {
 						return
@@ -350,7 +352,7 @@ func (c *Client) RunInitialMTUTests(ctx context.Context) error {
 					conn := scanConnections[idx]
 					c.runConnectionMTUTest(ctx, conn, idx+1, len(scanConnections), uploadCaps[conn.Domain], counters)
 				}
-			})
+			}()
 		}
 
 		for idx := range scanConnections {
