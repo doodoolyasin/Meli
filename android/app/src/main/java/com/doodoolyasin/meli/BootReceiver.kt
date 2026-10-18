@@ -24,7 +24,7 @@ class BootReceiver : BroadcastReceiver() {
                 val server = prefs.getString("server", "")
                 val domain = prefs.getString("domain", "")
                 
-                if (server.isNotEmpty() && domain.isNotEmpty()) {
+                if (!server.isNullOrEmpty() && !domain.isNullOrEmpty()) {
                     val serviceIntent = Intent(context, MeliVpnService::class.java)
                     serviceIntent.putExtra("server", server)
                     serviceIntent.putExtra("domain", domain)

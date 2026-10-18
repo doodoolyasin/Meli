@@ -2,13 +2,13 @@ package com.doodoolyasin.meli
 
 object Base32 {
     private const val ALPHABET = "abcdefghijklmnopqrstuvwxyz234567"
-    private const val ALPHABET_BYTES = "abcdefghijklmnopqrstuvwxyz234567".toByteArray()
     
-    // Decode map
     private val DECODE_MAP = IntArray(256) { -1 }.apply {
-        ALPHABET.toUpperCase().toCharArray().forEachIndexed { i, c ->
-            this[c.toInt()] = i
-            this[c.toLowerCase().toInt()] = i
+        ALPHABET.uppercase().forEachIndexed { i, c ->
+            this[c.code] = i
+        }
+        ALPHABET.lowercase().forEachIndexed { i, c ->
+            this[c.code] = i
         }
     }
 
@@ -17,12 +17,12 @@ object Base32 {
         
         val bits = StringBuilder(data.size * 8)
         for (b in data) {
+            val byteVal = b.toInt() and 0xFF
             for (i in 7 downTo 0) {
-                bits.append(if ((b shr i and 1) == 1) '1' else '0')
+                bits.append(if ((byteVal shr i and 1) == 1) '1' else '0')
             }
         }
         
-        // Pad to multiple of 5
         val padding = (5 - bits.length % 5) % 5
         repeat(padding) { bits.append('0') }
         
@@ -32,7 +32,6 @@ object Base32 {
             result.append(ALPHABET[chunk])
         }
         
-        // Add padding chars if needed (optional for DNS labels)
         return result.toString()
     }
 
@@ -42,7 +41,7 @@ object Base32 {
         
         val bits = StringBuilder()
         for (c in clean) {
-            val value = DECODE_MAP[c.toInt()]
+            val value = if (c.code < 256) DECODE_MAP[c.code] else -1
             if (value >= 0) {
                 for (i in 4 downTo 0) {
                     bits.append(if ((value shr i and 1) == 1) '1' else '0')
@@ -50,7 +49,6 @@ object Base32 {
             }
         }
         
-        // Remove padding bits
         val byteCount = bits.length / 8
         val result = ByteArray(byteCount)
         for (i in 0 until byteCount) {
