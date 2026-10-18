@@ -1,9 +1,23 @@
 pluginManagement {
     repositories {
-        google()
+        google {
+            content {
+                includeGroupByRegex("com\\.android.*")
+                includeGroupByRegex("com\\.google.*")
+                includeGroupByRegex("androidx.*")
+            }
+        }
         mavenCentral()
         gradlePluginPortal()
     }
+}
+plugins {
+    id("org.gradle.toolchains.foojay-resolver-convention") version "0.9.0"
+}
+val localProps = java.util.Properties()
+val localPropsFile = File(rootDir, "local.properties")
+if (localPropsFile.exists()) {
+    localProps.load(localPropsFile.inputStream())
 }
 
 dependencyResolutionManagement {
@@ -14,5 +28,4 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Meli"
 include(":app")

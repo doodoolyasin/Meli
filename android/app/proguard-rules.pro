@@ -1,25 +1,76 @@
-# ProGuard rules for Meli
+# SlipNet VPN ProGuard Rules
 
-# Keep VPN service
--keep class com.doodoolyasin.meli.MeliVpnService { *; }
+# Keep JNI methods
+-keepclasseswithmembernames class * {
+    native <methods>;
+}
 
-# Keep application class
--keep class com.doodoolyasin.meli.MeliApplication { *; }
+# Keep NativeBridge class and its JNI callback methods
+-keep class app.slipnet.data.native.NativeBridge { *; }
+-keep class app.slipnet.data.native.NativeCallback { *; }
+-keep class app.slipnet.data.native.NativeConfig { *; }
+-keep class app.slipnet.data.native.NativeStats { *; }
 
-# Keep main activity
--keep class com.doodoolyasin.meli.MainActivity { *; }
+# Keep SlipstreamBridge and tunnel classes for JNI
+-keep class app.slipnet.tunnel.SlipstreamBridge { *; }
+-keep class app.slipnet.tunnel.** { *; }
+-keepclassmembers class app.slipnet.tunnel.SlipstreamBridge {
+    native <methods>;
+    private native <methods>;
+}
+# Prevent R8 from optimizing away native method declarations
+-keepclasseswithmembers class * {
+    native <methods>;
+}
 
-# Keep BootReceiver
--keep class com.doodoolyasin.meli.BootReceiver { *; }
+# Hilt
+-keep class dagger.hilt.** { *; }
+-keep class javax.inject.** { *; }
+-keep class * extends dagger.hilt.android.lifecycle.HiltViewModel { *; }
+-keep class app.slipnet.Hilt_* { *; }
+-keep class app.slipnet.*_GeneratedInjector { *; }
+-keep class dagger.hilt.internal.** { *; }
+-keep class * implements dagger.hilt.internal.GeneratedComponent { *; }
+-keep class * implements dagger.hilt.internal.GeneratedComponentManager { *; }
 
-# Keep Base32 utility
--keep class com.doodoolyasin.meli.Base32 { *; }
+# Room
+-keep class * extends androidx.room.RoomDatabase
+-keep @androidx.room.Entity class *
+-dontwarn androidx.room.paging.**
 
-# Keep Kotlin coroutines
--keep class kotlinx.coroutines.** { *; }
+# DataStore
+-keep class androidx.datastore.** { *; }
 
-# Keep AndroidX
--keep class androidx.** { *; }
+# Kotlin Serialization
+-keepattributes *Annotation*, InnerClasses
+-dontnote kotlinx.serialization.AnnotationsKt
 
-# Keep Google Material
--keep class com.google.android.material.** { *; }
+# Gson - preserve generic type information for TypeToken
+-keepattributes Signature
+-keepattributes *Annotation*
+-keepattributes EnclosingMethod
+-dontwarn sun.misc.**
+-keep class com.google.gson.** { *; }
+-keep class com.google.gson.reflect.TypeToken { *; }
+-keep class * extends com.google.gson.reflect.TypeToken
+-keep class * implements com.google.gson.TypeAdapterFactory
+-keep class * implements com.google.gson.JsonSerializer
+-keep class * implements com.google.gson.JsonDeserializer
+
+# Keep domain models for Gson serialization
+-keep class app.slipnet.domain.model.** { *; }
+-keep class app.slipnet.data.local.database.** { *; }
+-keep class app.slipnet.data.mapper.** { *; }
+
+# JSch SSH library
+-keep class com.jcraft.jsch.** { *; }
+-dontwarn com.jcraft.jsch.**
+
+# Compose
+-dontwarn androidx.compose.**
+
+# ZXing QR code
+-keep class com.google.zxing.** { *; }
+-dontwarn com.google.zxing.**
+-keep class com.journeyapps.barcodescanner.** { *; }
+-dontwarn com.journeyapps.barcodescanner.**

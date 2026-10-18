@@ -21,3 +21,8 @@ local.properties
 test_fixed.go
 SUMMARY.md
 PROMPT_MELI_DEV.txt
+*.aar
+*.so
+*.dm
+android/app/libs/
+android/app/src/full/jniLibs/

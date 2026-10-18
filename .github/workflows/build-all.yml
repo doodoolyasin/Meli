@@ -3,16 +3,16 @@ name: Build All
 on:
   push:
     branches: [ main, master ]
-  pull_request:
-    branches: [ main, master ]
+    tags: [ 'v*' ]
   workflow_dispatch:
 
 env:
   GO_VERSION: '1.23'
-  JAVA_VERSION: '17'
+  JAVA_VERSION: '21'
+  OPENSSL_VERSION: '3.0.15'
 
 jobs:
-  # Job 1: Build Go binaries (Linux, Windows, macOS)
+  # Job 1: Build Go Core Binaries (Linux, Windows, macOS, ARM64)
   build-go:
     name: Build Go Binaries
     runs-on: ubuntu-latest
@@ -22,9 +22,6 @@ jobs:
       matrix:
         goos: [linux, windows, darwin]
         goarch: [amd64, arm64]
-        exclude:
-          - goos: darwin
-            goarch: arm64
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -54,34 +51,96 @@ jobs:
         run: |
           gh release upload v1.0.0 dist/* --clobber || true
 
-  # Job 2: Build Android APK
+  # Job 2: Build Android Multi-Engine APK (Full & Lite)
   build-android:
     name: Build Android APK
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
-      - name: Set up JDK
+      - name: Set up JDK 21
         uses: actions/setup-java@v4
         with:
-          distribution: 'temurin'
           java-version: ${{ env.JAVA_VERSION }}
-          cache: gradle
+          distribution: 'jetbrains'
+
+      - name: Install Android NDK
+        run: |
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --install "ndk;29.0.14206865"
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/29.0.14206865" >> $GITHUB_ENV
+
+      - name: Install Rust & cargo-ndk
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi,x86_64-linux-android
+      - run: cargo install cargo-ndk --locked
+
+      - name: Cache OpenSSL
+        id: cache-openssl
+        uses: actions/cache@v4
+        with:
+          path: ~/android-openssl
+          key: openssl-android-${{ env.OPENSSL_VERSION }}
+
+      - name: Build OpenSSL for Android
+        if: steps.cache-openssl.outputs.cache-hit != 'true'
+        run: |
+          cd android
+          chmod +x app/scripts/build-openssl-android.sh
+          OUTPUT_DIR=$HOME/android-openssl/android-ssl \
+          OPENSSL_VERSION=${{ env.OPENSSL_VERSION }} \
+          ./app/scripts/build-openssl-android.sh
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24.4'
+
+      - name: Install gomobile
+        run: go install golang.org/x/mobile/cmd/gomobile@latest && gomobile init
+
+      - name: Build Go mobile libraries
+        working-directory: android/gomobile-build
+        run: make build
+
+      - name: Setup Keystore
+        working-directory: android
+        run: |
+          keytool -genkeypair -v -keystore slipnet-release.keystore -alias slipnet -keyalg RSA -keysize 2048 -validity 10000 -storepass "123456" -keypass "123456" -dname "CN=Meli, OU=Meli, O=Meli, L=Tehran, S=Tehran, C=IR"
+          cat > keystore.properties <<EOF
+          storeFile=../slipnet-release.keystore
+          storePassword=123456
+          keyAlias=slipnet
+          keyPassword=123456
+          EOF
+          echo "sdk.dir=$ANDROID_HOME" > local.properties
 
       - name: Grant execute permission for gradlew
         run: chmod +x ./android/gradlew
 
-      - name: Build Debug APK
-        run: |
-          cd android
-          ./gradlew assembleDebug --no-daemon --stacktrace
+      - name: Build Full Release APK
+        working-directory: android
+        run: ./gradlew assembleFullRelease --no-daemon
 
-      - name: Publish APK to Release
+      - name: Build Lite Release APK
+        working-directory: android
+        run: ./gradlew assembleLiteRelease --no-daemon
+
+      - name: Collect release APKs
+        working-directory: android
+        run: |
+          mkdir -p release-apks
+          cp app/build/outputs/apk/full/release/*.apk release-apks/ 2>/dev/null || true
+          cp app/build/outputs/apk/lite/release/*.apk release-apks/ 2>/dev/null || true
+
+      - name: Publish APKs directly to Release
+        working-directory: android
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          cp android/app/build/outputs/apk/debug/app-debug.apk Meli.apk
-          gh release upload v1.0.0 Meli.apk --clobber || true
+          gh release upload v1.0.0 release-apks/*.apk --clobber || true

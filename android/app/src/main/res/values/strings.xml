@@ -1,13 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Meli DNS Tunnel</string>
-    <string name="vpn_service_name">Meli VPN</string>
-    <string name="connected">Connected</string>
-    <string name="disconnected">Disconnected</string>
-    <string name="connecting">Connecting...</string>
-    <string name="server_address">Server Address</string>
-    <string name="domain">Tunnel Domain</string>
-    <string name="connect">Connect</string>
-    <string name="disconnect">Disconnect</string>
-    <string name="settings">Settings</string>
-    <string name="status">Status: %s</string>
+    <string name="widget_description">Toggle VPN connection from your home screen</string>
+    <string name="widget_compact_description">Compact VPN toggle button (1x1)</string>
 </resources>

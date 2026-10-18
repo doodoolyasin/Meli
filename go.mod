@@ -3,9 +3,13 @@ module github.com/doodoolyasin/meli
 go 1.23
 
 require (
-	github.com/google/gopacket v1.1.19 // indirect
-	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
-	github.com/klauspost/reedsolomon v1.14.2
-	golang.org/x/net v0.61.0
-	golang.org/x/sys v0.49.0 // indirect
+	github.com/BurntSushi/toml v1.4.0
+	github.com/google/gopacket v1.1.19
+	github.com/klauspost/compress v1.18.5
+	github.com/klauspost/cpuid/v2 v2.3.0
+	github.com/klauspost/reedsolomon v1.12.4
+	github.com/pierrec/lz4/v4 v4.1.26
+	golang.org/x/crypto v0.42.0
+	golang.org/x/net v0.30.0
+	golang.org/x/sys v0.26.0
 )

@@ -1,235 +1,264 @@
+// ==============================================================================
+// MasterDnsVPN
+// Author: MasterkinG32
+// Github: https://github.com/masterking32
+// Year: 2026
+// ==============================================================================
+
 package main
 
 import (
+	"bufio"
 	"context"
 	"flag"
 	"fmt"
 	"io"
-	"log"
-	"net"
 	"os"
 	"os/signal"
-	"sync"
+	"path/filepath"
+	"strings"
 	"syscall"
-	"time"
 
-	"github.com/doodoolyasin/meli/pkg/hunter"
-	"github.com/doodoolyasin/meli/pkg/tunnel"
+	"github.com/doodoolyasin/meli/internal/client"
+	"github.com/doodoolyasin/meli/internal/config"
+	"github.com/doodoolyasin/meli/internal/runtimepath"
+	"github.com/doodoolyasin/meli/internal/version"
 )
 
-func main() {
-	var (
-		remoteAddr = flag.String("remote", "", "Remote DNS server address (or leave empty for auto-hunting Iranian resolvers)")
-		domain     = flag.String("domain", "", "Domain for tunneling (e.g., m.dolphin.work.gd)")
-		socksAddr  = flag.String("socks", "127.0.0.1:1080", "SOCKS5 listen address")
-		key        = flag.String("key", "137e43fd04a5b9dfdaf29e103fddcce2", "Pre-shared encryption key")
-		timeout    = flag.Duration("timeout", 5*time.Second, "DNS query timeout")
-		help       = flag.Bool("help", false, "Show help")
-	)
-	flag.Parse()
+func samePath(a string, b string) bool {
+	if a == "" || b == "" {
+		return false
+	}
 
-	if *help || *domain == "" {
-		fmt.Fprintf(os.Stderr, "Meli DNS Tunnel Client\n\n")
-		flag.PrintDefaults()
+	aResolved := runtimepath.Resolve(a)
+	bResolved := runtimepath.Resolve(b)
+
+	if absA, err := filepath.Abs(aResolved); err == nil {
+		aResolved = absA
+	}
+	if absB, err := filepath.Abs(bResolved); err == nil {
+		bResolved = absB
+	}
+
+	aClean := filepath.Clean(aResolved)
+	bClean := filepath.Clean(bResolved)
+	if aClean == bClean {
+		return true
+	}
+
+	return filepath.Base(aClean) == filepath.Base(bClean)
+}
+
+func normalizeClientPositionalArgs(args []string) []string {
+	if len(args) == 0 {
+		return args
+	}
+
+	if samePath(args[0], os.Args[0]) {
+		return args[1:]
+	}
+
+	return args
+}
+
+func waitForExitInput() {
+	_, _ = fmt.Fprint(os.Stderr, "Press Enter to exit...")
+	reader := bufio.NewReader(os.Stdin)
+	_, _ = reader.ReadString('\n')
+}
+
+func printClientUsage(fs *flag.FlagSet) {
+	bin := filepath.Base(os.Args[0])
+	if bin == "" || bin == "." || strings.Contains(bin, "go-build") || strings.HasPrefix(bin, "main") {
+		bin = "masterdnsvpn-client"
+	}
+
+	fmt.Fprintf(fs.Output(), "MasterDnsVPN Client - A high-performance DNS-based VPN Tunnel\n\n")
+	fmt.Fprintf(fs.Output(), "Usage:\n")
+	fmt.Fprintf(fs.Output(), "  %s [flags]\n\n", bin)
+	fmt.Fprintf(fs.Output(), "Examples:\n")
+	fmt.Fprintf(fs.Output(), "  %s -config client_config.toml\n", bin)
+	fmt.Fprintf(fs.Output(), "  %s -config ./client_config.toml -resolvers ./client_resolvers.txt\n", bin)
+	fmt.Fprintf(fs.Output(), "  %s -log ./client.log -version\n", bin)
+	fmt.Fprintf(fs.Output(), "  %s -config ./client_config.toml -d domain1.com,domain2.com -k my-secret-key\n\n", bin)
+	fmt.Fprintf(fs.Output(), "Flags:\n")
+	fs.PrintDefaults()
+}
+
+type clientCLIOptions struct {
+	configPath    string
+	jsonPath      string
+	jsonBase64    string
+	logPath       string
+	resolversPath string
+	showVersion   bool
+	showHelp      bool
+	domainsShort  string
+	keyShort      string
+}
+
+func newClientFlagSet(output io.Writer) (*flag.FlagSet, *clientCLIOptions, *config.ClientConfigFlagBinder, error) {
+	fs := flag.NewFlagSet("masterdnsvpn-client", flag.ContinueOnError)
+	fs.SetOutput(output)
+
+	opts := &clientCLIOptions{}
+	fs.Usage = func() {
+		printClientUsage(fs)
+	}
+
+	fs.StringVar(&opts.configPath, "config", "client_config.toml", "Path to client configuration file")
+	fs.StringVar(&opts.configPath, "c", "client_config.toml", "Alias for -config")
+	fs.StringVar(&opts.jsonPath, "json", "", "Path to client JSON configuration file")
+	fs.StringVar(&opts.jsonPath, "j", "", "Alias for -json")
+	fs.StringVar(&opts.jsonBase64, "json_base64", "", "Load client JSON configuration from base64")
+	fs.StringVar(&opts.jsonBase64, "json-base64", "", "Alias for -json_base64")
+
+	fs.StringVar(&opts.logPath, "log", "", "Path to log file (optional)")
+	fs.StringVar(&opts.logPath, "l", "", "Alias for -log")
+
+	fs.StringVar(&opts.resolversPath, "resolvers", "", "Path to resolver file override (optional)")
+	fs.StringVar(&opts.resolversPath, "r", "", "Alias for -resolvers")
+
+	fs.BoolVar(&opts.showVersion, "version", false, "Print version and exit")
+	fs.BoolVar(&opts.showVersion, "v", false, "Alias for -version")
+
+	fs.BoolVar(&opts.showHelp, "help", false, "Show help and exit")
+	fs.BoolVar(&opts.showHelp, "h", false, "Alias for -help")
+
+	fs.StringVar(&opts.domainsShort, "d", "", "Alias for -domains (comma separated)")
+	fs.StringVar(&opts.keyShort, "k", "", "Alias for -encryption-key")
+	fs.StringVar(&opts.keyShort, "key", "", "Compatibility alias for -encryption-key")
+
+	configFlags, err := config.NewClientConfigFlagBinder(fs)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	return fs, opts, configFlags, nil
+}
+
+func parseClientCLIArgs(args []string, output io.Writer) (*clientCLIOptions, config.ClientConfigOverrides, error) {
+	fs, opts, configFlags, err := newClientFlagSet(output)
+	if err != nil {
+		return nil, config.ClientConfigOverrides{}, err
+	}
+	if err := fs.Parse(args); err != nil {
+		return nil, config.ClientConfigOverrides{}, err
+	}
+
+	if opts.showHelp {
+		return opts, configFlags.Overrides(), nil
+	}
+
+	overrides := configFlags.Overrides()
+	if opts.jsonPath != "" && opts.jsonBase64 != "" {
+		return nil, config.ClientConfigOverrides{}, fmt.Errorf("only one of -json and -json_base64 can be used")
+	}
+	if opts.resolversPath != "" {
+		resolvedResolversPath := runtimepath.Resolve(opts.resolversPath)
+		overrides.ResolversFilePath = &resolvedResolversPath
+	}
+	if opts.domainsShort != "" {
+		overrides.Values["Domains"] = strings.Split(opts.domainsShort, ",")
+	}
+	if opts.keyShort != "" {
+		overrides.Values["EncryptionKey"] = opts.keyShort
+	}
+
+	positionalArgs := normalizeClientPositionalArgs(fs.Args())
+
+	switch len(positionalArgs) {
+	case 0:
+	case 1:
+		if opts.jsonPath == "" && opts.jsonBase64 == "" && (opts.configPath == "" || opts.configPath == "client_config.toml") {
+			opts.configPath = positionalArgs[0]
+		} else {
+			return nil, config.ClientConfigOverrides{}, fmt.Errorf("unexpected positional arguments: %v", positionalArgs)
+		}
+	case 2:
+		if opts.jsonPath == "" && opts.jsonBase64 == "" && (opts.configPath == "" || opts.configPath == "client_config.toml") && opts.resolversPath == "" {
+			opts.configPath = positionalArgs[0]
+			resolvedResolversPath := runtimepath.Resolve(positionalArgs[1])
+			overrides.ResolversFilePath = &resolvedResolversPath
+		} else {
+			return nil, config.ClientConfigOverrides{}, fmt.Errorf("unexpected positional arguments: %v", positionalArgs)
+		}
+	default:
+		return nil, config.ClientConfigOverrides{}, fmt.Errorf("unexpected positional arguments: %v", positionalArgs)
+	}
+
+	return opts, overrides, nil
+}
+
+func main() {
+	opts, overrides, err := parseClientCLIArgs(os.Args[1:], os.Stdout)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "%v\n\n", err)
+		fs, _, _, fsErr := newClientFlagSet(os.Stdout)
+		if fsErr == nil {
+			fs.Usage()
+		}
+		os.Exit(2)
+	}
+
+	if opts.showHelp {
+		fs, _, _, err := newClientFlagSet(os.Stdout)
+		if err == nil {
+			fs.Usage()
+		}
+		return
+	}
+
+	if opts.showVersion {
+		fmt.Printf("MasterDnsVPN Client Version: %s\n", version.GetVersion())
+		return
+	}
+
+	resolvedConfigPath := runtimepath.Resolve(opts.configPath)
+
+	var app *client.Client
+	switch {
+	case opts.jsonBase64 != "":
+		cfg, err := config.LoadClientConfigFromJSONBase64WithOverrides(opts.jsonBase64, overrides)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Client startup failed: %v\n", err)
+			waitForExitInput()
+			os.Exit(1)
+		}
+		app, err = client.BootstrapLoadedConfig(cfg, opts.logPath)
+		resolvedConfigPath = cfg.ConfigPath
+	case opts.jsonPath != "":
+		app, err = client.Bootstrap(runtimepath.Resolve(opts.jsonPath), opts.logPath, overrides)
+		resolvedConfigPath = runtimepath.Resolve(opts.jsonPath)
+	default:
+		app, err = client.Bootstrap(resolvedConfigPath, opts.logPath, overrides)
+	}
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Client startup failed: %v\n", err)
+		waitForExitInput()
 		os.Exit(1)
 	}
 
-	// Setup signal handling
-	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer cancel()
+	app.PrintBanner()
 
-	activeRemote := *remoteAddr
-	if activeRemote == "" || activeRemote == "auto" {
-		log.Println("Resolver auto-hunt active: loading 7854 Iranian resolvers from database...")
-		h, err := hunter.NewResolverHunter()
-		if err == nil {
-			h.Start()
-			// Wait briefly for first responsive resolver
-			time.Sleep(1 * time.Second)
-			best := h.Best()
-			if best != nil {
-				activeRemote = net.JoinHostPort(best.String(), "53")
-				log.Printf("Selected fastest Iranian resolver: %s", activeRemote)
-			}
-		}
-		if activeRemote == "" || activeRemote == "auto" {
-			activeRemote = "8.8.8.8:53"
+	log := app.Log()
+	if log != nil {
+		log.Infof("\U0001F680 <green>MasterDnsVPN Client Started</green>")
+		log.Infof("\U0001F4C4 <green>Configuration loaded from: <cyan>%s</cyan></green>", resolvedConfigPath)
+		log.Infof("\U0001F5C2  <green>Connection Catalog: <cyan>%d</cyan> domain-resolver pairs</green>", app.Balancer().TotalCount())
+	}
+
+	// Wait for termination signal
+	sigCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	if err := app.Run(sigCtx); err != nil {
+		if log != nil {
+			log.Errorf("Runtime error: %v", err)
 		}
 	}
 
-	// Tunnel configuration
-	tunCfg := tunnel.Config{
-		RemoteAddr: activeRemote,
-		Domain:     *domain,
-		Key:        []byte(*key),
-		Timeout:    *timeout,
-	}
-
-	// Listen for SOCKS5 connections
-	listener, err := net.Listen("tcp", *socksAddr)
-	if err != nil {
-		log.Fatalf("Failed to listen on SOCKS5 %s: %v", *socksAddr, err)
-	}
-	defer listener.Close()
-
-	log.Printf("Meli client listening on %s, tunneling to %s via %s", *socksAddr, *remoteAddr, *domain)
-
-	var wg sync.WaitGroup
-	sem := make(chan struct{}, 100) // Limit concurrent connections
-
-	go func() {
-		for {
-			conn, err := listener.Accept()
-			if err != nil {
-				if ctx.Err() != nil {
-					return
-				}
-				log.Printf("Accept error: %v", err)
-				continue
-			}
-
-			sem <- struct{}{}
-			wg.Add(1)
-			go func(c net.Conn) {
-				defer func() {
-					<-sem
-					wg.Done()
-				}()
-				handleSOCKS5Connection(ctx, c, tunCfg)
-			}(conn)
-		}
-	}()
-
-	<-ctx.Done()
-	log.Println("Shutting down...")
-	listener.Close()
-	wg.Wait()
-	log.Println("Client stopped")
-}
-
-func handleSOCKS5Connection(ctx context.Context, conn net.Conn, cfg tunnel.Config) {
-	defer conn.Close()
-
-	// SOCKS5 handshake
-	if err := socks5Handshake(conn); err != nil {
-		log.Printf("SOCKS5 handshake failed: %v", err)
-		return
-	}
-
-	// Parse target address
-	targetAddr, err := parseSOCKS5Request(conn)
-	if err != nil {
-		log.Printf("SOCKS5 request parse failed: %v", err)
-		return
-	}
-
-	log.Printf("Tunneling connection to %s", targetAddr)
-
-	// Connect to target through tunnel
-	tunConn, err := tunnel.NewClient(cfg, conn)
-	if err != nil {
-		log.Printf("Failed to create tunnel: %v", err)
-		return
-	}
-	defer tunConn.Close()
-
-	// The tunnel wraps the connection - data written to conn goes through DNS
-	// We just need to copy data between the SOCKS5 connection and the tunnel
-	var wg sync.WaitGroup
-	wg.Add(2)
-
-	go func() {
-		defer wg.Done()
-		io.Copy(conn, tunConn)
-		conn.(*net.TCPConn).CloseRead()
-	}()
-
-	go func() {
-		defer wg.Done()
-		io.Copy(tunConn, conn)
-		tunConn.Close()
-	}()
-
-	wg.Wait()
-}
-
-func socks5Handshake(conn net.Conn) error {
-	// Read version and nmethods
-	buf := make([]byte, 2)
-	if _, err := io.ReadFull(conn, buf); err != nil {
-		return err
-	}
-	if buf[0] != 0x05 {
-		return fmt.Errorf("unsupported SOCKS version: %d", buf[0])
-	}
-	nMethods := int(buf[1])
-	methods := make([]byte, nMethods)
-	if _, err := io.ReadFull(conn, methods); err != nil {
-		return err
-	}
-
-	// We support no authentication (method 0x00)
-	conn.Write([]byte{0x05, 0x00})
-	return nil
-}
-
-func parseSOCKS5Request(conn net.Conn) (string, error) {
-	buf := make([]byte, 4)
-	if _, err := io.ReadFull(conn, buf); err != nil {
-		return "", err
-	}
-	if buf[0] != 0x05 || buf[1] != 0x01 {
-		return "", fmt.Errorf("invalid SOCKS5 request: ver=%d cmd=%d", buf[0], buf[1])
-	}
-
-	// Read address type
-	atypBuf := make([]byte, 1)
-	if _, err := io.ReadFull(conn, atypBuf); err != nil {
-		return "", err
-	}
-
-	switch atypBuf[0] {
-	case 0x01: // IPv4
-		addrBuf := make([]byte, 4)
-		if _, err := io.ReadFull(conn, addrBuf); err != nil {
-			return "", err
-		}
-		portBuf := make([]byte, 2)
-		if _, err := io.ReadFull(conn, portBuf); err != nil {
-			return "", err
-		}
-		port := (uint16(portBuf[0]) << 8) | uint16(portBuf[1])
-		return fmt.Sprintf("%d.%d.%d.%d:%d", addrBuf[0], addrBuf[1], addrBuf[2], addrBuf[3], port), nil
-
-	case 0x03: // Domain name
-		lenBuf := make([]byte, 1)
-		if _, err := io.ReadFull(conn, lenBuf); err != nil {
-			return "", err
-		}
-		domainBuf := make([]byte, lenBuf[0])
-		if _, err := io.ReadFull(conn, domainBuf); err != nil {
-			return "", err
-		}
-		portBuf := make([]byte, 2)
-		if _, err := io.ReadFull(conn, portBuf); err != nil {
-			return "", err
-		}
-		port := (uint16(portBuf[0]) << 8) | uint16(portBuf[1])
-		return fmt.Sprintf("%s:%d", string(domainBuf), port), nil
-
-	case 0x04: // IPv6
-		addrBuf := make([]byte, 16)
-		if _, err := io.ReadFull(conn, addrBuf); err != nil {
-			return "", err
-		}
-		portBuf := make([]byte, 2)
-		if _, err := io.ReadFull(conn, portBuf); err != nil {
-			return "", err
-		}
-		port := (uint16(portBuf[0]) << 8) | uint16(portBuf[1])
-		return fmt.Sprintf("[%s]:%d", net.IP(addrBuf).String(), port), nil
-
-	default:
-		return "", fmt.Errorf("unsupported address type: %d", atypBuf[0])
+	if log != nil {
+		log.Infof("\U0001F6D1 <red>Shutting down...</red>")
 	}
 }

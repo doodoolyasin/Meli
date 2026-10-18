@@ -1,0 +1,21 @@
+[submodule "app/src/main/rust/slipstream-rust"]
+	path = app/src/main/rust/slipstream-rust
+	url = https://github.com/anonvector/slipstream-rust.git
+[submodule "app/src/main/rust/slipstream-rust-plus"]
+	path = app/src/main/rust/slipstream-rust-plus
+	url = https://github.com/Fox-Fig/slipstream-rust-plus
+[submodule "dnstt"]
+	path = dnstt
+	url = https://github.com/anonvector/dnstt.git
+[submodule "lyrebird"]
+	path = lyrebird
+	url = https://gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/lyrebird.git
+[submodule "noizdns"]
+	path = noizdns
+	url = https://github.com/anonvector/noizdns.git
+[submodule "vaydns"]
+	path = vaydns
+	url = https://github.com/anonvector/vaydns.git
+[submodule "vaydns-mobile"]
+	path = vaydns-mobile
+	url = https://github.com/anonvector/vaydns-mobile.git
