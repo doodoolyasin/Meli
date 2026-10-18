@@ -40,19 +40,19 @@ jobs:
 
       - name: Build client
         run: |
+          mkdir -p dist
           GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} CGO_ENABLED=0 go build -ldflags="-s -w" -o dist/meli-client-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.goos == 'windows' && '.exe' || '' }} ./cmd/client
 
       - name: Build server
         run: |
+          mkdir -p dist
           GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} CGO_ENABLED=0 go build -ldflags="-s -w" -o dist/meli-server-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.goos == 'windows' && '.exe' || '' }} ./cmd/server
 
-      - name: Upload Binaries (Optional)
-        uses: actions/upload-artifact@v4
-        continue-on-error: true
-        with:
-          name: meli-binaries-${{ matrix.goos }}-${{ matrix.goarch }}
-          path: dist/*
-          retention-days: 1
+      - name: Publish Binaries to Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload v1.0.0 dist/* --clobber || true
 
   # Job 2: Build Android APK
   build-android:
@@ -79,34 +79,9 @@ jobs:
           cd android
           ./gradlew assembleDebug --no-daemon --stacktrace
 
-      - name: Upload Debug APK (Optional)
-        uses: actions/upload-artifact@v4
-        continue-on-error: true
-        with:
-          name: meli-debug-apk
-          path: android/app/build/outputs/apk/debug/app-debug.apk
-          retention-days: 1
-
-  # Job 3: Create Release (on tags)
-  release:
-    name: Create Release
-    needs: [build-go, build-android]
-    if: startsWith(github.ref, 'refs/tags/')
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
-        continue-on-error: true
-        with:
-          path: artifacts
-
-      - name: Create Release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: |
-            artifacts/**/*
-          generate_release_notes: true
-          draft: false
-          prerelease: ${{ contains(github.ref, 'rc') || contains(github.ref, 'beta') || contains(github.ref, 'alpha') }}
+      - name: Publish APK to Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cp android/app/build/outputs/apk/debug/app-debug.apk Meli.apk
+          gh release upload v1.0.0 Meli.apk --clobber || true
