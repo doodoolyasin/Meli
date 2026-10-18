@@ -4,11 +4,9 @@ import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
-import android.app.Service
 import android.app.VpnService
 import android.content.Context
 import android.content.Intent
-import android.content.SharedPreferences
 import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
@@ -22,8 +20,8 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import java.io.FileInputStream
 import java.io.FileOutputStream
@@ -96,15 +94,12 @@ class MeliVpnService : VpnService() {
     private fun establishVpn() {
         try {
             val builder = Builder()
-                .setMtu(1400)
+                .setMtu(1200)
                 .addAddress("10.0.0.2", 24)
                 .addRoute("0.0.0.0", 0)
                 .addDnsServer("8.8.8.8")
                 .addDnsServer("1.1.1.1")
                 .setSession("Meli VPN")
-            
-            // Allow all apps to use VPN (or restrict if needed)
-            // builder.addAllowedApplication(packageName) for specific apps
 
             vpnInterface = builder.establish()
             
@@ -114,13 +109,18 @@ class MeliVpnService : VpnService() {
                 return
             }
 
+            // Create and protect outbound UDP socket so traffic does not loop into VPN interface
+            val socket = DatagramSocket()
+            protect(socket)
+            dnsSocket = socket
+
             running.set(true)
             isConnected = true
             
             updateNotification("Connected")
             Log.i(TAG, "VPN established successfully")
 
-            // Start packet processing loop
+            // Start packet processing loops
             vpnThread.execute { processVpnPackets() }
             dnsThread.execute { processDnsResponses() }
 
@@ -131,7 +131,8 @@ class MeliVpnService : VpnService() {
     }
 
     private fun processVpnPackets() {
-        val fileInputStream = FileInputStream(vpnInterface!!.fileDescriptor)
+        val descriptor = vpnInterface?.fileDescriptor ?: return
+        val fileInputStream = FileInputStream(descriptor)
         val buffer = ByteBuffer.allocate(32767)
         
         while (running.get()) {
@@ -142,11 +143,15 @@ class MeliVpnService : VpnService() {
                     continue
                 }
                 
-                buffer.limit(bytesRead)
-                buffer.position(0)
-                
-                // Send packet via DNS
-                sendPacketViaDns(buffer.array(), bytesRead)
+                // Chunk packet so FQDN does not exceed 253 bytes limit
+                val rawData = buffer.array().copyOfRange(0, bytesRead)
+                val chunkSize = 100 // 100 bytes binary = 160 bytes Base32
+                var offset = 0
+                while (offset < rawData.size) {
+                    val end = minOf(offset + chunkSize, rawData.size)
+                    sendPacketViaDns(rawData.copyOfRange(offset, end))
+                    offset = end
+                }
                 
                 buffer.clear()
             } catch (e: Exception) {
@@ -170,13 +175,13 @@ class MeliVpnService : VpnService() {
         
         while (running.get()) {
             try {
-                dnsSocket?.receive(packet)
+                val socket = dnsSocket ?: break
+                socket.receive(packet)
                 val length = packet.length
                 
                 if (length > 0) {
-                    // Parse DNS response and extract payload
                     val payload = extractPayloadFromDns(buffer, length)
-                    if (payload != null) {
+                    if (payload != null && payload.isNotEmpty()) {
                         writeToVpn(payload)
                     }
                 }
@@ -189,21 +194,21 @@ class MeliVpnService : VpnService() {
         }
     }
 
-    private fun sendPacketViaDns(data: ByteArray, length: Int) {
+    private fun sendPacketViaDns(chunk: ByteArray) {
         try {
-            // Encode data as Base32
-            val encoded = Base32.encode(data.copyOfRange(0, length))
+            val socket = dnsSocket ?: return
+            val encoded = Base32.encode(chunk)
+            if (encoded.isEmpty()) return
             
             // Split into labels (max 63 chars each)
             val labels = mutableListOf<String>()
             var remaining = encoded
             while (remaining.isNotEmpty()) {
-                val chunk = if (remaining.length > 63) remaining.substring(0, 63) else remaining
-                labels.add(chunk)
-                remaining = remaining.substring(chunk.length)
+                val take = minOf(remaining.length, 63)
+                labels.add(remaining.substring(0, take))
+                remaining = remaining.substring(take)
             }
             
-            // Build DNS query name
             val nameBuilder = StringBuilder()
             labels.forEachIndexed { index, label ->
                 if (index > 0) nameBuilder.append(".")
@@ -211,15 +216,13 @@ class MeliVpnService : VpnService() {
             }
             nameBuilder.append(".").append(domain)
             
-            // Build DNS query
             val query = buildDnsQuery(nameBuilder.toString())
             
-            // Send to DNS server
-            val socket = DatagramSocket()
-            val serverAddr = InetSocketAddress(serverAddress.split(":")[0], serverAddress.split(":")[1].toIntOrDefault(53))
-            socket.send(DatagramPacket(query, query.size, serverAddr))
-            socket.close()
+            val host = if (serverAddress.contains(":")) serverAddress.substringBefore(":") else serverAddress
+            val port = if (serverAddress.contains(":")) serverAddress.substringAfter(":").toIntOrNull() ?: 53 else 53
+            val serverAddr = InetSocketAddress(host, port)
             
+            socket.send(DatagramPacket(query, query.size, serverAddr))
         } catch (e: Exception) {
             Log.e(TAG, "Error sending DNS query", e)
         }
@@ -234,10 +237,11 @@ class MeliVpnService : VpnService() {
         buffer.putShort(0.toShort())      // NSCOUNT = 0
         buffer.putShort(0.toShort())      // ARCOUNT = 0
         
-        // Question section
         qname.split(".").forEach { label ->
-            buffer.put(label.length.toByte())
-            buffer.put(label.toByteArray())
+            if (label.isNotEmpty()) {
+                buffer.put(label.length.toByte())
+                buffer.put(label.toByteArray())
+            }
         }
         buffer.put(0.toByte()) // Null terminator
         buffer.putShort(1.toShort())  // QTYPE = A
@@ -247,45 +251,38 @@ class MeliVpnService : VpnService() {
     }
 
     private fun extractPayloadFromDns(data: ByteArray, length: Int): ByteArray? {
-        // Simple TXT record extraction
-        // In production, use proper DNS parsing
         try {
-            // Skip header (12 bytes) + question section
+            if (length < 12) return null
             var pos = 12
-            // Skip question name
-            while (pos < length && data[pos] != 0) {
-                val len = data[pos].toInt()
+            while (pos < length && data[pos].toInt() != 0) {
+                val len = data[pos].toInt() and 0xFF
                 pos += 1 + len
             }
-            pos += 5 // null + qtype + qclass
+            pos += 5 // null + qtype(2) + qclass(2)
             
-            // Parse answers
-            val answerCount = ((data[6].toInt() shl 8) or data[7].toInt())
+            val answerCount = ((data[6].toInt() and 0xFF) shl 8) or (data[7].toInt() and 0xFF)
             for (i in 0 until answerCount) {
-                // Skip name (compressed)
-                if (pos + 1 < length && (data[pos].toInt() and 0xC0) == 0xC0) {
+                if (pos >= length) break
+                // Skip name
+                if ((data[pos].toInt() and 0xC0) == 0xC0) {
                     pos += 2
                 } else {
-                    while (pos < length && data[pos] != 0) {
-                        pos += 1 + data[pos].toInt()
+                    while (pos < length && data[pos].toInt() != 0) {
+                        pos += 1 + (data[pos].toInt() and 0xFF)
                     }
                     pos += 1
                 }
                 
                 if (pos + 10 > length) break
+                val type = ((data[pos].toInt() and 0xFF) shl 8) or (data[pos + 1].toInt() and 0xFF)
+                val rdlength = ((data[pos + 8].toInt() and 0xFF) shl 8) or (data[pos + 9].toInt() and 0xFF)
+                pos += 10
                 
-                val type = ((data[pos].toInt() shl 8) or data[pos + 1].toInt())
-                pos += 10 // type + class + ttl + rdlength (skip to rdata)
-                val rdlength = ((data[pos - 2].toInt() shl 8) or data[pos - 1].toInt())
-                
-                if (type == 16) { // TXT record
-                    if (pos + rdlength <= length) {
-                        val txtData = data.copyOfRange(pos, pos + rdlength)
-                        // TXT record format: length byte + data
-                        if (txtData.size > 1) {
-                            val payload = Base32.decode(txtData.copyOfRange(1, txtData.size).decodeToString())
-                            return payload
-                        }
+                if (type == 16 && pos + rdlength <= length) { // TXT record
+                    val txtLen = data[pos].toInt() and 0xFF
+                    if (txtLen in 1 until rdlength) {
+                        val txtStr = String(data, pos + 1, txtLen)
+                        return Base32.decode(txtStr)
                     }
                 }
                 pos += rdlength
@@ -298,7 +295,8 @@ class MeliVpnService : VpnService() {
 
     private fun writeToVpn(data: ByteArray) {
         try {
-            val fileOutputStream = FileOutputStream(vpnInterface!!.fileDescriptor)
+            val descriptor = vpnInterface?.fileDescriptor ?: return
+            val fileOutputStream = FileOutputStream(descriptor)
             fileOutputStream.write(data)
             fileOutputStream.flush()
         } catch (e: Exception) {
@@ -351,7 +349,6 @@ class MeliVpnService : VpnService() {
         networkCallback = object : ConnectivityManager.NetworkCallback() {
             override fun onLost(network: Network) {
                 Log.i(TAG, "Network lost, reconnecting...")
-                // Re-establish VPN on network change
                 handler.postDelayed({ establishVpn() }, 5000)
             }
         }

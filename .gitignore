@@ -1,0 +1,23 @@
+# Binaries and build outputs
+client
+server
+meli-client*
+meli-server*
+dist/
+*.exe
+*.test
+*.out
+
+# Android build outputs
+.gradle/
+build/
+android/app/build/
+android/.gradle/
+local.properties
+*.apk
+*.aab
+
+# Local docs & test files
+test_fixed.go
+SUMMARY.md
+PROMPT_MELI_DEV.txt

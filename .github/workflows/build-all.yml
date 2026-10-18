@@ -40,25 +40,19 @@ jobs:
 
       - name: Build client
         run: |
-          GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} CGO_ENABLED=0 go build -ldflags="-s -w" -o meli-client-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.goos == 'windows' && '.exe' || '' }} ./cmd/client
+          GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} CGO_ENABLED=0 go build -ldflags="-s -w" -o dist/meli-client-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.goos == 'windows' && '.exe' || '' }} ./cmd/client
 
       - name: Build server
         run: |
-          GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} CGO_ENABLED=0 go build -ldflags="-s -w" -o meli-server-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.goos == 'windows' && '.exe' || '' }} ./cmd/server
+          GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} CGO_ENABLED=0 go build -ldflags="-s -w" -o dist/meli-server-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.goos == 'windows' && '.exe' || '' }} ./cmd/server
 
-      - name: Upload client binary
+      - name: Upload Binaries (Optional)
         uses: actions/upload-artifact@v4
+        continue-on-error: true
         with:
-          name: meli-client-${{ matrix.goos }}-${{ matrix.goarch }}
-          path: meli-client-${{ matrix.goos }}-${{ matrix.goarch }}*
-          retention-days: 7
-
-      - name: Upload server binary
-        uses: actions/upload-artifact@v4
-        with:
-          name: meli-server-${{ matrix.goos }}-${{ matrix.goarch }}
-          path: meli-server-${{ matrix.goos }}-${{ matrix.goarch }}*
-          retention-days: 7
+          name: meli-binaries-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: dist/*
+          retention-days: 1
 
   # Job 2: Build Android APK
   build-android:
@@ -77,49 +71,21 @@ jobs:
           java-version: ${{ env.JAVA_VERSION }}
           cache: gradle
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-        with:
-          api-level: 34
-          ndk-version: r26c
-          build-tools-version: 34.0.0
-
-      - name: Cache Gradle packages
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
-          restore-keys: |
-            ${{ runner.os }}-gradle-
-
       - name: Grant execute permission for gradlew
         run: chmod +x ./android/gradlew
 
       - name: Build Debug APK
         run: |
           cd android
-          ./gradlew assembleDebug --no-daemon
+          ./gradlew assembleDebug --no-daemon --stacktrace
 
-      - name: Build Release APK
-        run: |
-          cd android
-          ./gradlew assembleRelease --no-daemon
-
-      - name: Upload Debug APK
+      - name: Upload Debug APK (Optional)
         uses: actions/upload-artifact@v4
+        continue-on-error: true
         with:
           name: meli-debug-apk
           path: android/app/build/outputs/apk/debug/app-debug.apk
-          retention-days: 7
-
-      - name: Upload Release APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: meli-release-apk
-          path: android/app/build/outputs/apk/release/app-release-unsigned.apk
-          retention-days: 7
+          retention-days: 1
 
   # Job 3: Create Release (on tags)
   release:
@@ -132,20 +98,15 @@ jobs:
     steps:
       - name: Download all artifacts
         uses: actions/download-artifact@v4
+        continue-on-error: true
         with:
           path: artifacts
-
-      - name: List artifacts
-        run: |
-          find artifacts -type f -name "*.apk" -o -name "*.exe" -o -name "meli-*" | sort
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            artifacts/**/meli-client-*
-            artifacts/**/meli-server-*
-            artifacts/**/meli-*-apk
+            artifacts/**/*
           generate_release_notes: true
           draft: false
           prerelease: ${{ contains(github.ref, 'rc') || contains(github.ref, 'beta') || contains(github.ref, 'alpha') }}

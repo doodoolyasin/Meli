@@ -2,14 +2,13 @@ package com.doodoolyasin.meli
 
 import android.content.Intent
 import android.content.SharedPreferences
+import android.net.VpnService
 import android.os.Bundle
 import android.widget.Button
 import android.widget.EditText
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-import androidx.lifecycle.lifecycleScope
-import kotlinx.coroutines.launch
 
 class MainActivity : AppCompatActivity() {
 
@@ -18,6 +17,10 @@ class MainActivity : AppCompatActivity() {
     private lateinit var connectButton: Button
     private lateinit var statusTextView: TextView
     private lateinit var prefs: SharedPreferences
+
+    companion object {
+        private const val REQUEST_VPN_PERMISSION = 1001
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -53,22 +56,48 @@ class MainActivity : AppCompatActivity() {
         val domain = domainEditText.text.toString().trim()
 
         if (server.isEmpty() || domain.isEmpty()) {
-            Toast.makeText(this, "Please enter server and domain", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "لطفاً آدرس سرور و دامنه را وارد کنید", Toast.LENGTH_SHORT).show()
             return
         }
 
         saveSettings()
 
-        val intent = Intent(this, MeliVpnService::class.java)
-        intent.putExtra("server", server)
-        intent.putExtra("domain", domain)
-
         if (MeliVpnService.isConnected) {
+            val intent = Intent(this, MeliVpnService::class.java)
             stopService(intent)
+            updateUI()
         } else {
-            startForegroundService(intent)
+            // Check VPN permission first
+            val prepareIntent = VpnService.prepare(this)
+            if (prepareIntent != null) {
+                startActivityForResult(prepareIntent, REQUEST_VPN_PERMISSION)
+            } else {
+                startVpnService(server, domain)
+            }
         }
-        
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == REQUEST_VPN_PERMISSION && resultCode == RESULT_OK) {
+            val server = serverEditText.text.toString().trim()
+            val domain = domainEditText.text.toString().trim()
+            startVpnService(server, domain)
+        } else if (requestCode == REQUEST_VPN_PERMISSION) {
+            Toast.makeText(this, "اجازه VPN داده نشد", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun startVpnService(server: String, domain: String) {
+        val intent = Intent(this, MeliVpnService::class.java).apply {
+            putExtra("server", server)
+            putExtra("domain", domain)
+        }
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            startForegroundService(intent)
+        } else {
+            startService(intent)
+        }
         updateUI()
     }
 

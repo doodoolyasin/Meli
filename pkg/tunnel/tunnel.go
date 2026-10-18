@@ -3,176 +3,46 @@ package tunnel
 import (
 	"context"
 	"fmt"
+	"io"
 	"net"
 	"strings"
 	"sync"
 	"time"
 
-	arqpkg "github.com/doodoolyasin/meli/pkg/tunnel/arq"
 	"github.com/doodoolyasin/meli/pkg/tunnel/basecodec"
 	"golang.org/x/net/dns/dnsmessage"
 )
 
 // Config holds the configuration for a tunnel connection.
 type Config struct {
-	// LocalAddr is the local address to bind to (for client: SOCKS5 listen, for server: UDP listen).
+	// LocalAddr is the local address to bind to (e.g. "0.0.0.0:5053").
 	LocalAddr string
-	// RemoteAddr is the remote DNS server address (for client) or empty (for server).
+	// RemoteAddr is the remote DNS server address (e.g. "8.8.8.8:53").
 	RemoteAddr string
-	// Domain is the domain name used for tunneling (e.g., "tunnel.example.com").
+	// Domain is the domain name used for tunneling (e.g. "tunnel.example.com").
 	Domain string
-	// TargetAddr is the target address for server-side forwarding (e.g., "127.0.0.1:8080" or "socks5://...")
+	// TargetAddr is the target address for server-side forwarding (e.g. "127.0.0.1:8080").
 	TargetAddr string
 	// Timeout is the timeout for DNS operations.
 	Timeout time.Duration
-	// ARQConfig configures the ARQ reliability layer.
-	ARQConfig arqpkg.Config
 }
 
-// dnsEnqueuer implements the ARQ PacketEnqueuer interface for DNS transport.
-type dnsEnqueuer struct {
+// Client represents a client-side DNS tunnel connection implementing io.ReadWriteCloser.
+type Client struct {
+	config     Config
+	remoteUDP  *net.UDPAddr
 	conn       *net.UDPConn
-	remoteAddr *net.UDPAddr
-	domain     string
-	mu         sync.Mutex
-}
-
-func (e *dnsEnqueuer) PushTXPacket(priority int, packetType uint8, sequenceNum uint16, fragmentID uint8, totalFragments uint8, compressionType uint8, ttl time.Duration, payload []byte) bool {
-	// Encode payload as Base32 and construct DNS query
-	encoded := basecodec.EncodeLowerBase32(payload)
-	
-	// Split encoded data into labels (max 63 chars each)
-	var labels []string
-	for len(encoded) > 0 {
-		if len(encoded) > 63 {
-			labels = append(labels, encoded[:63])
-			encoded = encoded[63:]
-		} else {
-			labels = append(labels, encoded)
-			encoded = ""
-		}
-	}
-	
-	// Build question name
-	var nameBuilder strings.Builder
-	for i, label := range labels {
-		if i > 0 {
-			nameBuilder.WriteString(".")
-		}
-		nameBuilder.WriteString(label)
-	}
-	if nameBuilder.Len() > 0 {
-		nameBuilder.WriteString(".")
-	}
-	nameBuilder.WriteString(e.domain)
-	questionName := nameBuilder.String()
-	
-	// Build DNS query
-	msg := dnsmessage.Message{
-		Header: dnsmessage.Header{
-			ID:                sequenceNum,
-			RecursionDesired:  true,
-		},
-		Questions: []dnsmessage.Question{
-			{
-				Name:  dnsmessage.MustNewName(questionName),
-				Type:  dnsmessage.TypeA,
-				Class: dnsmessage.ClassINET,
-			},
-		},
-	}
-	
-	msgBuf, err := msg.Pack()
-	if err != nil {
-		return false
-	}
-	
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	e.conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
-	_, err = e.conn.WriteToUDP(msgBuf, e.remoteAddr)
-	return err == nil
-}
-
-// noopLogger is a simple no-op logger for ARQ
-type noopLogger struct{}
-
-func (n noopLogger) Debugf(format string, args ...any) {}
-func (n noopLogger) Infof(format string, args ...any)  {}
-func (n noopLogger) Errorf(format string, args ...any) {}
-
-// dnsConnWrapper wraps a UDP connection to implement io.ReadWriteCloser for ARQ
-type dnsConnWrapper struct {
-	conn       *net.UDPConn
-	remoteAddr *net.UDPAddr
-	domain     string
 	readBuf    []byte
 	readPos    int
 	readLen    int
 	mu         sync.Mutex
-}
-
-func (w *dnsConnWrapper) Read(p []byte) (int, error) {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	
-	for w.readPos >= w.readLen {
-		w.conn.SetReadDeadline(time.Now().Add(5 * time.Second))
-		n, _, err := w.conn.ReadFromUDP(w.readBuf)
-		if err != nil {
-			return 0, err
-		}
-		w.readLen = n
-		w.readPos = 0
-		
-		// Parse DNS response and extract payload from TXT records
-		var respMsg dnsmessage.Message
-		if err := respMsg.Unpack(w.readBuf[:n]); err != nil {
-			continue
-		}
-		
-		// Extract data from TXT records
-		for _, ans := range respMsg.Answers {
-			if ans.Header.Type == dnsmessage.TypeTXT {
-				if txt, ok := ans.Body.(*dnsmessage.TXTResource); ok {
-					for _, s := range txt.TXT {
-						w.readBuf = append(w.readBuf[:0], s...)
-						w.readLen = len(s)
-						w.readPos = 0
-						break
-					}
-				}
-			}
-		}
-	}
-	
-	n := copy(p, w.readBuf[w.readPos:w.readLen])
-	w.readPos += n
-	return n, nil
-}
-
-func (w *dnsConnWrapper) Write(p []byte) (int, error) {
-	// This is handled by the enqueuer in ARQ
-	return len(p), nil
-}
-
-func (w *dnsConnWrapper) Close() error {
-	return w.conn.Close()
-}
-
-// Client represents a client-side tunnel connection.
-type Client struct {
-	config    Config
-	innerConn net.Conn
-	dnsConn   *net.UDPConn
-	arq       *arqpkg.ARQ
-	ctx       context.Context
-	cancel    context.CancelFunc
-	wg        sync.WaitGroup
+	ctx        context.Context
+	cancel     context.CancelFunc
+	closed     bool
 }
 
 // NewClient creates a new client tunnel connection.
-func NewClient(config Config, innerConn net.Conn) (*Client, error) {
+func NewClient(config Config, _ net.Conn) (*Client, error) {
 	if config.RemoteAddr == "" {
 		return nil, fmt.Errorf("client config RemoteAddr is required")
 	}
@@ -182,172 +52,171 @@ func NewClient(config Config, innerConn net.Conn) (*Client, error) {
 	if config.Timeout <= 0 {
 		config.Timeout = 5 * time.Second
 	}
-	
-	// Resolve the remote DNS server address.
+
 	remoteAddr, err := net.ResolveUDPAddr("udp4", config.RemoteAddr)
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve remote address: %w", err)
 	}
-	
-	dnsConn, err := net.DialUDP("udp4", nil, remoteAddr)
+
+	udpConn, err := net.DialUDP("udp4", nil, remoteAddr)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to DNS server: %w", err)
 	}
-	
-	// Create ARQ instance with proper parameters
-	enqueuer := &dnsEnqueuer{
-		conn:       dnsConn,
-		remoteAddr: remoteAddr,
-		domain:     config.Domain,
-	}
-	
-	wrapper := &dnsConnWrapper{
-		conn:       dnsConn,
-		remoteAddr: remoteAddr,
-		domain:     config.Domain,
-		readBuf:    make([]byte, 1500),
-	}
-	
+
 	ctx, cancel := context.WithCancel(context.Background())
-	
-	arqInstance := arqpkg.NewARQ(
-		1,      // streamID
-		1,      // sessionID
-		enqueuer,
-		wrapper,
-		1200,   // MTU
-		noopLogger{},
-		config.ARQConfig,
-	)
-	
-	client := &Client{
+
+	return &Client{
 		config:    config,
-		innerConn: innerConn,
-		dnsConn:   dnsConn,
-		arq:       arqInstance,
+		remoteUDP: remoteAddr,
+		conn:      udpConn,
+		readBuf:   make([]byte, 8192),
 		ctx:       ctx,
 		cancel:    cancel,
+	}, nil
+}
+
+// Write takes payload bytes, encodes them in Base32 chunks, and sends them via DNS queries.
+func (c *Client) Write(p []byte) (int, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.closed {
+		return 0, io.ErrClosedPipe
 	}
-	
-	// Start ARQ background workers
-	arqInstance.Start()
-	
-	client.wg.Add(1)
-	go client.background()
-	
-	return client, nil
+
+	totalWritten := len(p)
+	// Chunk size 100 bytes -> 160 chars Base32, safe for DNS labels
+	chunkSize := 100
+	offset := 0
+
+	for offset < len(p) {
+		end := offset + chunkSize
+		if end > len(p) {
+			end = len(p)
+		}
+
+		chunk := p[offset:end]
+		encoded := basecodec.EncodeLowerBase32(chunk)
+
+		// Split into 63-char DNS labels
+		var labels []string
+		for len(encoded) > 0 {
+			take := 63
+			if len(encoded) < take {
+				take = len(encoded)
+			}
+			labels = append(labels, encoded[:take])
+			encoded = encoded[take:]
+		}
+
+		var qnameBuilder strings.Builder
+		for i, label := range labels {
+			if i > 0 {
+				qnameBuilder.WriteString(".")
+			}
+			qnameBuilder.WriteString(label)
+		}
+		if qnameBuilder.Len() > 0 {
+			qnameBuilder.WriteString(".")
+		}
+		qnameBuilder.WriteString(c.config.Domain)
+		qname := qnameBuilder.String()
+
+		msg := dnsmessage.Message{
+			Header: dnsmessage.Header{
+				ID:               0x1337,
+				RecursionDesired: true,
+			},
+			Questions: []dnsmessage.Question{
+				{
+					Name:  dnsmessage.MustNewName(qname + "."),
+					Type:  dnsmessage.TypeTXT,
+					Class: dnsmessage.ClassINET,
+				},
+			},
+		}
+
+		packed, err := msg.Pack()
+		if err != nil {
+			return offset, err
+		}
+
+		c.conn.SetWriteDeadline(time.Now().Add(c.config.Timeout))
+		if _, err := c.conn.Write(packed); err != nil {
+			return offset, err
+		}
+
+		offset = end
+	}
+
+	return totalWritten, nil
 }
 
-// background runs the ARQ event loop.
-func (c *Client) background() {
-	defer c.wg.Done()
-	
-	// Wait for context cancellation
-	<-c.ctx.Done()
-	c.arq.Close("context cancelled", arqpkg.CloseOptions{})
+// Read reads and parses incoming DNS responses and decodes their TXT payloads.
+func (c *Client) Read(p []byte) (int, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.closed {
+		return 0, io.EOF
+	}
+
+	for c.readPos >= c.readLen {
+		c.conn.SetReadDeadline(time.Now().Add(c.config.Timeout))
+		rawBuf := make([]byte, 4096)
+		n, err := c.conn.Read(rawBuf)
+		if err != nil {
+			return 0, err
+		}
+
+		var resp dnsmessage.Message
+		if err := resp.Unpack(rawBuf[:n]); err != nil {
+			continue
+		}
+
+		for _, ans := range resp.Answers {
+			if ans.Header.Type == dnsmessage.TypeTXT {
+				if txt, ok := ans.Body.(*dnsmessage.TXTResource); ok {
+					for _, item := range txt.TXT {
+						decoded, err := basecodec.DecodeLowerBase32String(item)
+						if err == nil && len(decoded) > 0 {
+							c.readBuf = append(c.readBuf[:0], decoded...)
+							c.readLen = len(decoded)
+							c.readPos = 0
+							break
+						}
+					}
+				}
+			}
+		}
+	}
+
+	n := copy(p, c.readBuf[c.readPos:c.readLen])
+	c.readPos += n
+	return n, nil
 }
 
-// Close closes the client tunnel connection.
+// Close terminates the client connection.
 func (c *Client) Close() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.closed {
+		return nil
+	}
+	c.closed = true
 	c.cancel()
-	c.wg.Wait()
-	c.dnsConn.Close()
-	return c.innerConn.Close()
+	return c.conn.Close()
 }
 
-// Read reads data from the tunnel (from the inner connection).
-func (c *Client) Read(b []byte) (int, error) {
-	return c.innerConn.Read(b)
-}
-
-// Write writes data to the tunnel (to the inner connection).
-func (c *Client) Write(b []byte) (int, error) {
-	return c.innerConn.Write(b)
-}
-
-// Server represents a server-side tunnel connection.
+// Server handles incoming DNS queries, forwards payload to TargetAddr, and responds with TXT.
 type Server struct {
 	config     Config
 	packetConn net.PacketConn
-	sessions   map[string]*session
-	mu         sync.RWMutex
+	sessions   map[string]net.Conn
+	mu         sync.Mutex
 	ctx        context.Context
 	cancel     context.CancelFunc
 	wg         sync.WaitGroup
-}
-
-// session holds the state for a client session.
-type session struct {
-	server     *Server
-	arq        *arqpkg.ARQ
-	targetAddr string
-	conn       net.Conn
-	clientAddr net.Addr
-	domain     string
-	ctx        context.Context
-	cancel     context.CancelFunc
-	wg         sync.WaitGroup
-}
-
-// serverEnqueuer implements PacketEnqueuer for server-side DNS responses
-type serverEnqueuer struct {
-	conn      net.PacketConn
-	clientAddr net.Addr
-	domain    string
-	mu        sync.Mutex
-}
-
-func (e *serverEnqueuer) PushTXPacket(priority int, packetType uint8, sequenceNum uint16, fragmentID uint8, totalFragments uint8, compressionType uint8, ttl time.Duration, payload []byte) bool {
-	encoded := basecodec.EncodeLowerBase32(payload)
-	
-	// Build DNS response with TXT record
-	var labels []string
-	for len(encoded) > 0 {
-		if len(encoded) > 63 {
-			labels = append(labels, encoded[:63])
-			encoded = encoded[63:]
-		} else {
-			labels = append(labels, encoded)
-			encoded = ""
-		}
-	}
-	
-	// Build TXT response
-	msg := dnsmessage.Message{
-		Header: dnsmessage.Header{
-			ID:       0, // Will be set by caller
-			Response: true,
-		},
-		Questions: []dnsmessage.Question{
-			{
-				Name:  dnsmessage.MustNewName(""),
-				Type:  dnsmessage.TypeA,
-				Class: dnsmessage.ClassINET,
-			},
-		},
-		Answers: []dnsmessage.Resource{
-			{
-				Header: dnsmessage.ResourceHeader{
-					Name:  dnsmessage.MustNewName(""),
-					Type:  dnsmessage.TypeTXT,
-					Class: dnsmessage.ClassINET,
-					TTL:   60,
-				},
-				Body: &dnsmessage.TXTResource{TXT: []string{strings.Join(labels, "")}},
-			},
-		},
-	}
-	
-	msgBuf, err := msg.Pack()
-	if err != nil {
-		return false
-	}
-	
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	e.conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
-	_, err = e.conn.WriteTo(msgBuf, e.clientAddr)
-	return err == nil
 }
 
 // NewServer creates a new server tunnel connection.
@@ -364,232 +233,136 @@ func NewServer(config Config) (*Server, error) {
 	if config.Timeout <= 0 {
 		config.Timeout = 5 * time.Second
 	}
-	
+
 	addr, err := net.ResolveUDPAddr("udp4", config.LocalAddr)
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve local address: %w", err)
 	}
-	
+
 	packetConn, err := net.ListenUDP("udp4", addr)
 	if err != nil {
 		return nil, fmt.Errorf("failed to listen on UDP: %w", err)
 	}
-	
+
 	ctx, cancel := context.WithCancel(context.Background())
-	
+
 	s := &Server{
 		config:     config,
 		packetConn: packetConn,
-		sessions:   make(map[string]*session),
+		sessions:   make(map[string]net.Conn),
 		ctx:        ctx,
 		cancel:     cancel,
 	}
-	
+
 	s.wg.Add(1)
-	go s.background()
-	
+	go s.serve()
+
 	return s, nil
 }
 
-// background runs the server event loop to handle incoming DNS queries.
-func (s *Server) background() {
+func (s *Server) serve() {
 	defer s.wg.Done()
-	
-	buf := make([]byte, 1500)
-	
+	buf := make([]byte, 4096)
+
 	for {
 		select {
 		case <-s.ctx.Done():
 			return
 		default:
 			s.packetConn.SetReadDeadline(time.Now().Add(1 * time.Second))
-			n, src, err := s.packetConn.ReadFrom(buf)
+			n, clientAddr, err := s.packetConn.ReadFrom(buf)
 			if err != nil {
-				if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
-					continue
-				}
 				continue
 			}
-			
-			// Parse DNS query
+
 			var msg dnsmessage.Message
-			if err := msg.Unpack(buf[:n]); err != nil {
+			if err := msg.Unpack(buf[:n]); err != nil || len(msg.Questions) == 0 {
 				continue
 			}
-			
-			if len(msg.Questions) != 1 {
+
+			q := msg.Questions[0]
+			qname := q.Name.String()
+			trimmed := strings.TrimSuffix(qname, ".")
+
+			if !strings.HasSuffix(trimmed, s.config.Domain) {
 				continue
 			}
-			
-			question := msg.Questions[0]
-			nameStr := question.Name.String()
-			
-			// Check if query is for our domain
-			if !hasSuffix(nameStr, s.config.Domain) {
+
+			sub := strings.TrimSuffix(trimmed, "."+s.config.Domain)
+			sub = strings.ReplaceAll(sub, ".", "")
+
+			payload, err := basecodec.DecodeLowerBase32String(sub)
+			if err != nil || len(payload) == 0 {
 				continue
 			}
-			
-			// Extract client IP as session key
-			clientIP := src.String()
-			
-			// Get or create session
+
+			// Forward payload to TargetAddr
+			clientKey := clientAddr.String()
 			s.mu.Lock()
-			sess, exists := s.sessions[clientIP]
-			if !exists {
-				sess = s.newSession(clientIP, src)
-				s.sessions[clientIP] = sess
+			conn, exists := s.sessions[clientKey]
+			if !exists || conn == nil {
+				c, dialErr := net.DialTimeout("tcp", s.config.TargetAddr, 3*time.Second)
+				if dialErr == nil {
+					s.sessions[clientKey] = c
+					conn = c
+				}
 			}
 			s.mu.Unlock()
-			
-			// Handle the query in the session
-			sess.handleQuery(msg, question, src)
-		}
-	}
-}
 
-func hasSuffix(s, suffix string) bool {
-	if len(s) < len(suffix) {
-		return false
-	}
-	return s[len(s)-len(suffix):] == suffix
-}
+			var replyData []byte
+			if conn != nil {
+				conn.SetDeadline(time.Now().Add(2 * time.Second))
+				_, _ = conn.Write(payload)
 
-func (s *Server) newSession(clientIP string, src net.Addr) *session {
-	ctx, cancel := context.WithCancel(s.ctx)
-	sess := &session{
-		server:     s,
-		targetAddr: s.config.TargetAddr,
-		clientAddr: src,
-		domain:     s.config.Domain,
-		ctx:        ctx,
-		cancel:     cancel,
-	}
-	sess.wg.Add(1)
-	go sess.run()
-	return sess
-}
-
-func (sess *session) run() {
-	defer sess.wg.Done()
-	
-	// Connect to target
-	conn, err := net.Dial("tcp", sess.targetAddr)
-	if err != nil {
-		return
-	}
-	sess.conn = conn
-	
-	// Create ARQ for this session
-	enqueuer := &serverEnqueuer{
-		conn:       sess.server.packetConn,
-		clientAddr: sess.clientAddr,
-		domain:     sess.domain,
-	}
-	
-	wrapper := &dnsConnWrapper{
-		conn:       sess.server.packetConn.(*net.UDPConn),
-		remoteAddr: sess.clientAddr.(*net.UDPAddr),
-		domain:     sess.domain,
-		readBuf:    make([]byte, 1500),
-	}
-	
-	sess.arq = arqpkg.NewARQ(
-		1, 1, enqueuer, wrapper, 1200, noopLogger{}, sess.server.config.ARQConfig,
-	)
-	
-	// Start ARQ background workers
-	sess.arq.Start()
-	
-	// Forward data between ARQ and target
-	go func() {
-		buf := make([]byte, 1500)
-		for {
-			select {
-			case <-sess.ctx.Done():
-				return
-			default:
-				sess.conn.SetReadDeadline(time.Now().Add(10 * time.Second))
-				n, err := sess.conn.Read(buf)
-				if err != nil {
-					return
+				respBuf := make([]byte, 512)
+				rn, rerr := conn.Read(respBuf)
+				if rerr == nil && rn > 0 {
+					replyData = respBuf[:rn]
 				}
-				// Write to ARQ through the localConn (which is wrapper)
-				_, _ = wrapper.Write(buf[:n])
+			}
+
+			// Send DNS response with TXT answer
+			respMsg := dnsmessage.Message{
+				Header: dnsmessage.Header{
+					ID:       msg.Header.ID,
+					Response: true,
+				},
+				Questions: []dnsmessage.Question{q},
+			}
+
+			if len(replyData) > 0 {
+				encodedReply := basecodec.EncodeLowerBase32(replyData)
+				respMsg.Answers = append(respMsg.Answers, dnsmessage.Resource{
+					Header: dnsmessage.ResourceHeader{
+						Name:  q.Name,
+						Type:  dnsmessage.TypeTXT,
+						Class: dnsmessage.ClassINET,
+						TTL:   30,
+					},
+					Body: &dnsmessage.TXTResource{
+						TXT: []string{encodedReply},
+					},
+				})
+			}
+
+			packed, err := respMsg.Pack()
+			if err == nil {
+				s.packetConn.WriteTo(packed, clientAddr)
 			}
 		}
-	}()
-	
-	<-sess.ctx.Done()
-	sess.arq.Close("context cancelled", arqpkg.CloseOptions{})
-	sess.conn.Close()
+	}
 }
 
-func (sess *session) handleQuery(msg dnsmessage.Message, question dnsmessage.Question, src net.Addr) {
-	// Extract data from subdomain
-	nameStr := question.Name.String()
-	subdomain := extractSubdomain(nameStr, sess.domain)
-	if subdomain == "" {
-		// Send empty response
-		response := dnsmessage.Message{
-			Header: dnsmessage.Header{
-				ID:       msg.Header.ID,
-				Response: true,
-			},
-			Questions: []dnsmessage.Question{question},
-		}
-		responseBuf, _ := response.Pack()
-		sess.server.packetConn.WriteTo(responseBuf, src)
-		return
-	}
-	
-	// Decode Base32 data
-	_, err := basecodec.DecodeLowerBase32String(subdomain)
-	if err != nil {
-		return
-	}
-	
-	// Feed data to ARQ through the localConn (wrapper)
-	// Data is processed by ARQ's background workers reading from localConn
-	_ = sess.arq
-	
-	// Send DNS response with TXT record containing data
-	encoded := basecodec.EncodeLowerBase32(nil) // placeholder for response data
-	response := dnsmessage.Message{
-		Header: dnsmessage.Header{
-			ID:       msg.Header.ID,
-			Response: true,
-		},
-		Questions: []dnsmessage.Question{question},
-		Answers: []dnsmessage.Resource{
-			{
-				Header: dnsmessage.ResourceHeader{
-					Name:  question.Name,
-					Type:  dnsmessage.TypeTXT,
-					Class: dnsmessage.ClassINET,
-					TTL:   60,
-				},
-				Body: &dnsmessage.TXTResource{TXT: []string{encoded}},
-			},
-		},
-	}
-	responseBuf, _ := response.Pack()
-	sess.server.packetConn.WriteTo(responseBuf, src)
-}
-
-func extractSubdomain(name, domain string) string {
-	// Remove domain suffix
-	if !hasSuffix(name, "."+domain) && name != domain {
-		return ""
-	}
-	if name == domain {
-		return ""
-	}
-	return strings.TrimSuffix(name, "."+domain)
-}
-
-// Close closes the server tunnel connection.
+// Close terminates the server.
 func (s *Server) Close() error {
 	s.cancel()
 	s.wg.Wait()
+	s.mu.Lock()
+	for _, c := range s.sessions {
+		if c != nil {
+			c.Close()
+		}
+	}
+	s.mu.Unlock()
 	return s.packetConn.Close()
 }

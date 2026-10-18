@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/doodoolyasin/meli/pkg/tunnel"
-	"github.com/doodoolyasin/meli/pkg/tunnel/arq"
 )
 
 func main() {
@@ -37,26 +36,11 @@ func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
-	// ARQ configuration
-	arqCfg := arq.Config{
-		WindowSize:               512,
-		RTO:                      0.2,
-		MaxRTO:                   2.0,
-		InactivityTimeout:        120,
-		DataPacketTTL:            120,
-		MaxDataRetries:           60,
-		TerminalDrainTimeout:     60,
-		TerminalAckWaitTimeout:   30,
-		IsClient:                 true,
-		InboundQueueSize:         2048,
-	}
-
 	// Tunnel configuration
 	tunCfg := tunnel.Config{
 		RemoteAddr: *remoteAddr,
 		Domain:     *domain,
 		Timeout:    *timeout,
-		ARQConfig:  arqCfg,
 	}
 
 	// Listen for SOCKS5 connections
