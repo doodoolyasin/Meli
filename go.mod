@@ -2,6 +2,8 @@ module github.com/doodoolyasin/meli
 
 go 1.23
 
+replace github.com/doodoolyasin/meli => ./
+
 require (
 	github.com/BurntSushi/toml v1.4.0
 	github.com/google/gopacket v1.1.19
