@@ -68,10 +68,45 @@ func buildEDNS0(optionCode uint16, optionData []byte) []byte {
 	return buf
 }
 
-// QUICDCIDStego hides data in the Destination Connection ID field of a QUIC Initial packet.
-// Placeholder: just returns data (real implementation would construct QUIC packet).
+// QUICDCIDStego embeds covert tunnel data (up to 20 bytes) inside the Destination Connection ID (DCID)
+// of an authentic RFC 9000 QUIC Initial packet, camouflaging tunnel signaling as HTTPS/QUIC traffic.
 func QUICDCIDStego(data []byte) []byte {
-	// In reality, we would set DCID to data (up to 20 bytes) and construct QUIC header.
-	// For now just return data.
-	return data
+	// DCID in QUIC v1 can be up to 20 bytes
+	dcidLen := len(data)
+	if dcidLen > 20 {
+		dcidLen = 20
+	}
+	dcid := make([]byte, dcidLen)
+	copy(dcid, data[:dcidLen])
+
+	// QUIC Long Header Initial Packet (RFC 9000 Section 17.2.2)
+	// Byte 0: Header Form (1) | Fixed Bit (1) | Long Packet Type 0x00 (Initial) | Reserved (0) | Packet Number Length (0)
+	buf := make([]byte, 0, 64)
+	buf = append(buf, 0xC0)
+
+	// Version: QUIC v1 (0x00000001)
+	buf = append(buf, 0x00, 0x00, 0x00, 0x01)
+
+	// Destination Connection ID Length + DCID (holding our covert data)
+	buf = append(buf, byte(dcidLen))
+	buf = append(buf, dcid...)
+
+	// Source Connection ID Length + SCID (dummy 8-byte server connection ID)
+	scid := []byte{0xDE, 0xAD, 0xBE, 0xEF, 0x01, 0x02, 0x03, 0x04}
+	buf = append(buf, byte(len(scid)))
+	buf = append(buf, scid...)
+
+	// Token Length: 0 (varint 0x00)
+	buf = append(buf, 0x00)
+
+	// Length: Length of Packet Number (1) + Payload (minimum 4 bytes padding) = 5
+	buf = append(buf, 0x05)
+
+	// 1-byte Packet Number: 0x01
+	buf = append(buf, 0x01)
+
+	// PADDING frames (0x00)
+	buf = append(buf, 0x00, 0x00, 0x00, 0x00)
+
+	return buf
 }

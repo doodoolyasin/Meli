@@ -13,13 +13,14 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/doodoolyasin/meli/pkg/hunter"
 	"github.com/doodoolyasin/meli/pkg/tunnel"
 )
 
 func main() {
 	var (
-		remoteAddr = flag.String("remote", "", "Remote DNS server address (e.g., 8.8.8.8:53)")
-		domain     = flag.String("domain", "", "Domain for tunneling (e.g., tunnel.example.com)")
+		remoteAddr = flag.String("remote", "", "Remote DNS server address (or leave empty for auto-hunting Iranian resolvers)")
+		domain     = flag.String("domain", "", "Domain for tunneling (e.g., m.dolphin.work.gd)")
 		socksAddr  = flag.String("socks", "127.0.0.1:1080", "SOCKS5 listen address")
 		key        = flag.String("key", "137e43fd04a5b9dfdaf29e103fddcce2", "Pre-shared encryption key")
 		timeout    = flag.Duration("timeout", 5*time.Second, "DNS query timeout")
@@ -27,7 +28,7 @@ func main() {
 	)
 	flag.Parse()
 
-	if *help || *remoteAddr == "" || *domain == "" {
+	if *help || *domain == "" {
 		fmt.Fprintf(os.Stderr, "Meli DNS Tunnel Client\n\n")
 		flag.PrintDefaults()
 		os.Exit(1)
@@ -37,9 +38,28 @@ func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
+	activeRemote := *remoteAddr
+	if activeRemote == "" || activeRemote == "auto" {
+		log.Println("Resolver auto-hunt active: loading 7854 Iranian resolvers from database...")
+		h, err := hunter.NewResolverHunter()
+		if err == nil {
+			h.Start()
+			// Wait briefly for first responsive resolver
+			time.Sleep(1 * time.Second)
+			best := h.Best()
+			if best != nil {
+				activeRemote = net.JoinHostPort(best.String(), "53")
+				log.Printf("Selected fastest Iranian resolver: %s", activeRemote)
+			}
+		}
+		if activeRemote == "" || activeRemote == "auto" {
+			activeRemote = "8.8.8.8:53"
+		}
+	}
+
 	// Tunnel configuration
 	tunCfg := tunnel.Config{
-		RemoteAddr: *remoteAddr,
+		RemoteAddr: activeRemote,
 		Domain:     *domain,
 		Key:        []byte(*key),
 		Timeout:    *timeout,
