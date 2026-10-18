@@ -18,6 +18,7 @@ func main() {
 		listenAddr = flag.String("listen", "0.0.0.0:5053", "UDP listen address")
 		domain     = flag.String("domain", "", "Domain for tunneling (e.g., tunnel.example.com)")
 		targetAddr = flag.String("target", "", "Target address to forward traffic to (e.g., 127.0.0.1:8080 or socks5://...)")
+		key        = flag.String("key", "137e43fd04a5b9dfdaf29e103fddcce2", "Pre-shared encryption key")
 		timeout    = flag.Duration("timeout", 5*time.Second, "DNS query timeout")
 		help       = flag.Bool("help", false, "Show help")
 	)
@@ -38,6 +39,7 @@ func main() {
 		LocalAddr:  *listenAddr,
 		Domain:     *domain,
 		TargetAddr: *targetAddr,
+		Key:        []byte(*key),
 		Timeout:    *timeout,
 	}
 

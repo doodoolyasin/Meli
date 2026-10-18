@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	Enums "masterdnsvpn-go/internal/enums"
+	Enums "github.com/doodoolyasin/meli/pkg/tunnel/enums"
 )
 
 // MockPacketEnqueuer captures packets sent by ARQ

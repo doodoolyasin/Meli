@@ -49,6 +49,10 @@ class MeliVpnService : VpnService() {
     private var dnsSocket: DatagramSocket? = null
     private var serverAddress: String = ""
     private var domain: String = ""
+    private var sessionID: Byte = (System.currentTimeMillis() and 0xFF).toByte()
+    private val seqCounter = java.util.concurrent.atomic.AtomicInteger(1)
+    private val presharedKey = "137e43fd04a5b9dfdaf29e103fddcce2".toByteArray()
+    private val reassembler = MeliProto.Reassembler()
     private val running = AtomicBoolean(false)
     private val handler = Handler(Looper.getMainLooper())
     private var scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -143,14 +147,27 @@ class MeliVpnService : VpnService() {
                     continue
                 }
                 
-                // Chunk packet so FQDN does not exceed 253 bytes limit
+                // Compress and fragment packet so FQDN does not exceed 253 bytes limit
                 val rawData = buffer.array().copyOfRange(0, bytesRead)
-                val chunkSize = 100 // 100 bytes binary = 160 bytes Base32
-                var offset = 0
-                while (offset < rawData.size) {
-                    val end = minOf(offset + chunkSize, rawData.size)
-                    sendPacketViaDns(rawData.copyOfRange(offset, end))
-                    offset = end
+                val compressed = MeliProto.compress(rawData)
+
+                val chunkSize = 90
+                val totalLen = compressed.size
+                val totFrags = ((totalLen + chunkSize - 1) / chunkSize).coerceAtLeast(1).toByte()
+                val seq = (seqCounter.getAndIncrement() and 0xFFFF).toShort()
+
+                for (frag in 0 until totFrags.toInt()) {
+                    val start = frag * chunkSize
+                    val end = minOf(start + chunkSize, totalLen)
+                    val rawChunk = compressed.copyOfRange(start, end)
+
+                    val iv = MeliProto.deriveIV(sessionID, seq, frag.toByte())
+                    val encChunk = MeliProto.cryptAESCTR(presharedKey, iv, rawChunk)
+
+                    val frame = MeliProto.Frame(
+                        sessionID, seq, frag.toByte(), totFrags, 0, encChunk
+                    )
+                    sendFrameViaDns(frame)
                 }
                 
                 buffer.clear()
@@ -194,10 +211,11 @@ class MeliVpnService : VpnService() {
         }
     }
 
-    private fun sendPacketViaDns(chunk: ByteArray) {
+    private fun sendFrameViaDns(frame: MeliProto.Frame) {
         try {
             val socket = dnsSocket ?: return
-            val encoded = Base32.encode(chunk)
+            val packed = frame.pack()
+            val encoded = Base32.encode(packed)
             if (encoded.isEmpty()) return
             
             // Split into labels (max 63 chars each)
@@ -216,7 +234,7 @@ class MeliVpnService : VpnService() {
             }
             nameBuilder.append(".").append(domain)
             
-            val query = buildDnsQuery(nameBuilder.toString())
+            val query = buildDnsQuery(nameBuilder.toString(), frame.seq)
             
             val host = if (serverAddress.contains(":")) serverAddress.substringBefore(":") else serverAddress
             val port = if (serverAddress.contains(":")) serverAddress.substringAfter(":").toIntOrNull() ?: 53 else 53
@@ -228,9 +246,9 @@ class MeliVpnService : VpnService() {
         }
     }
 
-    private fun buildDnsQuery(qname: String): ByteArray {
+    private fun buildDnsQuery(qname: String, queryId: Short): ByteArray {
         val buffer = ByteBuffer.allocate(512)
-        buffer.putShort(0x1234.toShort()) // ID
+        buffer.putShort(queryId) // ID matches sequence number
         buffer.putShort(0x0100.toShort()) // Flags: standard query, recursion desired
         buffer.putShort(1.toShort())      // QDCOUNT = 1
         buffer.putShort(0.toShort())      // ANCOUNT = 0
@@ -244,7 +262,7 @@ class MeliVpnService : VpnService() {
             }
         }
         buffer.put(0.toByte()) // Null terminator
-        buffer.putShort(1.toShort())  // QTYPE = A
+        buffer.putShort(16.toShort()) // QTYPE = TXT (16)
         buffer.putShort(1.toShort())  // QCLASS = IN
         
         return buffer.array().copyOf(buffer.position())
@@ -282,7 +300,17 @@ class MeliVpnService : VpnService() {
                     val txtLen = data[pos].toInt() and 0xFF
                     if (txtLen in 1 until rdlength) {
                         val txtStr = String(data, pos + 1, txtLen)
-                        return Base32.decode(txtStr)
+                        val decoded = Base32.decode(txtStr)
+                        val frame = MeliProto.unpack(decoded)
+                        if (frame != null) {
+                            val iv = MeliProto.deriveIV(frame.sessionId, frame.seq, frame.frag)
+                            val decPayload = MeliProto.cryptAESCTR(presharedKey, iv, frame.payload)
+                            frame.payload = decPayload
+                            val full = reassembler.add(frame)
+                            if (full != null) {
+                                return MeliProto.decompress(full)
+                            }
+                        }
                     }
                 }
                 pos += rdlength

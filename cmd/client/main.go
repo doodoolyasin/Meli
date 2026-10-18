@@ -21,8 +21,9 @@ func main() {
 		remoteAddr = flag.String("remote", "", "Remote DNS server address (e.g., 8.8.8.8:53)")
 		domain     = flag.String("domain", "", "Domain for tunneling (e.g., tunnel.example.com)")
 		socksAddr  = flag.String("socks", "127.0.0.1:1080", "SOCKS5 listen address")
-			timeout    = flag.Duration("timeout", 5*time.Second, "DNS query timeout")
-			help       = flag.Bool("help", false, "Show help")
+		key        = flag.String("key", "137e43fd04a5b9dfdaf29e103fddcce2", "Pre-shared encryption key")
+		timeout    = flag.Duration("timeout", 5*time.Second, "DNS query timeout")
+		help       = flag.Bool("help", false, "Show help")
 	)
 	flag.Parse()
 
@@ -40,6 +41,7 @@ func main() {
 	tunCfg := tunnel.Config{
 		RemoteAddr: *remoteAddr,
 		Domain:     *domain,
+		Key:        []byte(*key),
 		Timeout:    *timeout,
 	}
 

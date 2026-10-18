@@ -7,9 +7,11 @@ import (
 	"net"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/doodoolyasin/meli/pkg/tunnel/basecodec"
+	"github.com/doodoolyasin/meli/pkg/tunnel/proto"
 	"golang.org/x/net/dns/dnsmessage"
 )
 
@@ -19,26 +21,31 @@ type Config struct {
 	LocalAddr string
 	// RemoteAddr is the remote DNS server address (e.g. "8.8.8.8:53").
 	RemoteAddr string
-	// Domain is the domain name used for tunneling (e.g. "tunnel.example.com").
+	// Domain is the domain name used for tunneling (e.g. "m.dolphin.work.gd").
 	Domain string
 	// TargetAddr is the target address for server-side forwarding (e.g. "127.0.0.1:8080").
 	TargetAddr string
+	// Key is the pre-shared encryption key.
+	Key []byte
 	// Timeout is the timeout for DNS operations.
 	Timeout time.Duration
 }
 
-// Client represents a client-side DNS tunnel connection implementing io.ReadWriteCloser.
+// Client represents an encrypted, compressed DNS tunnel connection implementing io.ReadWriteCloser.
 type Client struct {
-	config     Config
-	remoteUDP  *net.UDPAddr
-	conn       *net.UDPConn
-	readBuf    []byte
-	readPos    int
-	readLen    int
-	mu         sync.Mutex
-	ctx        context.Context
-	cancel     context.CancelFunc
-	closed     bool
+	config      Config
+	remoteUDP   *net.UDPAddr
+	conn        *net.UDPConn
+	reassembler *proto.ReassemblyBuffer
+	sessionID   uint8
+	seqCounter  uint32
+	readBuf     []byte
+	readPos     int
+	readLen     int
+	mu          sync.Mutex
+	ctx         context.Context
+	cancel      context.CancelFunc
+	closed      bool
 }
 
 // NewClient creates a new client tunnel connection.
@@ -48,6 +55,9 @@ func NewClient(config Config, _ net.Conn) (*Client, error) {
 	}
 	if config.Domain == "" {
 		return nil, fmt.Errorf("client config Domain is required")
+	}
+	if len(config.Key) == 0 {
+		config.Key = []byte("137e43fd04a5b9dfdaf29e103fddcce2")
 	}
 	if config.Timeout <= 0 {
 		config.Timeout = 5 * time.Second
@@ -66,16 +76,18 @@ func NewClient(config Config, _ net.Conn) (*Client, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	return &Client{
-		config:    config,
-		remoteUDP: remoteAddr,
-		conn:      udpConn,
-		readBuf:   make([]byte, 8192),
-		ctx:       ctx,
-		cancel:    cancel,
+		config:      config,
+		remoteUDP:   remoteAddr,
+		conn:        udpConn,
+		reassembler: proto.NewReassemblyBuffer(),
+		sessionID:   uint8(time.Now().UnixNano() & 0xFF),
+		readBuf:     make([]byte, 65536),
+		ctx:         ctx,
+		cancel:      cancel,
 	}, nil
 }
 
-// Write takes payload bytes, encodes them in Base32 chunks, and sends them via DNS queries.
+// Write compresses, fragments, encrypts, and sends payload over DNS queries.
 func (c *Client) Write(p []byte) (int, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -84,21 +96,50 @@ func (c *Client) Write(p []byte) (int, error) {
 		return 0, io.ErrClosedPipe
 	}
 
-	totalWritten := len(p)
-	// Chunk size 100 bytes -> 160 chars Base32, safe for DNS labels
-	chunkSize := 100
-	offset := 0
+	// Step 1: Compress payload
+	compressed := proto.Compress(p)
 
-	for offset < len(p) {
-		end := offset + chunkSize
-		if end > len(p) {
-			end = len(p)
+	// Step 2: Fragment into chunks of max 90 bytes so that after header (7B) = 97B -> Base32 = 156 chars (well within 253 limit)
+	chunkSize := 90
+	totalLen := len(compressed)
+	totFrags := uint8((totalLen + chunkSize - 1) / chunkSize)
+	if totFrags == 0 {
+		totFrags = 1
+	}
+
+	seq := uint16(atomic.AddUint32(&c.seqCounter, 1))
+
+	for frag := uint8(0); frag < totFrags; frag++ {
+		start := int(frag) * chunkSize
+		end := start + chunkSize
+		if end > totalLen {
+			end = totalLen
 		}
 
-		chunk := p[offset:end]
-		encoded := basecodec.EncodeLowerBase32(chunk)
+		rawChunk := compressed[start:end]
 
-		// Split into 63-char DNS labels
+		// Step 3: Encrypt chunk with AES-CTR
+		iv := proto.DeriveIV(c.sessionID, seq, frag)
+		encChunk, err := proto.CryptAESCTR(c.config.Key, iv, rawChunk)
+		if err != nil {
+			return 0, err
+		}
+
+		// Step 4: Pack into Meli Frame
+		frame := &proto.Frame{
+			SessionID: c.sessionID,
+			Seq:       seq,
+			Frag:      frag,
+			Tot:       totFrags,
+			Flags:     0x00,
+			Payload:   encChunk,
+		}
+		packedFrame := frame.Pack()
+
+		// Step 5: Encode in LowerBase32
+		encoded := basecodec.EncodeLowerBase32(packedFrame)
+
+		// Step 6: Format into DNS Labels (max 63 chars each)
 		var labels []string
 		for len(encoded) > 0 {
 			take := 63
@@ -124,7 +165,7 @@ func (c *Client) Write(p []byte) (int, error) {
 
 		msg := dnsmessage.Message{
 			Header: dnsmessage.Header{
-				ID:               0x1337,
+				ID:               seq,
 				RecursionDesired: true,
 			},
 			Questions: []dnsmessage.Question{
@@ -136,23 +177,21 @@ func (c *Client) Write(p []byte) (int, error) {
 			},
 		}
 
-		packed, err := msg.Pack()
+		packedDNS, err := msg.Pack()
 		if err != nil {
-			return offset, err
+			return 0, err
 		}
 
 		c.conn.SetWriteDeadline(time.Now().Add(c.config.Timeout))
-		if _, err := c.conn.Write(packed); err != nil {
-			return offset, err
+		if _, err := c.conn.Write(packedDNS); err != nil {
+			return 0, err
 		}
-
-		offset = end
 	}
 
-	return totalWritten, nil
+	return len(p), nil
 }
 
-// Read reads and parses incoming DNS responses and decodes their TXT payloads.
+// Read reads, decodes Base32, decrypts, reassembles, and decompresses server responses.
 func (c *Client) Read(p []byte) (int, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -179,11 +218,31 @@ func (c *Client) Read(p []byte) (int, error) {
 				if txt, ok := ans.Body.(*dnsmessage.TXTResource); ok {
 					for _, item := range txt.TXT {
 						decoded, err := basecodec.DecodeLowerBase32String(item)
-						if err == nil && len(decoded) > 0 {
-							c.readBuf = append(c.readBuf[:0], decoded...)
-							c.readLen = len(decoded)
-							c.readPos = 0
-							break
+						if err != nil || len(decoded) < proto.HeaderLen {
+							continue
+						}
+
+						frame, err := proto.Unpack(decoded)
+						if err != nil {
+							continue
+						}
+
+						iv := proto.DeriveIV(frame.SessionID, frame.Seq, frame.Frag)
+						decChunk, err := proto.CryptAESCTR(c.config.Key, iv, frame.Payload)
+						if err != nil {
+							continue
+						}
+
+						frame.Payload = decChunk
+						fullMsg := c.reassembler.Add(frame)
+						if fullMsg != nil {
+							decompressed, err := proto.Decompress(fullMsg)
+							if err == nil && len(decompressed) > 0 {
+								c.readBuf = append(c.readBuf[:0], decompressed...)
+								c.readLen = len(decompressed)
+								c.readPos = 0
+								break
+							}
 						}
 					}
 				}
@@ -208,15 +267,16 @@ func (c *Client) Close() error {
 	return c.conn.Close()
 }
 
-// Server handles incoming DNS queries, forwards payload to TargetAddr, and responds with TXT.
+// Server handles incoming DNS queries with AES-CTR decryption, decompressing, forwarding, and responding with TXT.
 type Server struct {
-	config     Config
-	packetConn net.PacketConn
-	sessions   map[string]net.Conn
-	mu         sync.Mutex
-	ctx        context.Context
-	cancel     context.CancelFunc
-	wg         sync.WaitGroup
+	config      Config
+	packetConn  net.PacketConn
+	reassembler *proto.ReassemblyBuffer
+	sessions    map[string]net.Conn
+	mu          sync.Mutex
+	ctx         context.Context
+	cancel      context.CancelFunc
+	wg          sync.WaitGroup
 }
 
 // NewServer creates a new server tunnel connection.
@@ -229,6 +289,9 @@ func NewServer(config Config) (*Server, error) {
 	}
 	if config.TargetAddr == "" {
 		return nil, fmt.Errorf("server config TargetAddr is required")
+	}
+	if len(config.Key) == 0 {
+		config.Key = []byte("137e43fd04a5b9dfdaf29e103fddcce2")
 	}
 	if config.Timeout <= 0 {
 		config.Timeout = 5 * time.Second
@@ -247,11 +310,12 @@ func NewServer(config Config) (*Server, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	s := &Server{
-		config:     config,
-		packetConn: packetConn,
-		sessions:   make(map[string]net.Conn),
-		ctx:        ctx,
-		cancel:     cancel,
+		config:      config,
+		packetConn:  packetConn,
+		reassembler: proto.NewReassemblyBuffer(),
+		sessions:    make(map[string]net.Conn),
+		ctx:         ctx,
+		cancel:      cancel,
 	}
 
 	s.wg.Add(1)
@@ -291,12 +355,48 @@ func (s *Server) serve() {
 			sub := strings.TrimSuffix(trimmed, "."+s.config.Domain)
 			sub = strings.ReplaceAll(sub, ".", "")
 
-			payload, err := basecodec.DecodeLowerBase32String(sub)
-			if err != nil || len(payload) == 0 {
+			decoded, err := basecodec.DecodeLowerBase32String(sub)
+			if err != nil || len(decoded) < proto.HeaderLen {
 				continue
 			}
 
-			// Forward payload to TargetAddr
+			frame, err := proto.Unpack(decoded)
+			if err != nil {
+				continue
+			}
+
+			// Decrypt
+			iv := proto.DeriveIV(frame.SessionID, frame.Seq, frame.Frag)
+			decChunk, err := proto.CryptAESCTR(s.config.Key, iv, frame.Payload)
+			if err != nil {
+				continue
+			}
+			frame.Payload = decChunk
+
+			// Reassemble if multi-fragment
+			fullPayload := s.reassembler.Add(frame)
+			if fullPayload == nil {
+				// Waiting for remaining fragments; acknowledge receipt
+				ackMsg := dnsmessage.Message{
+					Header: dnsmessage.Header{
+						ID:       msg.Header.ID,
+						Response: true,
+					},
+					Questions: []dnsmessage.Question{q},
+				}
+				if packed, err := ackMsg.Pack(); err == nil {
+					s.packetConn.WriteTo(packed, clientAddr)
+				}
+				continue
+			}
+
+			// Decompress payload
+			decompressed, err := proto.Decompress(fullPayload)
+			if err != nil || len(decompressed) == 0 {
+				continue
+			}
+
+			// Forward to TargetAddr (TCP)
 			clientKey := clientAddr.String()
 			s.mu.Lock()
 			conn, exists := s.sessions[clientKey]
@@ -312,16 +412,16 @@ func (s *Server) serve() {
 			var replyData []byte
 			if conn != nil {
 				conn.SetDeadline(time.Now().Add(2 * time.Second))
-				_, _ = conn.Write(payload)
+				_, _ = conn.Write(decompressed)
 
-				respBuf := make([]byte, 512)
+				respBuf := make([]byte, 1024)
 				rn, rerr := conn.Read(respBuf)
 				if rerr == nil && rn > 0 {
 					replyData = respBuf[:rn]
 				}
 			}
 
-			// Send DNS response with TXT answer
+			// Prepare response
 			respMsg := dnsmessage.Message{
 				Header: dnsmessage.Header{
 					ID:       msg.Header.ID,
@@ -331,18 +431,34 @@ func (s *Server) serve() {
 			}
 
 			if len(replyData) > 0 {
-				encodedReply := basecodec.EncodeLowerBase32(replyData)
-				respMsg.Answers = append(respMsg.Answers, dnsmessage.Resource{
-					Header: dnsmessage.ResourceHeader{
-						Name:  q.Name,
-						Type:  dnsmessage.TypeTXT,
-						Class: dnsmessage.ClassINET,
-						TTL:   30,
-					},
-					Body: &dnsmessage.TXTResource{
-						TXT: []string{encodedReply},
-					},
-				})
+				// Compress and encrypt reply
+				compressedReply := proto.Compress(replyData)
+				repIV := proto.DeriveIV(frame.SessionID, frame.Seq, 0)
+				encReply, err := proto.CryptAESCTR(s.config.Key, repIV, compressedReply)
+				if err == nil {
+					repFrame := &proto.Frame{
+						SessionID: frame.SessionID,
+						Seq:       frame.Seq,
+						Frag:      0,
+						Tot:       1,
+						Flags:     0x00,
+						Payload:   encReply,
+					}
+					packedRep := repFrame.Pack()
+					encodedReply := basecodec.EncodeLowerBase32(packedRep)
+
+					respMsg.Answers = append(respMsg.Answers, dnsmessage.Resource{
+						Header: dnsmessage.ResourceHeader{
+							Name:  q.Name,
+							Type:  dnsmessage.TypeTXT,
+							Class: dnsmessage.ClassINET,
+							TTL:   10,
+						},
+						Body: &dnsmessage.TXTResource{
+							TXT: []string{encodedReply},
+						},
+					})
+				}
 			}
 
 			packed, err := respMsg.Pack()
