@@ -1,6 +1,6 @@
 # Binaries and build outputs
-client
-server
+/client
+/server
 meli-client*
 meli-server*
 dist/
