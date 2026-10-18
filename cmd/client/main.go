@@ -1,67 +1,229 @@
 package main
 
 import (
+	"context"
+	"flag"
+	"fmt"
+	"io"
 	"log"
 	"net"
 	"os"
-	"strconv"
+	"os/signal"
+	"sync"
+	"syscall"
 	"time"
+
+	"github.com/doodoolyasin/meli/pkg/tunnel"
+	"github.com/doodoolyasin/meli/pkg/tunnel/arq"
 )
 
 func main() {
-	if len(os.Args) < 2 {
-		log.Fatalf("Usage: %s <server-ip> [port]", os.Args[0])
+	var (
+		remoteAddr = flag.String("remote", "", "Remote DNS server address (e.g., 8.8.8.8:53)")
+		domain     = flag.String("domain", "", "Domain for tunneling (e.g., tunnel.example.com)")
+		socksAddr  = flag.String("socks", "127.0.0.1:1080", "SOCKS5 listen address")
+			timeout    = flag.Duration("timeout", 5*time.Second, "DNS query timeout")
+			help       = flag.Bool("help", false, "Show help")
+	)
+	flag.Parse()
+
+	if *help || *remoteAddr == "" || *domain == "" {
+		fmt.Fprintf(os.Stderr, "Meli DNS Tunnel Client\n\n")
+		flag.PrintDefaults()
+		os.Exit(1)
 	}
-	serverIP := os.Args[1]
-	port := "5053" // default for testing
-	if len(os.Args) >= 3 {
-		port = os.Args[2]
-	} else if p := os.Getenv("MELI_DNS_PORT"); p != "" {
-		port = p
+
+	// Setup signal handling
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer cancel()
+
+	// ARQ configuration
+	arqCfg := arq.Config{
+		WindowSize:               512,
+		RTO:                      0.2,
+		MaxRTO:                   2.0,
+		InactivityTimeout:        120,
+		DataPacketTTL:            120,
+		MaxDataRetries:           60,
+		TerminalDrainTimeout:     60,
+		TerminalAckWaitTimeout:   30,
+		IsClient:                 true,
+		InboundQueueSize:         2048,
 	}
-	serverPort, err := strconv.Atoi(port)
+
+	// Tunnel configuration
+	tunCfg := tunnel.Config{
+		RemoteAddr: *remoteAddr,
+		Domain:     *domain,
+		Timeout:    *timeout,
+		ARQConfig:  arqCfg,
+	}
+
+	// Listen for SOCKS5 connections
+	listener, err := net.Listen("tcp", *socksAddr)
 	if err != nil {
-		log.Fatalf("Invalid port %q: %v", port, err)
+		log.Fatalf("Failed to listen on SOCKS5 %s: %v", *socksAddr, err)
 	}
-	log.Printf("Starting Meli client, sending query to %s:%d", serverIP, serverPort)
-	conn, err := net.DialUDP("udp4", nil, &net.UDPAddr{IP: net.ParseIP(serverIP), Port: serverPort})
-	if err != nil {
-		log.Fatalf("Dial failed: %v", err)
-	}
+	defer listener.Close()
+
+	log.Printf("Meli client listening on %s, tunneling to %s via %s", *socksAddr, *remoteAddr, *domain)
+
+	var wg sync.WaitGroup
+	sem := make(chan struct{}, 100) // Limit concurrent connections
+
+	go func() {
+		for {
+			conn, err := listener.Accept()
+			if err != nil {
+				if ctx.Err() != nil {
+					return
+				}
+				log.Printf("Accept error: %v", err)
+				continue
+			}
+
+			sem <- struct{}{}
+			wg.Add(1)
+			go func(c net.Conn) {
+				defer func() {
+					<-sem
+					wg.Done()
+				}()
+				handleSOCKS5Connection(ctx, c, tunCfg)
+			}(conn)
+		}
+	}()
+
+	<-ctx.Done()
+	log.Println("Shutting down...")
+	listener.Close()
+	wg.Wait()
+	log.Println("Client stopped")
+}
+
+func handleSOCKS5Connection(ctx context.Context, conn net.Conn, cfg tunnel.Config) {
 	defer conn.Close()
-	// Build a simple DNS query for example.com. type A
-	msg := make([]byte, 0, 512)
-	// ID 0x1234
-	msg = append(msg, 0x12, 0x34)
-	// Flags: standard query 0x0100 (recursion desired)
-	msg = append(msg, 0x01, 0x00)
-	// QDCOUNT = 1
-	msg = append(msg, 0x00, 0x01)
-	// ANCOUNT = 0
-	msg = append(msg, 0x00, 0x00)
-	// NSCOUNT = 0
-	msg = append(msg, 0x00, 0x00)
-	// ARCOUNT = 0
-	msg = append(msg, 0x00, 0x00)
-	// Question: example.com
-	msg = append(msg, 0x07, 'e', 'x', 'a', 'm', 'p', 'l', 'e') // length 7 + 'example'
-	msg = append(msg, 0x03, 'c', 'o', 'm') // 'com'
-	msg = append(msg, 0x00) // null terminator
-	// QTYPE = A (1)
-	msg = append(msg, 0x00, 0x01)
-	// QCLASS = IN (1)
-	msg = append(msg, 0x00, 0x01)
-	_, err = conn.Write(msg)
-	if err != nil {
-		log.Fatalf("Write failed: %v", err)
+
+	// SOCKS5 handshake
+	if err := socks5Handshake(conn); err != nil {
+		log.Printf("SOCKS5 handshake failed: %v", err)
+		return
 	}
-	log.Print("Query sent")
-	// Set deadline for response
-	conn.SetReadDeadline(time.Now().Add(5 * time.Second))
-	buf := make([]byte, 512)
-	n, _, err := conn.ReadFromUDP(buf)
+
+	// Parse target address
+	targetAddr, err := parseSOCKS5Request(conn)
 	if err != nil {
-		log.Fatalf("Read failed: %v", err)
+		log.Printf("SOCKS5 request parse failed: %v", err)
+		return
 	}
-	log.Printf("Received %d bytes: %x", n, buf[:n])
+
+	log.Printf("Tunneling connection to %s", targetAddr)
+
+	// Connect to target through tunnel
+	tunConn, err := tunnel.NewClient(cfg, conn)
+	if err != nil {
+		log.Printf("Failed to create tunnel: %v", err)
+		return
+	}
+	defer tunConn.Close()
+
+	// The tunnel wraps the connection - data written to conn goes through DNS
+	// We just need to copy data between the SOCKS5 connection and the tunnel
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	go func() {
+		defer wg.Done()
+		io.Copy(conn, tunConn)
+		conn.(*net.TCPConn).CloseRead()
+	}()
+
+	go func() {
+		defer wg.Done()
+		io.Copy(tunConn, conn)
+		tunConn.Close()
+	}()
+
+	wg.Wait()
+}
+
+func socks5Handshake(conn net.Conn) error {
+	// Read version and nmethods
+	buf := make([]byte, 2)
+	if _, err := io.ReadFull(conn, buf); err != nil {
+		return err
+	}
+	if buf[0] != 0x05 {
+		return fmt.Errorf("unsupported SOCKS version: %d", buf[0])
+	}
+	nMethods := int(buf[1])
+	methods := make([]byte, nMethods)
+	if _, err := io.ReadFull(conn, methods); err != nil {
+		return err
+	}
+
+	// We support no authentication (method 0x00)
+	conn.Write([]byte{0x05, 0x00})
+	return nil
+}
+
+func parseSOCKS5Request(conn net.Conn) (string, error) {
+	buf := make([]byte, 4)
+	if _, err := io.ReadFull(conn, buf); err != nil {
+		return "", err
+	}
+	if buf[0] != 0x05 || buf[1] != 0x01 {
+		return "", fmt.Errorf("invalid SOCKS5 request: ver=%d cmd=%d", buf[0], buf[1])
+	}
+
+	// Read address type
+	atypBuf := make([]byte, 1)
+	if _, err := io.ReadFull(conn, atypBuf); err != nil {
+		return "", err
+	}
+
+	switch atypBuf[0] {
+	case 0x01: // IPv4
+		addrBuf := make([]byte, 4)
+		if _, err := io.ReadFull(conn, addrBuf); err != nil {
+			return "", err
+		}
+		portBuf := make([]byte, 2)
+		if _, err := io.ReadFull(conn, portBuf); err != nil {
+			return "", err
+		}
+		port := (uint16(portBuf[0]) << 8) | uint16(portBuf[1])
+		return fmt.Sprintf("%d.%d.%d.%d:%d", addrBuf[0], addrBuf[1], addrBuf[2], addrBuf[3], port), nil
+
+	case 0x03: // Domain name
+		lenBuf := make([]byte, 1)
+		if _, err := io.ReadFull(conn, lenBuf); err != nil {
+			return "", err
+		}
+		domainBuf := make([]byte, lenBuf[0])
+		if _, err := io.ReadFull(conn, domainBuf); err != nil {
+			return "", err
+		}
+		portBuf := make([]byte, 2)
+		if _, err := io.ReadFull(conn, portBuf); err != nil {
+			return "", err
+		}
+		port := (uint16(portBuf[0]) << 8) | uint16(portBuf[1])
+		return fmt.Sprintf("%s:%d", string(domainBuf), port), nil
+
+	case 0x04: // IPv6
+		addrBuf := make([]byte, 16)
+		if _, err := io.ReadFull(conn, addrBuf); err != nil {
+			return "", err
+		}
+		portBuf := make([]byte, 2)
+		if _, err := io.ReadFull(conn, portBuf); err != nil {
+			return "", err
+		}
+		port := (uint16(portBuf[0]) << 8) | uint16(portBuf[1])
+		return fmt.Sprintf("[%s]:%d", net.IP(addrBuf).String(), port), nil
+
+	default:
+		return "", fmt.Errorf("unsupported address type: %d", atypBuf[0])
+	}
 }
