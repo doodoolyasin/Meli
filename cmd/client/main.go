@@ -304,6 +304,7 @@ func main() {
 		fmt.Println("[Meli] 🎲 Amnezia-Style Packet Length Jitter & Padding active")
 	}
 	if opts.icmpMode {
+		_ = icmp.ICMPEchoMagic
 		fmt.Println("[Meli] 📡 Emergency ICMP Echo (Ping) Covert Tunnel standby")
 	}
 
