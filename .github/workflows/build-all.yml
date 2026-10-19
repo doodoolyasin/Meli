@@ -45,6 +45,13 @@ jobs:
           mkdir -p dist
           GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} CGO_ENABLED=0 go build -ldflags="-s -w" -o dist/meli-server-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.goos == 'windows' && '.exe' || '' }} ./cmd/server
 
+      - name: Build dnstt-server
+        if: matrix.goos == 'linux' && matrix.goarch == 'amd64'
+        run: |
+          git clone --depth 1 https://github.com/anonvector/dnstt.git /tmp/dnstt-build
+          cd /tmp/dnstt-build/dnstt-server
+          CGO_ENABLED=0 go build -ldflags="-s -w" -o $GITHUB_WORKSPACE/dist/dnstt-server-linux-amd64 .
+
       - name: Publish Binaries to Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
