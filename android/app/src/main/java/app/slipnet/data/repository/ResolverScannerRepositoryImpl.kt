@@ -64,6 +64,20 @@ class ResolverScannerRepositoryImpl @Inject constructor(
         val seen = mutableSetOf<String>()
         val boundaries = mutableListOf<Int>()
         try {
+            // Tier 0: Meli Iranian Priority Resolvers (7,854 nodes)
+            try {
+                context.resources.openRawResource(R.raw.iran_resolvers).bufferedReader().useLines { lines ->
+                    for (line in lines) {
+                        val trimmed = line.trim()
+                        if (trimmed.isNotBlank() && !trimmed.startsWith("#") && isValidIpAddress(trimmed) && seen.add(trimmed)) {
+                            resolvers.add(trimmed)
+                        }
+                    }
+                }
+                boundaries.add(resolvers.size)
+            } catch (_: Exception) {
+            }
+
             context.resources.openRawResource(R.raw.resolvers).bufferedReader().useLines { lines ->
                 for (line in lines) {
                     val trimmed = line.trim()

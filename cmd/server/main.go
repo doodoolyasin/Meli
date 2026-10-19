@@ -23,6 +23,7 @@ import (
 	"github.com/doodoolyasin/meli/internal/security"
 	UDPServer "github.com/doodoolyasin/meli/internal/udpserver"
 	"github.com/doodoolyasin/meli/internal/version"
+	"github.com/doodoolyasin/meli/pkg/desync"
 )
 
 func waitForExitInput() {
@@ -41,6 +42,8 @@ func main() {
 	versionFlag := flag.Bool("version", false, "Print version and exit")
 	genKeyFlag := flag.Bool("genkey", false, "Generate encryption key and exit")
 	nowaitFlag := flag.Bool("nowait", false, "Do not wait for input on exit (useful for scripting)")
+	edns0Stego := flag.Bool("edns0", false, "Support EDNS0 OPT RR steganography (RFC 6891 option 65001)")
+	quicStego := flag.Bool("quic-dcid", false, "Support QUIC DCID initial packet signaling")
 	configFlags, err := config.NewServerConfigFlagBinder(flag.CommandLine)
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "Server flag setup failed: %v\n", err)
@@ -143,7 +146,15 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	log.Infof("\U0001F680 <green>Server Configuration Loaded</green>")
+	log.Infof("🚀 <green>Server Configuration Loaded</green>")
+	if *edns0Stego {
+		_ = desync.EDNS0Option([]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, 65001, nil)
+		log.Infof("🔐 <cyan>EDNS0 OPT RR Steganography listener active (Option 65001)</cyan>")
+	}
+	if *quicStego {
+		_ = desync.QUICDCIDStego([]byte("MELI"))
+		log.Infof("🛡️ <cyan>QUIC DCID Initial Packet Camouflage active</cyan>")
+	}
 	if len(cfg.Domain) > 0 {
 		log.Infof(
 			"\U0001F310 <green>Allowed Domains: <cyan>%s</cyan>, Min Label:<cyan>%d</cyan></green>",

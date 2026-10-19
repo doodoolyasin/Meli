@@ -860,6 +860,16 @@ fun MainScreen(
                         val tileMod = Modifier.weight(1f)
                         AddMenuGridItem(
                             modifier = tileMod,
+                            icon = Icons.Default.Shield,
+                            title = "Meli Tunnel",
+                            isMeli = true,
+                            onClick = {
+                                showAddMenu = false
+                                onNavigateToAddProfile("meli")
+                            }
+                        )
+                        AddMenuGridItem(
+                            modifier = tileMod,
                             icon = Icons.Default.Dns,
                             title = "DNSTT",
                             onClick = {
@@ -2280,11 +2290,14 @@ private fun AddMenuGridItem(
     icon: ImageVector,
     title: String,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isMeli: Boolean = false
 ) {
+    val meliColor = Color(0xFF00E5FF)
     Column(
         modifier = modifier
             .clip(RoundedCornerShape(12.dp))
+            .then(if (isMeli) Modifier.background(Color(0xFF00384D).copy(alpha = 0.5f)).border(1.5.dp, meliColor, RoundedCornerShape(12.dp)) else Modifier)
             .clickable(onClick = onClick)
             .padding(vertical = 12.dp, horizontal = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -2293,12 +2306,14 @@ private fun AddMenuGridItem(
         Icon(
             imageVector = icon,
             contentDescription = null,
-            tint = MaterialTheme.colorScheme.primary,
+            tint = if (isMeli) meliColor else MaterialTheme.colorScheme.primary,
             modifier = Modifier.size(28.dp)
         )
         Text(
             text = title,
             style = MaterialTheme.typography.labelMedium,
+            color = if (isMeli) meliColor else MaterialTheme.colorScheme.onSurface,
+            fontWeight = if (isMeli) FontWeight.Bold else FontWeight.Normal,
             maxLines = 1
         )
     }

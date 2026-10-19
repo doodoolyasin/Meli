@@ -437,15 +437,31 @@ private fun HeroCard() {
             }
 
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "Find Working Resolvers",
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "Find Working Resolvers",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Surface(
+                        color = Color(0xFF00384D),
+                        shape = RoundedCornerShape(4.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF00E5FF))
+                    ) {
+                        Text(
+                            text = "🇮🇷 7,854 IRAN NODES",
+                            color = Color(0xFF00E5FF),
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                        )
+                    }
+                }
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
-                    text = "Scan DNS servers to find ones that work without censorship.",
+                    text = "Meli Engine auto-prioritizes 7,854 domestic Iranian ISP resolvers (Irancell, MCI, Shatel) for bypass.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
                 )

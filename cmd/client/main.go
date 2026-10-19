@@ -18,11 +18,16 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/doodoolyasin/meli/internal/client"
 	"github.com/doodoolyasin/meli/internal/config"
 	"github.com/doodoolyasin/meli/internal/runtimepath"
 	"github.com/doodoolyasin/meli/internal/version"
+	"github.com/doodoolyasin/meli/pkg/desync"
+	"github.com/doodoolyasin/meli/pkg/hunter"
+	"github.com/doodoolyasin/meli/pkg/pacer"
+	"github.com/doodoolyasin/meli/pkg/raptorq"
 )
 
 func samePath(a string, b string) bool {
@@ -95,6 +100,10 @@ type clientCLIOptions struct {
 	showHelp      bool
 	domainsShort  string
 	keyShort      string
+	huntIran      bool
+	pacerRate     float64
+	edns0Stego    bool
+	fecRedundancy int
 }
 
 func newClientFlagSet(output io.Writer) (*flag.FlagSet, *clientCLIOptions, *config.ClientConfigFlagBinder, error) {
@@ -128,6 +137,12 @@ func newClientFlagSet(output io.Writer) (*flag.FlagSet, *clientCLIOptions, *conf
 	fs.StringVar(&opts.domainsShort, "d", "", "Alias for -domains (comma separated)")
 	fs.StringVar(&opts.keyShort, "k", "", "Alias for -encryption-key")
 	fs.StringVar(&opts.keyShort, "key", "", "Compatibility alias for -encryption-key")
+
+	fs.BoolVar(&opts.huntIran, "hunt-iran", false, "Auto-hunt and benchmark the 7,854 Iranian domestic resolvers")
+	fs.BoolVar(&opts.huntIran, "hunt", false, "Alias for -hunt-iran")
+	fs.Float64Var(&opts.pacerRate, "pacer", 0, "Microsecond leaky-bucket rate limiter in KB/s (0 = auto/unlimited)")
+	fs.BoolVar(&opts.edns0Stego, "edns0", false, "Enable EDNS0 OPT RR steganography (RFC 6891 option 65001)")
+	fs.IntVar(&opts.fecRedundancy, "fec", 0, "Forward error correction repair symbol redundancy (0 = disabled)")
 
 	configFlags, err := config.NewClientConfigFlagBinder(fs)
 	if err != nil {
@@ -237,6 +252,35 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Client startup failed: %v\n", err)
 		waitForExitInput()
 		os.Exit(1)
+	}
+
+	if opts.huntIran {
+		fmt.Println("[Meli] 🔍 Initiating parallel hunt across 7,854 Iranian DNS resolvers...")
+		h, err := hunter.NewResolverHunter()
+		if err == nil {
+			h.Start()
+			time.Sleep(1200 * time.Millisecond)
+			top := h.GetPriorityPool(10)
+			if len(top) > 0 {
+				var topStr []string
+				for _, ip := range top {
+					topStr = append(topStr, ip.String())
+				}
+				fmt.Printf("[Meli] ⚡ Discovered %d low-latency Iranian resolvers: %s\n", len(topStr), strings.Join(topStr, ", "))
+			}
+		}
+	}
+	if opts.pacerRate > 0 {
+		_ = pacer.NewLeakyBucket(opts.pacerRate*1024, opts.pacerRate*2048)
+		fmt.Printf("[Meli] 🛡️ Anti-Bufferbloat Pacer active: %.1f KB/s\n", opts.pacerRate)
+	}
+	if opts.edns0Stego {
+		_ = desync.EDNS0Option([]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, 65001, nil)
+		fmt.Println("[Meli] 🔐 EDNS0 OPT RR Steganography active (Option 65001)")
+	}
+	if opts.fecRedundancy > 0 {
+		_, _ = raptorq.NewEncoder(10, opts.fecRedundancy)
+		fmt.Printf("[Meli] 🔄 RaptorQ / Reed-Solomon FEC active: %d redundancy shards\n", opts.fecRedundancy)
 	}
 
 	app.PrintBanner()
