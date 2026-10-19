@@ -445,17 +445,17 @@ private fun HeroCard() {
                         color = MaterialTheme.colorScheme.onPrimaryContainer
                     )
                     Spacer(modifier = Modifier.width(6.dp))
-                    Surface(
-                        color = Color(0xFF00384D),
-                        shape = RoundedCornerShape(4.dp),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF00E5FF))
+                    Box(
+                        modifier = Modifier
+                            .background(Color(0xFF00384D), RoundedCornerShape(4.dp))
+                            .border(1.dp, Color(0xFF00E5FF), RoundedCornerShape(4.dp))
+                            .padding(horizontal = 4.dp, vertical = 2.dp)
                     ) {
                         Text(
                             text = "🇮🇷 7,854 IRAN NODES",
                             color = Color(0xFF00E5FF),
                             style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                            fontWeight = FontWeight.Bold
                         )
                     }
                 }
