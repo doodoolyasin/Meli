@@ -2467,11 +2467,11 @@ class ConfigImporter @Inject constructor() {
         val trimmed = publicKey.trim()
 
         if (trimmed.isBlank()) {
-            return "DNSTT profiles require a public key"
+            return "Key is required"
         }
 
-        if (trimmed.length != 64) {
-            return "Public key must be 64 hex characters (32 bytes), got ${trimmed.length}"
+        if (trimmed.length != 32 && trimmed.length != 64) {
+            return "Key must be 32 hex characters (Meli/MasterDNS) or 64 hex characters (DNSTT), got ${trimmed.length}"
         }
 
         if (!trimmed.all { it in '0'..'9' || it in 'a'..'f' || it in 'A'..'F' }) {

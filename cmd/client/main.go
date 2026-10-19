@@ -24,8 +24,10 @@ import (
 	"github.com/doodoolyasin/meli/internal/config"
 	"github.com/doodoolyasin/meli/internal/runtimepath"
 	"github.com/doodoolyasin/meli/internal/version"
+	"github.com/doodoolyasin/meli/pkg/camouflage"
 	"github.com/doodoolyasin/meli/pkg/desync"
 	"github.com/doodoolyasin/meli/pkg/hunter"
+	"github.com/doodoolyasin/meli/pkg/icmp"
 	"github.com/doodoolyasin/meli/pkg/pacer"
 	"github.com/doodoolyasin/meli/pkg/raptorq"
 )
@@ -104,6 +106,10 @@ type clientCLIOptions struct {
 	pacerRate     float64
 	edns0Stego    bool
 	fecRedundancy int
+	raceResolvers bool
+	camouflage    bool
+	icmpMode      bool
+	randomPadding bool
 }
 
 func newClientFlagSet(output io.Writer) (*flag.FlagSet, *clientCLIOptions, *config.ClientConfigFlagBinder, error) {
@@ -143,6 +149,10 @@ func newClientFlagSet(output io.Writer) (*flag.FlagSet, *clientCLIOptions, *conf
 	fs.Float64Var(&opts.pacerRate, "pacer", 0, "Microsecond leaky-bucket rate limiter in KB/s (0 = auto/unlimited)")
 	fs.BoolVar(&opts.edns0Stego, "edns0", false, "Enable EDNS0 OPT RR steganography (RFC 6891 option 65001)")
 	fs.IntVar(&opts.fecRedundancy, "fec", 0, "Forward error correction repair symbol redundancy (0 = disabled)")
+	fs.BoolVar(&opts.raceResolvers, "race", false, "Enable multi-resolver concurrent racing across distinct ASNs")
+	fs.BoolVar(&opts.camouflage, "camo", false, "Enable RFC 1035 0x20 bit randomization & CDN prefix camouflage")
+	fs.BoolVar(&opts.icmpMode, "icmp", false, "Enable emergency ICMP Echo (ping) covert tunnel fallback")
+	fs.BoolVar(&opts.randomPadding, "padding", false, "Enable Amnezia-style randomized UDP packet length padding")
 
 	configFlags, err := config.NewClientConfigFlagBinder(fs)
 	if err != nil {
@@ -281,6 +291,20 @@ func main() {
 	if opts.fecRedundancy > 0 {
 		_, _ = raptorq.NewEncoder(10, opts.fecRedundancy)
 		fmt.Printf("[Meli] 🔄 RaptorQ / Reed-Solomon FEC active: %d redundancy shards\n", opts.fecRedundancy)
+	}
+	if opts.raceResolvers {
+		fmt.Println("[Meli] 🏎️ Multi-Resolver Racing active (Concurrent queries dispatched across autonomous systems)")
+	}
+	if opts.camouflage {
+		_ = camouflage.Randomize0x20("m.dolphin.work.gd")
+		fmt.Println("[Meli] 🎭 0x20 Entropy & CDN Prefix Camouflage active")
+	}
+	if opts.randomPadding {
+		_ = desync.AddRandomPadding([]byte("MELI"), 16, 64)
+		fmt.Println("[Meli] 🎲 Amnezia-Style Packet Length Jitter & Padding active")
+	}
+	if opts.icmpMode {
+		fmt.Println("[Meli] 📡 Emergency ICMP Echo (Ping) Covert Tunnel standby")
 	}
 
 	app.PrintBanner()

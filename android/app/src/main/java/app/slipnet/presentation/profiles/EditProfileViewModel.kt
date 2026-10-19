@@ -1683,17 +1683,17 @@ class EditProfileViewModel @Inject constructor(
         val trimmed = publicKey.trim()
 
         if (trimmed.isBlank()) {
-            return "Public key is required for DNSTT"
+            return "Encryption / Public key is required"
         }
 
-        // Check length: 32 bytes = 64 hex characters
-        if (trimmed.length != 64) {
-            return "Public key must be 64 hex characters (32 bytes), got ${trimmed.length}"
+        // Accept 16 bytes (32 hex) for Meli / MasterDNS and 32 bytes (64 hex) for DNSTT Curve25519
+        if (trimmed.length != 32 && trimmed.length != 64) {
+            return "Key must be 32 hex characters (Meli/MasterDNS) or 64 hex characters (DNSTT), got ${trimmed.length}"
         }
 
         // Check if all characters are valid hex
         if (!trimmed.all { it in '0'..'9' || it in 'a'..'f' || it in 'A'..'F' }) {
-            return "Public key must contain only hex characters (0-9, a-f)"
+            return "Key must contain only hex characters (0-9, a-f)"
         }
 
         return null
