@@ -458,10 +458,12 @@ fun MainScreen(
                     }
                 },
                 actions = {
-                    if (uiState.debugLogging) {
-                        IconButton(onClick = { showLogSheet = true }) {
-                            Icon(Icons.Default.BugReport, contentDescription = "Debug Logs")
-                        }
+                    IconButton(onClick = { showLogSheet = true }) {
+                        Icon(
+                            Icons.Default.BugReport,
+                            contentDescription = "Connection Logs & Telemetry",
+                            tint = Color(0xFF00E5FF)
+                        )
                     }
                     IconButton(onClick = { showShareDialog = true }) {
                         Icon(Icons.Default.Share, contentDescription = "Share App")
