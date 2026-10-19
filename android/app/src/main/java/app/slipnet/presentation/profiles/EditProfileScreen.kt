@@ -1648,16 +1648,17 @@ fun EditProfileScreen(
                     )
                 }
 
-                // DNSTT Public Key
+                // DNSTT / Meli Key
                 if (uiState.isDnsttOrNoizOrVaydnsBased) {
+                    val isMeliProfile = uiState.name.contains("meli", ignoreCase = true)
                     OutlinedTextField(
                         value = uiState.dnsttPublicKey,
                         onValueChange = { viewModel.updateDnsttPublicKey(it) },
-                        label = { Text("Public Key") },
-                        placeholder = { Text("Server's Noise public key (hex)") },
+                        label = { Text(if (isMeliProfile) "Public Key / Meli Key" else "Public Key") },
+                        placeholder = { Text(if (isMeliProfile) "64 hex (DNSTT) or 32 hex (Meli)" else "Server's Noise public key (hex)") },
                         isError = uiState.dnsttPublicKeyError != null,
                         supportingText = {
-                            Text(uiState.dnsttPublicKeyError ?: "Server's Noise protocol public key in hex format")
+                            Text(uiState.dnsttPublicKeyError ?: if (isMeliProfile) "Noise public key (64 hex) or Meli encryption key (32 hex)" else "Server's Noise protocol public key in hex format")
                         },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()

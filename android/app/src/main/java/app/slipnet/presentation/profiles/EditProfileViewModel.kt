@@ -282,11 +282,21 @@ class EditProfileViewModel @Inject constructor(
 ) : ViewModel() {
 
     private val profileId: Long? = savedStateHandle.get<Long>("profileId")
-    private val initialTunnelType: TunnelType = savedStateHandle.get<String>("tunnelType")
+    private val rawTunnelTypeArg: String? = savedStateHandle.get<String>("tunnelType")
+    private val isMeliInitial: Boolean = rawTunnelTypeArg == "meli"
+    private val initialTunnelType: TunnelType = rawTunnelTypeArg
         ?.let { TunnelType.fromValue(it) } ?: TunnelType.DNSTT
 
     private val _uiState = MutableStateFlow(
-        EditProfileUiState(profileId = profileId, tunnelType = initialTunnelType)
+        EditProfileUiState(
+            profileId = profileId,
+            tunnelType = initialTunnelType,
+            name = if (isMeliInitial) "Meli Tunnel" else "",
+            domain = if (isMeliInitial) "m.dolphin.work.gd" else "",
+            dnsttPublicKey = if (isMeliInitial) "8db08b7392e91a260ec78d1d6a0727b9b772a9ef9d3ccdbedfe5b67be7d4074d" else "",
+            resolvers = if (isMeliInitial) "45.38.249.16:53" else "",
+            authoritativeMode = if (isMeliInitial) true else false
+        )
     )
     val uiState: StateFlow<EditProfileUiState> = _uiState.asStateFlow()
 
