@@ -24,6 +24,6 @@ func PickInterleavedType() dnsmessage.Type {
 	case val < 95:
 		return dnsmessage.TypeCNAME
 	default:
-		return dnsmessage.TypeNULL
+		return dnsmessage.TypeTXT
 	}
 }
