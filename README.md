@@ -121,5 +121,21 @@ To connect from inside a filtered network (e.g. Iran, China):
 
 ---
 
+## 🌪️ Emergency Circumvention Architecture (National Intranet & BGP Shutdown Mode)
+
+Meli incorporates advanced, battle-tested circumvention techniques researched from severe censorship battlegrounds across **Iran (NIN / SHOMA)**, **Russia (TSPU / RKN)**, **China (GFW)**, and **Cuba / Turkmenistan (Whitelist-Only)**:
+
+| Layer | Technique | Mechanism | Threat Defeated |
+|---|---|---|---|
+| **L3 Transport** | **Multi-Resolver Racing (`-race`)** | Dispatches concurrent DNS queries across up to 3 distinct Autonomous Systems (TIC, MCI, Irancell) and accepts the fastest valid reply. | Survives non-homogeneous BGP shutdowns and temporary ISP peering cuts. |
+| **L7 DNS** | **0x20 Entropy Camouflage (`-camo`)** | Inverts letter cases randomly (RFC 1035) and prepends realistic CDN subdomains (`edge-cache-[hash]...`). | Blinds DPI ML classifiers trained on flat Base32 lowercase patterns. |
+| **L7 DNS** | **Query Type Interleaving (`-interleave`)** | Interleaves query types according to natural browser distributions (~55% A, ~20% AAAA, ~15% TXT, ~5% CNAME). | Evades DPI statistical anomaly detectors looking for continuous TXT streams. |
+| **L3/L4 Stego** | **ICMP Echo Covert Tunnel (`-icmp`)** | Encapsulates AES-CTR encrypted sequence-numbered frames inside standard ICMP Type 8 (Request) and Type 0 (Reply) ping packets. | Last-resort fallback when UDP port 53 is zero-rated or completely dropped. |
+| **L4 UDP** | **Amnezia-Style Packet Jitter (`-padding`)** | Appends between 16 and 64 bytes of random junk padding (`Jmin`..`Jmax`) to disorganize packet length histograms. | Defeats statistical packet-length fingerprinting. |
+| **Application** | **WebRTC SFU Media Multiplexing (`-webrtc`)** | Encapsulates multiplexed TCP/UDP streams inside WebRTC SCTP DataChannels or VP8 video frames over whitelisted national meeting infrastructure. | Survives strict domain/IP whitelisting by masquerading as domestic video conferencing. |
+| **TLS** | **Domestic Whitelist SNI Camouflage** | Spoofs TLS ClientHello SNI with domestic whitelisted domains (`bale.ir`, `arvancloud.ir`, `snapp.ir`). | Passes middlebox SNI whitelist checks. |
+
+---
+
 ## 🛡️ License
 Licensed under the GNU General Public License v3.0 (GPL-3.0).
