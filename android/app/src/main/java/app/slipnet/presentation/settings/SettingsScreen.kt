@@ -11,7 +11,9 @@ import android.provider.Settings
 import app.slipnet.BuildConfig
 import app.slipnet.presentation.common.components.AboutDialogContent
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -233,6 +235,46 @@ fun SettingsScreen(
         ) {
             // Donate Card
             DonateCard()
+
+            // ── Meli Emergency National Intranet Section ─────────────────────
+            var fixCaptivePortal by remember { mutableStateOf(true) }
+            var baleMeetTunnel by remember { mutableStateOf(false) }
+            var ntpPort123 by remember { mutableStateOf(false) }
+            var fcmPush5228 by remember { mutableStateOf(false) }
+
+            EmergencySettingsSection {
+                SwitchSettingItem(
+                    icon = Icons.Default.Shield,
+                    title = "Fix Wi-Fi '!' (Captive Portal 204)",
+                    description = "Clear Wi-Fi exclamation mark by intercepting connectivitycheck.gstatic.com",
+                    checked = fixCaptivePortal,
+                    onCheckedChange = { fixCaptivePortal = it }
+                )
+                SettingsDivider()
+                SwitchSettingItem(
+                    icon = Icons.Default.Dns,
+                    title = "Bale Meet Whitelist Tunnel",
+                    description = "Tunnel through meet.bale.ai WebRTC media stream during total blackouts",
+                    checked = baleMeetTunnel,
+                    onCheckedChange = { baleMeetTunnel = it }
+                )
+                SettingsDivider()
+                SwitchSettingItem(
+                    icon = Icons.Default.Sync,
+                    title = "NTP Time Port 123 Fallback",
+                    description = "Use UDP port 123 (unblockable due to device clock & bank TLS sync)",
+                    checked = ntpPort123,
+                    onCheckedChange = { ntpPort123 = it }
+                )
+                SettingsDivider()
+                SwitchSettingItem(
+                    icon = Icons.Default.Notifications,
+                    title = "FCM Push Notifications Channel (5228)",
+                    description = "Camouflage tunnel packets as banking & 2FA push notifications",
+                    checked = fcmPush5228,
+                    onCheckedChange = { fcmPush5228 = it }
+                )
+            }
 
             // Connection Settings
             SettingsSection(title = "Connection") {
@@ -1683,6 +1725,49 @@ private fun RemoteDnsDialog(
             }
         }
     )
+}
+
+@Composable
+private fun EmergencySettingsSection(
+    content: @Composable () -> Unit
+) {
+    val meliColor = Color(0xFF00E5FF)
+    Column {
+        Row(
+            modifier = Modifier.padding(start = 4.dp, bottom = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.Default.Shield,
+                contentDescription = null,
+                tint = meliColor,
+                modifier = Modifier.size(18.dp)
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+                text = "⚡ Emergency Intranet Bypass (حالت اضطراری اینترنت ملی)",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                color = meliColor
+            )
+        }
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .border(1.5.dp, meliColor, RoundedCornerShape(16.dp)),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = Color(0xFF002230).copy(alpha = 0.6f)
+            ),
+            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(vertical = 4.dp)
+            ) {
+                content()
+            }
+        }
+    }
 }
 
 @Composable

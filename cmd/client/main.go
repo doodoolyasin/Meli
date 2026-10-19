@@ -24,10 +24,14 @@ import (
 	"github.com/doodoolyasin/meli/internal/config"
 	"github.com/doodoolyasin/meli/internal/runtimepath"
 	"github.com/doodoolyasin/meli/internal/version"
+	"github.com/doodoolyasin/meli/pkg/bale"
 	"github.com/doodoolyasin/meli/pkg/camouflage"
 	"github.com/doodoolyasin/meli/pkg/desync"
+	"github.com/doodoolyasin/meli/pkg/evasion"
+	"github.com/doodoolyasin/meli/pkg/fcm"
 	"github.com/doodoolyasin/meli/pkg/hunter"
 	"github.com/doodoolyasin/meli/pkg/icmp"
+	"github.com/doodoolyasin/meli/pkg/ntp"
 	"github.com/doodoolyasin/meli/pkg/pacer"
 	"github.com/doodoolyasin/meli/pkg/raptorq"
 	"github.com/doodoolyasin/meli/pkg/webrtc"
@@ -113,6 +117,10 @@ type clientCLIOptions struct {
 	randomPadding bool
 	interleaveRR  bool
 	webrtcTunnel  bool
+	fixCaptive    bool
+	ntpTunnel     bool
+	fcmTunnel     bool
+	baleTunnel    bool
 }
 
 func newClientFlagSet(output io.Writer) (*flag.FlagSet, *clientCLIOptions, *config.ClientConfigFlagBinder, error) {
@@ -158,6 +166,10 @@ func newClientFlagSet(output io.Writer) (*flag.FlagSet, *clientCLIOptions, *conf
 	fs.BoolVar(&opts.randomPadding, "padding", false, "Enable Amnezia-style randomized UDP packet length padding")
 	fs.BoolVar(&opts.interleaveRR, "interleave", false, "Interleave natural DNS query types (A, AAAA, TXT, CNAME) to defeat statistical anomaly DPI")
 	fs.BoolVar(&opts.webrtcTunnel, "webrtc", false, "Enable WebRTC DataChannel / SFU video-conferencing covert channel mode")
+	fs.BoolVar(&opts.fixCaptive, "captive", false, "Start local HTTP 204 generator to clear Android/iOS Wi-Fi exclamation mark (!)")
+	fs.BoolVar(&opts.ntpTunnel, "ntp", false, "Tunnel over NTP UDP port 123 (unblockable due to system clock & TLS certificate sync)")
+	fs.BoolVar(&opts.fcmTunnel, "fcm", false, "Tunnel over Google FCM TCP ports 5228-5230 disguised as push notifications")
+	fs.BoolVar(&opts.baleTunnel, "bale", false, "Tunnel over Bale Meet (meet.bale.ai) whitelisted WebRTC infrastructure")
 
 	configFlags, err := config.NewClientConfigFlagBinder(fs)
 	if err != nil {
@@ -319,6 +331,24 @@ func main() {
 	if opts.webrtcTunnel {
 		_ = webrtc.MsgConnect
 		fmt.Println("[Meli] 📹 WebRTC Whitelisted SFU / Video Stream Multiplexer standby")
+	}
+	if opts.fixCaptive {
+		srv, err := evasion.StartLocal204Server(0)
+		if err == nil {
+			fmt.Printf("[Meli] 🛠️ Captive Portal 204 Generator active on port %d (Clears Android Wi-Fi '!')\n", srv.Port())
+		}
+	}
+	if opts.ntpTunnel {
+		_ = ntp.NTPTunnelMagic
+		fmt.Println("[Meli] ⏰ Emergency NTP Time Tunnel standby (UDP 123)")
+	}
+	if opts.fcmTunnel {
+		_ = fcm.FCMMagic
+		fmt.Println("[Meli] 🔔 Google FCM / Push Notification Tunnel standby (Ports 5228-5230)")
+	}
+	if opts.baleTunnel {
+		_ = bale.BaleEndpoints
+		fmt.Println("[Meli] 📞 Bale Meet (meet.bale.ai) WebRTC Intranet Tunnel standby")
 	}
 
 	app.PrintBanner()
