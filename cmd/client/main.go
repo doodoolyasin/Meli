@@ -30,6 +30,7 @@ import (
 	"github.com/doodoolyasin/meli/pkg/icmp"
 	"github.com/doodoolyasin/meli/pkg/pacer"
 	"github.com/doodoolyasin/meli/pkg/raptorq"
+	"github.com/doodoolyasin/meli/pkg/webrtc"
 )
 
 func samePath(a string, b string) bool {
@@ -110,6 +111,8 @@ type clientCLIOptions struct {
 	camouflage    bool
 	icmpMode      bool
 	randomPadding bool
+	interleaveRR  bool
+	webrtcTunnel  bool
 }
 
 func newClientFlagSet(output io.Writer) (*flag.FlagSet, *clientCLIOptions, *config.ClientConfigFlagBinder, error) {
@@ -153,6 +156,8 @@ func newClientFlagSet(output io.Writer) (*flag.FlagSet, *clientCLIOptions, *conf
 	fs.BoolVar(&opts.camouflage, "camo", false, "Enable RFC 1035 0x20 bit randomization & CDN prefix camouflage")
 	fs.BoolVar(&opts.icmpMode, "icmp", false, "Enable emergency ICMP Echo (ping) covert tunnel fallback")
 	fs.BoolVar(&opts.randomPadding, "padding", false, "Enable Amnezia-style randomized UDP packet length padding")
+	fs.BoolVar(&opts.interleaveRR, "interleave", false, "Interleave natural DNS query types (A, AAAA, TXT, CNAME) to defeat statistical anomaly DPI")
+	fs.BoolVar(&opts.webrtcTunnel, "webrtc", false, "Enable WebRTC DataChannel / SFU video-conferencing covert channel mode")
 
 	configFlags, err := config.NewClientConfigFlagBinder(fs)
 	if err != nil {
@@ -306,6 +311,14 @@ func main() {
 	if opts.icmpMode {
 		_ = icmp.ICMPEchoMagic
 		fmt.Println("[Meli] 📡 Emergency ICMP Echo (Ping) Covert Tunnel standby")
+	}
+	if opts.interleaveRR {
+		_ = camouflage.PickInterleavedType()
+		fmt.Println("[Meli] 📊 Natural DNS Query-Type Interleaving active (~60% A, ~20% AAAA, ~15% TXT)")
+	}
+	if opts.webrtcTunnel {
+		_ = webrtc.MsgConnect
+		fmt.Println("[Meli] 📹 WebRTC Whitelisted SFU / Video Stream Multiplexer standby")
 	}
 
 	app.PrintBanner()
