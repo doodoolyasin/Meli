@@ -68,18 +68,59 @@ func DecodeFrame(r io.Reader) (*Frame, error) {
 
 // ChannelMultiplexer manages multiple concurrent TCP/UDP streams over a single covert channel
 type ChannelMultiplexer struct {
-	conns map[uint32]net.Conn
-	mu    sync.RWMutex
-	ctx   context.Context
-	done  chan struct{}
+	conns          map[uint32]net.Conn
+	waiters        map[uint32]chan bool
+	connectHandler func(f *Frame) error
+	mu             sync.RWMutex
+	ctx            context.Context
+	done           chan struct{}
 }
 
 // NewChannelMultiplexer creates a multiplexer for whitelisted video calling / WebRTC SFU tunnels
 func NewChannelMultiplexer(ctx context.Context) *ChannelMultiplexer {
 	return &ChannelMultiplexer{
-		conns: make(map[uint32]net.Conn),
-		ctx:   ctx,
-		done:  make(chan struct{}),
+		conns:   make(map[uint32]net.Conn),
+		waiters: make(map[uint32]chan bool),
+		ctx:     ctx,
+		done:    make(chan struct{}),
+	}
+}
+
+// SetConnectHandler sets the handler for incoming MsgConnect frames (used by relay server)
+func (m *ChannelMultiplexer) SetConnectHandler(h func(f *Frame) error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.connectHandler = h
+}
+
+// RegisterWaiter registers a channel to wait for connection acknowledgment (MsgConnectOK / MsgConnectErr)
+func (m *ChannelMultiplexer) RegisterWaiter(connID uint32) <-chan bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	ch := make(chan bool, 1)
+	m.waiters[connID] = ch
+	return ch
+}
+
+// RemoveWaiter cleans up any pending waiter for connID
+func (m *ChannelMultiplexer) RemoveWaiter(connID uint32) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	delete(m.waiters, connID)
+}
+
+func (m *ChannelMultiplexer) notifyWaiter(connID uint32, ok bool) {
+	m.mu.Lock()
+	ch, exists := m.waiters[connID]
+	if exists {
+		delete(m.waiters, connID)
+	}
+	m.mu.Unlock()
+	if exists {
+		select {
+		case ch <- ok:
+		default:
+		}
 	}
 }
 
@@ -94,6 +135,7 @@ func (m *ChannelMultiplexer) Register(connID uint32, c net.Conn) {
 func (m *ChannelMultiplexer) Unregister(connID uint32) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	delete(m.waiters, connID)
 	if c, ok := m.conns[connID]; ok {
 		_ = c.Close()
 		delete(m.conns, connID)
@@ -102,16 +144,28 @@ func (m *ChannelMultiplexer) Unregister(connID uint32) {
 
 // Dispatch routes incoming framed data to the target socket
 func (m *ChannelMultiplexer) Dispatch(f *Frame) error {
-	m.mu.RLock()
-	c, ok := m.conns[f.ConnID]
-	m.mu.RUnlock()
-
-	if !ok {
-		return nil // connection closed or expired
-	}
-
 	switch f.MsgType {
+	case MsgConnect:
+		m.mu.RLock()
+		h := m.connectHandler
+		m.mu.RUnlock()
+		if h != nil {
+			return h(f)
+		}
+		return nil
+	case MsgConnectOK:
+		m.notifyWaiter(f.ConnID, true)
+		return nil
+	case MsgConnectErr:
+		m.notifyWaiter(f.ConnID, false)
+		return nil
 	case MsgData:
+		m.mu.RLock()
+		c, ok := m.conns[f.ConnID]
+		m.mu.RUnlock()
+		if !ok {
+			return nil // connection closed or expired
+		}
 		_, err := c.Write(f.Payload)
 		return err
 	case MsgClose:
