@@ -18,6 +18,21 @@
 
 ---
 
+## ⚠️ Implementation status (audited 2026-10-21)
+
+The engine that carries traffic today is the DNS tunnel built on `internal/arq`,
+`internal/client` and `internal/udpserver`. Several capabilities described below
+are **packages without call sites**: FEC, EDNS0/QUIC steganography, 0x20/CDN
+camouflage, query-type interleaving, resolver racing, and the ICMP/NTP/FCM/
+WebRTC/Bale channels (the last group has no server side at all). The CLI now
+reports these as "not wired" instead of "active", and `-hunt-iran` states that
+discovered resolvers are not applied.
+
+See [FEATURE_VERIFICATION.md](FEATURE_VERIFICATION.md) for the per-feature
+verification table and [ARCHITECTURE.md](ARCHITECTURE.md) for the source-backed
+component map. Verification is loopback-only: no public resolver, censored
+network or Android device has been used.
+
 ## 🏗️ Architecture & Fork Consolidation
 
 Meli unifies the best components of the modern DNS anti-censorship ecosystem into a single, high-performance monorepo:

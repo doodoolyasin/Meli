@@ -24,17 +24,8 @@ import (
 	"github.com/doodoolyasin/meli/internal/config"
 	"github.com/doodoolyasin/meli/internal/runtimepath"
 	"github.com/doodoolyasin/meli/internal/version"
-	"github.com/doodoolyasin/meli/pkg/bale"
-	"github.com/doodoolyasin/meli/pkg/camouflage"
-	"github.com/doodoolyasin/meli/pkg/desync"
 	"github.com/doodoolyasin/meli/pkg/evasion"
-	"github.com/doodoolyasin/meli/pkg/fcm"
 	"github.com/doodoolyasin/meli/pkg/hunter"
-	"github.com/doodoolyasin/meli/pkg/icmp"
-	"github.com/doodoolyasin/meli/pkg/ntp"
-	"github.com/doodoolyasin/meli/pkg/pacer"
-	"github.com/doodoolyasin/meli/pkg/raptorq"
-	"github.com/doodoolyasin/meli/pkg/webrtc"
 )
 
 func samePath(a string, b string) bool {
@@ -282,7 +273,7 @@ func main() {
 	}
 
 	if opts.huntIran {
-		fmt.Println("[Meli] 🔍 Initiating parallel hunt across 7,854 Iranian DNS resolvers...")
+		fmt.Println("[Meli] 🔍 Hunting Iranian resolvers (discovery only: the results are printed, not applied to the resolver pool yet)")
 		h, err := hunter.NewResolverHunter()
 		if err == nil {
 			h.Start()
@@ -297,58 +288,44 @@ func main() {
 			}
 		}
 	}
+
+	// Every mode below has a standalone implementation package but no wiring
+	// into the tunnel data path. They used to print "active" and leave the
+	// process running plain DNS tunnelling, which is a false success state: a
+	// user who asked for a covert channel was told it was enabled when nothing
+	// had changed. Report them for what they are until they are integrated.
+	type unwiredMode struct {
+		requested bool
+		label     string
+	}
 	if opts.pacerRate > 0 {
-		_ = pacer.NewLeakyBucket(opts.pacerRate*1024, opts.pacerRate*2048)
-		fmt.Printf("[Meli] 🛡️ Anti-Bufferbloat Pacer active: %.1f KB/s\n", opts.pacerRate)
+		app.SetPacerBytesPerSecond(opts.pacerRate * 1024)
+		fmt.Printf("[Meli] 🛡️ Anti-bufferbloat pacer active: %.1f KB/s aggregate egress limit\n", opts.pacerRate)
 	}
-	if opts.edns0Stego {
-		_ = desync.EDNS0Option([]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, 65001, nil)
-		fmt.Println("[Meli] 🔐 EDNS0 OPT RR Steganography active (Option 65001)")
+
+	for _, mode := range []unwiredMode{
+		{opts.edns0Stego, "EDNS0 OPT steganography (option 65001)"},
+		{opts.fecRedundancy > 0, fmt.Sprintf("FEC (%d redundancy shards)", opts.fecRedundancy)},
+		{opts.raceResolvers, "multi-resolver racing"},
+		{opts.camouflage, "0x20 / CDN-prefix camouflage"},
+		{opts.randomPadding, "random padding"},
+		{opts.icmpMode, "ICMP echo tunnel"},
+		{opts.interleaveRR, "DNS query-type interleaving"},
+		{opts.webrtcTunnel, "WebRTC SFU tunnel"},
+		{opts.ntpTunnel, "NTP tunnel"},
+		{opts.fcmTunnel, "FCM push tunnel"},
+		{opts.baleTunnel, "Bale Meet tunnel"},
+	} {
+		if mode.requested {
+			fmt.Printf("[Meli] ⚠️  %s requested, but it is not wired into the transport yet; this run keeps using the DNS tunnel only\n", mode.label)
+		}
 	}
-	if opts.fecRedundancy > 0 {
-		_, _ = raptorq.NewEncoder(10, opts.fecRedundancy)
-		fmt.Printf("[Meli] 🔄 RaptorQ / Reed-Solomon FEC active: %d redundancy shards\n", opts.fecRedundancy)
-	}
-	if opts.raceResolvers {
-		fmt.Println("[Meli] 🏎️ Multi-Resolver Racing active (Concurrent queries dispatched across autonomous systems)")
-	}
-	if opts.camouflage {
-		_ = camouflage.Randomize0x20("m.dolphin.work.gd")
-		fmt.Println("[Meli] 🎭 0x20 Entropy & CDN Prefix Camouflage active")
-	}
-	if opts.randomPadding {
-		_ = desync.AddRandomPadding([]byte("MELI"), 16, 64)
-		fmt.Println("[Meli] 🎲 Amnezia-Style Packet Length Jitter & Padding active")
-	}
-	if opts.icmpMode {
-		_ = icmp.ICMPEchoMagic
-		fmt.Println("[Meli] 📡 Emergency ICMP Echo (Ping) Covert Tunnel standby")
-	}
-	if opts.interleaveRR {
-		_ = camouflage.PickInterleavedType()
-		fmt.Println("[Meli] 📊 Natural DNS Query-Type Interleaving active (~60% A, ~20% AAAA, ~15% TXT)")
-	}
-	if opts.webrtcTunnel {
-		_ = webrtc.MsgConnect
-		fmt.Println("[Meli] 📹 WebRTC Whitelisted SFU / Video Stream Multiplexer standby")
-	}
+
 	if opts.fixCaptive {
 		srv, err := evasion.StartLocal204Server(0)
 		if err == nil {
-			fmt.Printf("[Meli] 🛠️ Captive Portal 204 Generator active on port %d (Clears Android Wi-Fi '!')\n", srv.Port())
+			fmt.Printf("[Meli] 🛠️ Captive portal 204 responder listening on 127.0.0.1:%d (reachable only if DNS for the probe domains is pointed at it)\n", srv.Port())
 		}
-	}
-	if opts.ntpTunnel {
-		_ = ntp.NTPTunnelMagic
-		fmt.Println("[Meli] ⏰ Emergency NTP Time Tunnel standby (UDP 123)")
-	}
-	if opts.fcmTunnel {
-		_ = fcm.FCMMagic
-		fmt.Println("[Meli] 🔔 Google FCM / Push Notification Tunnel standby (Ports 5228-5230)")
-	}
-	if opts.baleTunnel {
-		_ = bale.BaleEndpoints
-		fmt.Println("[Meli] 📞 Bale Meet (meet.bale.ai) WebRTC Intranet Tunnel standby")
 	}
 
 	app.PrintBanner()

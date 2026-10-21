@@ -23,6 +23,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -49,6 +50,9 @@ func TestMain(m *testing.M) {
 // binaries builds meli-server and meli-client once per test run.
 func binaries(t *testing.T) (serverBin, clientBin string) {
 	t.Helper()
+	if s, c := os.Getenv("MELI_SERVER_BIN"), os.Getenv("MELI_CLIENT_BIN"); s != "" && c != "" {
+		return s, c
+	}
 	buildOnce.Do(func() {
 		dir, err := os.MkdirTemp("", "meli-e2e-bin-")
 		if err != nil {
@@ -146,10 +150,16 @@ func startEcho(t *testing.T, tag string) *echoServer {
 				defer e.wg.Done()
 				defer c.Close()
 				buf := make([]byte, 32*1024)
+				sentTag := false
 				for {
 					n, err := c.Read(buf)
 					if n > 0 {
-						if _, werr := c.Write(append([]byte(e.tag), buf[:n]...)); werr != nil {
+						toWrite := buf[:n]
+						if !sentTag {
+							sentTag = true
+							toWrite = append([]byte(e.tag), toWrite...)
+						}
+						if _, werr := c.Write(toWrite); werr != nil {
 							return
 						}
 					}
@@ -213,13 +223,70 @@ func (p *proc) alive() bool {
 
 type tunnel struct {
 	proxyPort int
+	udpPort   int
+	dir       string
+	serverCfg string
+	serverBin string
 	server    *proc
 	client    *proc
 }
 
+// restartServer kills the current server process and starts a fresh one from
+// the same configuration and working directory, simulating a crash/restart
+// while the client keeps running.
+func (tn *tunnel) restartServer(t *testing.T) {
+	t.Helper()
+	if tn.server != nil && tn.server.cmd != nil && tn.server.cmd.Process != nil {
+		_ = tn.server.cmd.Process.Kill()
+		_, _ = tn.server.cmd.Process.Wait()
+	}
+	tn.server = startProc(t, tn.serverBin, tn.serverCfg, tn.dir, "server-restarted")
+}
+
+func processFDCount(t *testing.T, pid int) int {
+	t.Helper()
+	entries, err := os.ReadDir(fmt.Sprintf("/proc/%d/fd", pid))
+	if err != nil {
+		t.Fatalf("read fd table for pid %d: %v", pid, err)
+	}
+	return len(entries)
+}
+
+func processRSSKB(t *testing.T, pid int) int {
+	t.Helper()
+	data, err := os.ReadFile(fmt.Sprintf("/proc/%d/status", pid))
+	if err != nil {
+		t.Fatalf("read status for pid %d: %v", pid, err)
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		if !strings.HasPrefix(line, "VmRSS:") {
+			continue
+		}
+		fields := strings.Fields(line)
+		if len(fields) < 2 {
+			break
+		}
+		kb, err := strconv.Atoi(fields[1])
+		if err != nil {
+			break
+		}
+		return kb
+	}
+	t.Fatalf("VmRSS not found for pid %d", pid)
+	return 0
+}
+
 // startTunnel writes configs, starts both binaries and waits until the client's
-// SOCKS5 listener accepts connections.
+// listener accepts connections. Both sides run the SOCKS5 protocol because the
+// suite drives an RFC 1928 client through the tunnel.
 func startTunnel(t *testing.T, allowPrivate bool, forwardPort int) *tunnel {
+	t.Helper()
+	return startTunnelWithProtocol(t, "SOCKS5", allowPrivate, forwardPort)
+}
+
+// startTunnelWithProtocol is startTunnel with an explicit PROTOCOL_TYPE, used
+// by the fixed-forward test which exercises the transparent TCP mode.
+func startTunnelWithProtocol(t *testing.T, protocol string, allowPrivate bool, forwardPort int) *tunnel {
 	t.Helper()
 	serverBin, clientBin := binaries(t)
 	dir := t.TempDir()
@@ -236,7 +303,7 @@ func startTunnel(t *testing.T, allowPrivate bool, forwardPort int) *tunnel {
 		forwardIP = "127.0.0.1"
 	}
 	serverCfg := fmt.Sprintf(`
-PROTOCOL_TYPE = "TCP"
+PROTOCOL_TYPE = %q
 UDP_HOST = "127.0.0.1"
 UDP_PORT = %d
 DOMAIN = ["v.e2e.test"]
@@ -249,14 +316,14 @@ UDP_READERS = 1
 DNS_REQUEST_WORKERS = 2
 DEFERRED_SESSION_WORKERS = 2
 LOG_LEVEL = "INFO"
-`, udpPort, map[bool]string{true: "", false: "127.0.0.1"}[forwardPort > 0], forwardPort, allowPrivate, testKey)
+`, protocol, udpPort, forwardIP, forwardPort, allowPrivate, testKey)
 	cfgPath := filepath.Join(dir, "server.toml")
 	if err := os.WriteFile(cfgPath, []byte(serverCfg), 0o600); err != nil {
 		t.Fatalf("write server config: %v", err)
 	}
 
 	clientCfg := fmt.Sprintf(`
-PROTOCOL_TYPE = "TCP"
+PROTOCOL_TYPE = %q
 DOMAINS = ["v.e2e.test"]
 LISTEN_IP = "127.0.0.1"
 LISTEN_PORT = %d
@@ -267,12 +334,12 @@ MTU_TEST_RETRIES = 1
 MTU_TEST_TIMEOUT = 2.0
 RESOLVER_BALANCING_STRATEGY = 1
 RX_TX_WORKERS = 1
-`, proxyPort, testKey)
+`, protocol, proxyPort, testKey)
 	clientCfgPath := filepath.Join(dir, "client.toml")
 	if err := os.WriteFile(clientCfgPath, []byte(clientCfg), 0o600); err != nil {
 		t.Fatalf("write client config: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "resolvers.txt"), []byte(fmt.Sprintf("127.0.0.1:%d\n", udpPort)), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "client_resolvers.txt"), []byte(fmt.Sprintf("127.0.0.1:%d\n", udpPort)), 0o600); err != nil {
 		t.Fatalf("write resolvers: %v", err)
 	}
 
@@ -285,7 +352,15 @@ RX_TX_WORKERS = 1
 		conn, err := net.DialTimeout("tcp", fmt.Sprintf("127.0.0.1:%d", proxyPort), 500*time.Millisecond)
 		if err == nil {
 			conn.Close()
-			return &tunnel{proxyPort: proxyPort, server: server, client: client}
+			return &tunnel{
+				proxyPort: proxyPort,
+				udpPort:   udpPort,
+				dir:       dir,
+				serverCfg: cfgPath,
+				serverBin: serverBin,
+				server:    server,
+				client:    client,
+			}
 		}
 		if !server.alive() || !client.alive() {
 			break
@@ -296,26 +371,24 @@ RX_TX_WORKERS = 1
 	return nil
 }
 
-// socks5Connect performs a full RFC 1928 no-auth CONNECT and returns the
-// established stream plus the reply code (0x00 means success).
-func socks5Connect(t *testing.T, proxyPort int, host string, port int) (net.Conn, byte) {
-	t.Helper()
+func trySOCKS5Connect(proxyPort int, host string, port int, timeout time.Duration) (net.Conn, byte, error) {
 	conn, err := net.DialTimeout("tcp", fmt.Sprintf("127.0.0.1:%d", proxyPort), 5*time.Second)
 	if err != nil {
-		t.Fatalf("dial proxy: %v", err)
+		return nil, 0xff, fmt.Errorf("dial proxy: %w", err)
 	}
+	_ = conn.SetDeadline(time.Now().Add(timeout))
 	if _, err := conn.Write([]byte{0x05, 0x01, 0x00}); err != nil {
 		conn.Close()
-		t.Fatalf("socks greeting: %v", err)
+		return nil, 0xff, fmt.Errorf("socks greeting: %w", err)
 	}
 	var greeting [2]byte
 	if _, err := io.ReadFull(conn, greeting[:]); err != nil {
 		conn.Close()
-		t.Fatalf("socks greeting reply: %v", err)
+		return nil, 0xff, fmt.Errorf("socks greeting reply: %w", err)
 	}
 	if greeting[0] != 0x05 || greeting[1] != 0x00 {
 		conn.Close()
-		t.Fatalf("unexpected socks greeting reply %v", greeting)
+		return nil, 0xff, fmt.Errorf("unexpected socks greeting reply %v", greeting)
 	}
 
 	var req []byte
@@ -324,23 +397,23 @@ func socks5Connect(t *testing.T, proxyPort int, host string, port int) (net.Conn
 	} else {
 		if len(host) > 255 {
 			conn.Close()
-			t.Fatalf("host too long: %s", host)
+			return nil, 0xff, fmt.Errorf("host too long: %s", host)
 		}
 		req = append([]byte{0x05, 0x01, 0x00, 0x03, byte(len(host))}, []byte(host)...)
 	}
 	req = append(req, byte(port>>8), byte(port))
 	if _, err := conn.Write(req); err != nil {
 		conn.Close()
-		t.Fatalf("socks connect: %v", err)
+		return nil, 0xff, fmt.Errorf("socks connect: %w", err)
 	}
 	var head [4]byte
 	if _, err := io.ReadFull(conn, head[:]); err != nil {
 		conn.Close()
-		t.Fatalf("socks connect reply: %v", err)
+		return nil, 0xff, fmt.Errorf("socks connect reply: %w", err)
 	}
 	if head[0] != 0x05 {
 		conn.Close()
-		t.Fatalf("bad socks version in reply: %v", head)
+		return nil, 0xff, fmt.Errorf("bad socks version in reply: %v", head)
 	}
 	switch head[3] {
 	case 0x01:
@@ -351,11 +424,26 @@ func socks5Connect(t *testing.T, proxyPort int, host string, port int) (net.Conn
 		var l [1]byte
 		if _, err := io.ReadFull(conn, l[:]); err != nil {
 			conn.Close()
-			t.Fatalf("socks reply addr len: %v", err)
+			return nil, 0xff, fmt.Errorf("socks reply addr len: %w", err)
 		}
 		_, _ = io.ReadFull(conn, make([]byte, int(l[0])+2))
+	default:
+		conn.Close()
+		return nil, 0xff, fmt.Errorf("unexpected socks address type in reply: 0x%02x", head[3])
 	}
-	return conn, head[1]
+	_ = conn.SetDeadline(time.Time{})
+	return conn, head[1], nil
+}
+
+// socks5Connect performs a full RFC 1928 no-auth CONNECT and returns the
+// established stream plus the reply code (0x00 means success).
+func socks5Connect(t *testing.T, proxyPort int, host string, port int) (net.Conn, byte) {
+	t.Helper()
+	conn, rep, err := trySOCKS5Connect(proxyPort, host, port, 30*time.Second)
+	if err != nil {
+		t.Fatalf("socks5 connect: %v", err)
+	}
+	return conn, rep
 }
 
 func mustConnect(t *testing.T, proxyPort int, host string, port int) net.Conn {
@@ -399,6 +487,24 @@ func echoRoundTrip(t *testing.T, conn net.Conn, tag string, payload []byte, time
 		t.Fatalf("write payload: %v", err)
 	}
 	if !bytes.Equal(got, want) {
+		for i := 0; i < len(want); i++ {
+			if got[i] != want[i] {
+				start := i - 10
+				if start < 0 {
+					start = 0
+				}
+				endGot := i + 30
+				if endGot > len(got) {
+					endGot = len(got)
+				}
+				endWant := i + 30
+				if endWant > len(want) {
+					endWant = len(want)
+				}
+				t.Fatalf("echo mismatch at index %d: got 0x%02x, want 0x%02x (got near: %q, want near: %q)",
+					i, got[i], want[i], got[start:endGot], want[start:endWant])
+			}
+		}
 		t.Fatalf("echo mismatch: got %d bytes, want %d bytes (tag %q)", len(got), len(want), tag)
 	}
 }
@@ -423,8 +529,8 @@ func TestSOCKSPerTargetForwarding(t *testing.T) {
 		echoRoundTrip(t, connA, "A:", []byte("destination-a"), 45*time.Second)
 		echoRoundTrip(t, connB, "B:", []byte("destination-b"), 45*time.Second)
 		// Interleave to prove per-stream state isolation.
-		echoRoundTrip(t, connA, "A:", []byte("a-again"), 45*time.Second)
-		echoRoundTrip(t, connB, "B:", []byte("b-again"), 45*time.Second)
+		echoRoundTrip(t, connA, "", []byte("a-again"), 45*time.Second)
+		echoRoundTrip(t, connB, "", []byte("b-again"), 45*time.Second)
 	})
 
 	t.Run("large_payload", func(t *testing.T) {
@@ -519,11 +625,28 @@ func TestSOCKSTargetPolicyDefaultDeny(t *testing.T) {
 
 func TestFixedForwardMode(t *testing.T) {
 	echo := startEcho(t, "F:")
-	tn := startTunnel(t, false, echo.port)
+	tn := startTunnelWithProtocol(t, "TCP", false, echo.port)
 
-	conn := mustConnect(t, tn.proxyPort, "example.com", 80)
+	// Transparent mode: no SOCKS negotiation, raw bytes go to FORWARD_IP:PORT.
+	conn, err := net.DialTimeout("tcp", fmt.Sprintf("127.0.0.1:%d", tn.proxyPort), 5*time.Second)
+	if err != nil {
+		t.Fatalf("dial fixed-forward listener: %v", err)
+	}
 	defer conn.Close()
-	echoRoundTrip(t, conn, "F:", []byte("fixed-forward"), 45*time.Second)
+	_ = conn.SetDeadline(time.Now().Add(45 * time.Second))
+
+	payload := []byte("fixed-forward")
+	if _, err := conn.Write(payload); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	want := append([]byte("F:"), payload...)
+	got := make([]byte, len(want))
+	if _, err := io.ReadFull(conn, got); err != nil {
+		t.Fatalf("read echo: %v", err)
+	}
+	if !bytes.Equal(got, want) {
+		t.Fatalf("fixed-forward echo mismatch: got %q want %q", got, want)
+	}
 }
 
 func TestInvalidConfigFailsFast(t *testing.T) {

@@ -13,11 +13,11 @@ import (
 )
 
 type DemuxConfig struct {
-	ListenAddr    string
-	MeliBackend   string
-	DnsttBackend  string
-	MeliDomain    string
-	DnsttDomain   string
+	ListenAddr   string
+	MeliBackend  string
+	DnsttBackend string
+	MeliDomain   string
+	DnsttDomain  string
 }
 
 func main() {

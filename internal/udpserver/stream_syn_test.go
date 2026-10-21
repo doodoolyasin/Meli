@@ -13,6 +13,7 @@ import (
 	"io"
 	"net"
 	"strconv"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -23,12 +24,12 @@ import (
 )
 
 type testNetConn struct {
-	closed bool
+	closed atomic.Bool
 }
 
 func (t *testNetConn) Read(_ []byte) (int, error)         { return 0, io.EOF }
 func (t *testNetConn) Write(p []byte) (int, error)        { return len(p), nil }
-func (t *testNetConn) Close() error                       { t.closed = true; return nil }
+func (t *testNetConn) Close() error                       { t.closed.Store(true); return nil }
 func (t *testNetConn) LocalAddr() net.Addr                { return testAddr("local") }
 func (t *testNetConn) RemoteAddr() net.Addr               { return testAddr("remote") }
 func (t *testNetConn) SetDeadline(_ time.Time) error      { return nil }
@@ -214,7 +215,7 @@ func TestProcessDeferredStreamSynDoesNotAttachAfterCancellation(t *testing.T) {
 	}
 	deadline := time.Now().Add(2 * time.Second)
 	for time.Now().Before(deadline) {
-		if conn.closed {
+		if conn.closed.Load() {
 			return
 		}
 		time.Sleep(10 * time.Millisecond)
@@ -355,7 +356,7 @@ func TestProcessDeferredSOCKS5SynDoesNotAttachAfterCancellation(t *testing.T) {
 	}
 	deadline := time.Now().Add(2 * time.Second)
 	for time.Now().Before(deadline) {
-		if conn.closed {
+		if conn.closed.Load() {
 			return
 		}
 		time.Sleep(10 * time.Millisecond)
@@ -818,7 +819,7 @@ func TestProcessDeferredStreamSynIgnoresLateDialCompletionAfterSessionClose(t *t
 	if upstream != nil {
 		t.Fatal("expected no upstream connection to be attached after session close")
 	}
-	if !conn.closed {
+	if !conn.closed.Load() {
 		t.Fatal("expected late dialed connection to be closed")
 	}
 
@@ -1121,7 +1122,7 @@ func TestDialSOCKSStreamTargetExternalProxyDetachesSuccessfulConnFromHandshakeCo
 	cancel()
 	time.Sleep(20 * time.Millisecond)
 
-	if conn.closed {
+	if conn.closed.Load() {
 		t.Fatal("expected successful external SOCKS5 connection to stay open after handshake context cancellation")
 	}
 }

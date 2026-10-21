@@ -25,6 +25,13 @@ const (
 	dnsHeaderSize     = 12
 	maxNameJumps      = 10
 	maxNameWireLength = 255
+
+	// Minimum wire sizes used to bound allocations from attacker-controlled
+	// section counts. A question is a name plus four bytes of QTYPE/QCLASS; the
+	// shortest possible name on the wire is the one-byte root label. A resource
+	// record is a name plus ten fixed bytes before its RDATA.
+	minQuestionWireSize       = 5
+	minResourceRecordWireSize = 11
 )
 
 type Header struct {
@@ -219,6 +226,14 @@ func parseQuestions(data []byte, offset int, count int) ([]Question, int, error)
 		return nil, offset, nil
 	}
 
+	// Never size an allocation from the header count alone. A 12-byte datagram
+	// can claim 65535 questions; without this check that would allocate several
+	// megabytes before the first bounds failure, giving remote clients a cheap
+	// memory-amplification primitive against the public UDP listener.
+	if offset < 0 || offset > len(data) || count > (len(data)-offset)/minQuestionWireSize {
+		return nil, offset, ErrInvalidQuestion
+	}
+
 	questions := make([]Question, count)
 	for i := range count {
 		name, nextOffset, err := parseName(data, offset)
@@ -245,6 +260,13 @@ func parseQuestions(data []byte, offset int, count int) ([]Question, int, error)
 func parseResourceRecords(data []byte, offset int, count int) ([]ResourceRecord, int, error) {
 	if count == 0 {
 		return nil, offset, nil
+	}
+
+	// Same allocation bound as parseQuestions: each record needs at least a
+	// one-byte root name plus the ten fixed fields, so a declared count larger
+	// than the remaining wire bytes can support is malformed by definition.
+	if offset < 0 || offset > len(data) || count > (len(data)-offset)/minResourceRecordWireSize {
+		return nil, offset, ErrInvalidAnswer
 	}
 
 	records := make([]ResourceRecord, count)

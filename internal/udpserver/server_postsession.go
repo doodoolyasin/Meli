@@ -877,8 +877,12 @@ func (s *Server) rejectProtocolMismatchedSynStream(vpnPacket VpnProto.Packet, pa
 	replyType := protocolMismatchReplyType(packetType)
 
 	if record, ok := s.sessions.Get(vpnPacket.SessionID); ok && record != nil {
+		// Deliberately do not queue a per-stream control ACK here: that helper
+		// materialises a stream for SYN packets, and a rejected SYN must not be
+		// able to allocate stream state. The orphan queue carries the explicit
+		// CONNECT_FAIL, and every retransmitted SYN produces a fresh answer,
+		// which is sufficient reliability for a permanent configuration error.
 		record.enqueueOrphanReset(replyType, streamID, sequenceNum)
-		_ = s.queueImmediateControlAck(record, vpnPacket)
 	}
 
 	if s.log != nil {

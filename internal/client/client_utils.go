@@ -40,7 +40,10 @@ func randomBytes(length int) ([]byte, error) {
 
 // fragmentPayload splits a payload into chunks of max mtu size.
 func fragmentPayload(payload []byte, mtu int) [][]byte {
-	if len(payload) <= mtu {
+	// A non-positive MTU means the upload size has not been negotiated yet.
+	// Slicing with a zero step would loop forever appending to the result, so
+	// treat it as "no fragmentation" instead of hanging the caller.
+	if mtu <= 0 || len(payload) <= mtu {
 		return [][]byte{payload}
 	}
 	var fragments [][]byte

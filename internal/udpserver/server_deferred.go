@@ -22,6 +22,52 @@ import (
 
 const maxDeferredConnectAttemptTimeout = 15 * time.Second
 
+type upstreamDialResult struct {
+	conn net.Conn
+	err  error
+}
+
+// dialWithinDeadline runs dial while enforcing ctx's deadline in the caller,
+// independently of the dialer's willingness to honour cancellation.
+//
+// net.Dialer returns promptly when its context is cancelled, but the deferred
+// connect pool must not depend on that cooperation: a dialer that is slow to
+// return would hold one of the few connect workers past the attempt budget,
+// back-pressuring stream setup for every other client sharing the server. When
+// the budget expires the in-flight dial is reaped in the background and any
+// socket it eventually produces is closed, so a late success cannot leak an
+// upstream connection or be attached to a stream that already reported failure.
+func dialWithinDeadline(ctx context.Context, dial func(context.Context) (net.Conn, error)) (net.Conn, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	results := make(chan upstreamDialResult, 1)
+	go func() {
+		conn, err := dial(ctx)
+		results <- upstreamDialResult{conn: conn, err: err}
+	}()
+
+	select {
+	case res := <-results:
+		if ctx.Err() != nil {
+			if res.conn != nil {
+				_ = res.conn.Close()
+			}
+			return nil, ctx.Err()
+		}
+		return res.conn, res.err
+	case <-ctx.Done():
+		go func() {
+			res := <-results
+			if res.conn != nil {
+				_ = res.conn.Close()
+			}
+		}()
+		return nil, ctx.Err()
+	}
+}
+
 func (s *Server) deferredConnectAttemptTimeout() time.Duration {
 	timeout := s.socksConnectTimeout
 	if timeout <= 0 {
@@ -86,7 +132,10 @@ func (s *Server) finalizeDeferredConnectStream(sessionID uint8, streamID uint16,
 }
 
 func (s *Server) processDeferredStreamSyn(ctx context.Context, vpnPacket VpnProto.Packet) {
-	if ctx != nil && ctx.Err() != nil {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if ctx.Err() != nil {
 		return
 	}
 	if !s.shouldExecuteDeferredPacket(vpnPacket) {
@@ -153,7 +202,9 @@ func (s *Server) processDeferredStreamSyn(ctx context.Context, vpnPacket VpnProt
 	attemptCtx, cancelAttempt := context.WithTimeout(ctx, attemptTimeout)
 	defer cancelAttempt()
 
-	upstreamConn, err := s.dialTCPTargetContext(attemptCtx, net.JoinHostPort(s.cfg.ForwardIP, strconv.Itoa(s.cfg.ForwardPort)))
+	upstreamConn, err := dialWithinDeadline(attemptCtx, func(ctx context.Context) (net.Conn, error) {
+		return s.dialTCPTargetContext(ctx, net.JoinHostPort(s.cfg.ForwardIP, strconv.Itoa(s.cfg.ForwardPort)))
+	})
 
 	if err != nil {
 		timedOut := errors.Is(attemptCtx.Err(), context.DeadlineExceeded)
@@ -231,7 +282,10 @@ func (s *Server) processDeferredStreamSyn(ctx context.Context, vpnPacket VpnProt
 }
 
 func (s *Server) processDeferredSOCKS5Syn(ctx context.Context, vpnPacket VpnProto.Packet) {
-	if ctx != nil && ctx.Err() != nil {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if ctx.Err() != nil {
 		return
 	}
 	if !s.shouldExecuteDeferredPacket(vpnPacket) {
@@ -354,7 +408,9 @@ func (s *Server) processDeferredSOCKS5Syn(ctx context.Context, vpnPacket VpnProt
 	attemptCtx, cancelAttempt := context.WithTimeout(ctx, attemptTimeout)
 	defer cancelAttempt()
 
-	upstreamConn, err := s.dialSOCKSStreamTargetContext(attemptCtx, target.Host, target.Port, assembledTarget)
+	upstreamConn, err := dialWithinDeadline(attemptCtx, func(ctx context.Context) (net.Conn, error) {
+		return s.dialSOCKSStreamTargetContext(ctx, target.Host, target.Port, assembledTarget)
+	})
 
 	if err != nil {
 		timedOut := errors.Is(attemptCtx.Err(), context.DeadlineExceeded)

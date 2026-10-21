@@ -217,6 +217,7 @@ type ARQ struct {
 	// Concurrency
 	ctx            context.Context
 	cancel         context.CancelFunc
+	done           chan struct{}
 	wg             sync.WaitGroup
 	flushSignal    chan struct{}
 	rxChan         chan rxPayload
@@ -412,6 +413,7 @@ func NewARQ(streamID uint16, sessionID uint8, enqueuer PacketEnqueuer, localConn
 	a.IsClient = cfg.IsClient
 
 	a.ctx, a.cancel = context.WithCancel(context.Background())
+	a.done = make(chan struct{})
 	return a
 }
 
@@ -483,9 +485,15 @@ func (a *ARQ) SetIOReady(ready bool) {
 	}
 }
 
-// Done returns a channel that is closed when the ARQ context is cancelled or the stream is closed.
+// Done returns a channel that is closed once the stream has fully closed: the
+// close epilogue (logging and the terminal owner callback) has completed, not
+// merely the point where cancellation was requested.
+//
+// It deliberately does not expose ctx.Done(): cancellation happens before that
+// epilogue, so a caller that freed shared state as soon as Done() fired could
+// race the callback that still runs inside finalizeClose.
 func (a *ARQ) Done() <-chan struct{} {
-	return a.ctx.Done()
+	return a.done
 }
 
 // ---------------------------------------------------------------------
@@ -2797,6 +2805,12 @@ func (a *ARQ) finalizeClose(reason string) {
 
 	if owner, ok := a.enqueuer.(terminalOwner); ok {
 		owner.OnARQClosed(reason)
+	}
+
+	// Signal completion only now: Done() is the contract callers wait on before
+	// releasing per-stream resources.
+	if a.done != nil {
+		close(a.done)
 	}
 }
 

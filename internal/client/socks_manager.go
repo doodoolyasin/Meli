@@ -65,7 +65,39 @@ func (c *Client) supportsSOCKS4() bool {
 	return c.cfg.SOCKS5User != "" && c.cfg.SOCKS5Pass == ""
 }
 
-// HandleSOCKS5 manages the local SOCKS handshake and supports SOCKS4/4a and SOCKS5.
+// defaultSocksHandshakeTimeout bounds the greeting/request phase of a SOCKS
+// connection when the client configuration does not override it. Without this
+// bound a local process can open connections and never send a byte, pinning one
+// goroutine and one file descriptor per connection for the lifetime of the
+// process.
+const defaultSocksHandshakeTimeout = 30 * time.Second
+
+// socksHandshakeTimeoutOrDefault returns the configured handshake budget. The
+// value lives on the Client rather than in a package global so tests and
+// embedded users can adjust it without racing a handler that is reading it.
+func (c *Client) socksHandshakeTimeoutOrDefault() time.Duration {
+	if c != nil && c.socksHandshakeTimeout > 0 {
+		return c.socksHandshakeTimeout
+	}
+	return defaultSocksHandshakeTimeout
+}
+
+// beginSocksHandshake arms the request-phase deadline. It is cleared once the
+// request has been accepted and the relay owns the connection.
+func (c *Client) beginSocksHandshake(conn net.Conn) {
+	if conn == nil {
+		return
+	}
+	_ = conn.SetReadDeadline(time.Now().Add(c.socksHandshakeTimeoutOrDefault()))
+}
+
+func clearSocksHandshakeDeadline(conn net.Conn) {
+	if conn == nil {
+		return
+	}
+	_ = conn.SetReadDeadline(time.Time{})
+}
+
 func (c *Client) HandleSOCKS5(ctx context.Context, conn net.Conn) {
 	// Rate-limit check: reject immediately if IP is banned.
 	if c.socksRateLimit != nil {
@@ -75,6 +107,8 @@ func (c *Client) HandleSOCKS5(ctx context.Context, conn net.Conn) {
 			return
 		}
 	}
+
+	c.beginSocksHandshake(conn)
 
 	version := make([]byte, 1)
 	if _, err := io.ReadFull(conn, version); err != nil {
@@ -238,6 +272,10 @@ func (c *Client) handleSOCKS5Request(ctx context.Context, conn net.Conn) {
 	}
 	port := binary.BigEndian.Uint16(portBuf)
 
+	// The request is complete; from here the relay owns the connection and the
+	// handshake deadline must not leak into the data path.
+	clearSocksHandshakeDeadline(conn)
+
 	if cmd == SOCKS5_CMD_CONNECT {
 		c.handleSOCKSConnect(ctx, conn, addr, port, atyp, SOCKS5_VERSION)
 		return
@@ -304,6 +342,7 @@ func (c *Client) handleSOCKS4Request(ctx context.Context, conn net.Conn) {
 		addr = string(domain)
 	}
 
+	clearSocksHandshakeDeadline(conn)
 	c.handleSOCKSConnect(ctx, conn, addr, port, atyp, SOCKS4_VERSION)
 }
 
@@ -386,6 +425,7 @@ func (c *Client) handleSOCKSConnect(ctx context.Context, conn net.Conn, addr str
 		} else {
 			_ = c.sendSocksReply(conn, SOCKS5_REPLY_GENERAL_FAILURE, SOCKS5_ATYP_IPV4, net.IPv4zero, 0)
 		}
+		_ = conn.Close()
 		return
 	}
 
@@ -393,6 +433,11 @@ func (c *Client) handleSOCKSConnect(ctx context.Context, conn net.Conn, addr str
 
 	arqObj, ok := s.Stream.(*arq.ARQ)
 	if !ok {
+		// Without an ARQ there is nothing that can carry the SYN, so the local
+		// socket must not be left open waiting for a connection that will never
+		// be attempted.
+		c.removeStream(streamID)
+		_ = conn.Close()
 		return
 	}
 
@@ -575,46 +620,87 @@ func (c *Client) rejectSocksUDPAssociateUnsupportedTarget(conn net.Conn, targetA
 	}
 }
 
+// socksUDPPeerAllowed reports whether a datagram may use an association.
+//
+// RFC 1928 section 7 requires the relay to serve exactly one client: the peer
+// of the TCP control connection. The request's DST.ADDR cannot be trusted for
+// that decision (any local process could claim someone else's address), so the
+// control connection's peer is authoritative and only the source port is
+// learned from the first accepted datagram.
+func socksUDPPeerAllowed(peer *net.UDPAddr, clientIP net.IP, expectedPort int) bool {
+	if peer == nil {
+		return false
+	}
+	if clientIP != nil && !peer.IP.Equal(clientIP) {
+		return false
+	}
+	if expectedPort != 0 && peer.Port != expectedPort {
+		return false
+	}
+	return true
+}
+
 func (c *Client) handleSocksUDPAssociate(ctx context.Context, conn net.Conn, clientAddr string, clientPort uint16, atyp byte) {
-	replyIP := net.ParseIP(c.cfg.ListenIP)
-	if tcpAddr, ok := conn.LocalAddr().(*net.TCPAddr); ok && tcpAddr != nil && tcpAddr.IP != nil {
-		replyIP = tcpAddr.IP
-	}
-	if replyIP == nil || replyIP.IsUnspecified() {
-		replyIP = net.IPv4(127, 0, 0, 1)
-	}
+	// The association is owned by the TCP control connection: RFC 1928 says it
+	// terminates when that connection does. Previously neither socket was tied
+	// to the other, so every association leaked one TCP descriptor and one
+	// goroutine until the process exited.
+	defer conn.Close()
 
+	// Bind on the address the client reached us on instead of the wildcard
+	// address. A relay listening on 0.0.0.0 is reachable by every host that can
+	// route to this machine: the port-53 restriction limits what it can be used
+	// for, but an open DNS relay is still an abuse and amplification vector.
+	bindIP := net.IPv4(127, 0, 0, 1)
 	replyATYP := byte(SOCKS5_ATYP_IPV4)
-	if replyIP.To4() == nil {
-		replyATYP = SOCKS5_ATYP_IPV6
+	if tcpAddr, ok := conn.LocalAddr().(*net.TCPAddr); ok && tcpAddr != nil && tcpAddr.IP != nil && !tcpAddr.IP.IsUnspecified() {
+		bindIP = tcpAddr.IP
+		if bindIP.To4() == nil {
+			replyATYP = SOCKS5_ATYP_IPV6
+		}
 	}
 
-	bindAddr := &net.UDPAddr{
-		IP:   net.IPv4zero,
-		Port: 0,
-	}
-	udpConn, err := net.ListenUDP("udp", bindAddr)
+	udpConn, err := net.ListenUDP("udp", &net.UDPAddr{IP: bindIP, Port: 0})
 	if err != nil {
 		_ = c.sendSocksReply(conn, SOCKS5_REPLY_GENERAL_FAILURE, SOCKS5_ATYP_IPV4, net.IPv4zero, 0)
 		return
 	}
 	defer udpConn.Close()
 
+	// A read on the control connection only returns when the client closes it;
+	// closing the UDP socket then unblocks the relay loop below.
+	go func() {
+		_, _ = io.Copy(io.Discard, conn)
+		_ = udpConn.Close()
+	}()
+
 	boundAddr := udpConn.LocalAddr().(*net.UDPAddr)
-	err = c.sendSocksReply(conn, SOCKS5_REPLY_SUCCESS, replyATYP, boundAddr.IP, uint16(boundAddr.Port))
-	if err != nil {
+	if err := c.sendSocksReply(conn, SOCKS5_REPLY_SUCCESS, replyATYP, boundAddr.IP, uint16(boundAddr.Port)); err != nil {
 		return
 	}
+
+	clientIP := net.IP(nil)
+	if remote, ok := conn.RemoteAddr().(*net.TCPAddr); ok && remote != nil {
+		clientIP = remote.IP
+	}
+	expectedPort := int(clientPort)
 
 	buf := make([]byte, 4096)
 	for {
 		_ = udpConn.SetReadDeadline(time.Now().Add(c.cfg.SOCKSUDPAssociateReadTimeout()))
 		n, peerAddr, err := udpConn.ReadFromUDP(buf)
 		if err != nil {
-			if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
-				return
-			}
 			return
+		}
+
+		if !socksUDPPeerAllowed(peerAddr, clientIP, expectedPort) {
+			if c.log != nil {
+				c.log.Debugf("⚠️ <yellow>SOCKS5 UDP datagram from unexpected source <cyan>%s</cyan> dropped</yellow>", peerAddr)
+			}
+			continue
+		}
+		if expectedPort == 0 {
+			expectedPort = peerAddr.Port
 		}
 
 		if n < 6 {

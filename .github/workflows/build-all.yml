@@ -33,7 +33,11 @@ jobs:
           cache: true
 
       - name: Download dependencies
-        run: go mod tidy
+        # `go mod tidy` rewrites go.mod/go.sum inside CI, so a build could
+        # "fix" a broken dependency graph instead of failing on it.
+        run: |
+          go mod download
+          go mod verify
 
       - name: Build client
         run: |
@@ -54,10 +58,13 @@ jobs:
           CGO_ENABLED=0 go build -ldflags="-s -w" -o $GITHUB_WORKSPACE/dist/dnstt-server-linux-amd64 .
 
       - name: Publish Binaries to Release
+        if: matrix.goos == 'linux' && matrix.goarch == 'amd64'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release upload v1.0.0 dist/* --clobber || true
+          ls -l dist/
+          gh release view v1.0.0 >/dev/null 2>&1 || gh release create v1.0.0 --title "Meli v1.0.0" --notes "Automated build from $GITHUB_SHA"
+          gh release upload v1.0.0 dist/* --clobber
 
   # Job 2: Build Android Multi-Engine APK (Full & Lite)
   build-android:
@@ -124,6 +131,10 @@ jobs:
         working-directory: android/gomobile-build
         run: make build
 
+      # NOTE: this generates a brand-new signing key on every run, so each APK
+      # is signed by a different certificate and cannot be installed as an
+      # update over an earlier build. Replace with a keystore restored from
+      # secrets before publishing releases that users upgrade in place.
       - name: Setup Keystore
         working-directory: android
         run: |
@@ -151,12 +162,20 @@ jobs:
         working-directory: android
         run: |
           mkdir -p release-apks
-          cp app/build/outputs/apk/full/release/*.apk release-apks/ 2>/dev/null || true
-          cp app/build/outputs/apk/lite/release/*.apk release-apks/ 2>/dev/null || true
+          shopt -s nullglob
+          apks=(app/build/outputs/apk/*/release/*.apk)
+          if [ ${#apks[@]} -eq 0 ]; then
+            echo "::error::Gradle reported success but produced no release APK"
+            find app/build/outputs -maxdepth 4 -name '*.apk' -print || true
+            exit 1
+          fi
+          cp "${apks[@]}" release-apks/
+          ls -l release-apks/
 
       - name: Publish APKs directly to Release
         working-directory: android
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release upload v1.0.0 release-apks/*.apk --clobber || true
+          gh release view v1.0.0 >/dev/null 2>&1 || gh release create v1.0.0 --title "Meli v1.0.0" --notes "Automated build from $GITHUB_SHA"
+          gh release upload v1.0.0 release-apks/*.apk --clobber

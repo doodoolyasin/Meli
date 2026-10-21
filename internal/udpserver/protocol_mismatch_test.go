@@ -3,9 +3,9 @@ package udpserver
 import (
 	"testing"
 
-	VpnProto "github.com/doodoolyasin/meli/internal/vpnproto"
-	Enums "github.com/doodoolyasin/meli/internal/enums"
 	"github.com/doodoolyasin/meli/internal/config"
+	Enums "github.com/doodoolyasin/meli/internal/enums"
+	VpnProto "github.com/doodoolyasin/meli/internal/vpnproto"
 )
 
 func TestRejectProtocolMismatchedSynTruthTable(t *testing.T) {
@@ -55,12 +55,12 @@ func TestRejectProtocolMismatchedSynQueuesConnectFailure(t *testing.T) {
 	s.sessions.activeCount = 1
 
 	packet := VpnProto.Packet{
-		SessionID:     record.ID,
-		SessionCookie: record.Cookie,
-		PacketType:    Enums.PACKET_STREAM_SYN,
-		StreamID:      11,
-		HasStreamID:   true,
-		SequenceNum:   4,
+		SessionID:      record.ID,
+		SessionCookie:  record.Cookie,
+		PacketType:     Enums.PACKET_STREAM_SYN,
+		StreamID:       11,
+		HasStreamID:    true,
+		SequenceNum:    4,
 		HasSequenceNum: true,
 	}
 	if !s.rejectProtocolMismatchedSyn(packet.PacketType) {

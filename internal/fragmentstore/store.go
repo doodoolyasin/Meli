@@ -13,10 +13,11 @@ import (
 )
 
 type Store[K comparable] struct {
-	mu        sync.Mutex
-	items     map[K]*entry
-	completed map[K]time.Time
-	lastPurge time.Time
+	mu         sync.Mutex
+	items      map[K]*entry
+	completed  map[K]time.Time
+	lastPurge  time.Time
+	maxEntries int
 }
 
 type entry struct {
@@ -26,13 +27,21 @@ type entry struct {
 	count          uint8
 }
 
+// New creates a store bounded to capacity live reassembly entries and the same
+// number of recent-completion markers.
+//
+// The bound is a hard limit, not a sizing hint. Every key is derived from
+// attacker-controlled header fields (session id plus sequence number), so an
+// unbounded map lets one peer allocate an entry - each carrying a 256-slot
+// chunk table - for every sequence number it invents.
 func New[K comparable](capacity int) *Store[K] {
 	if capacity < 1 {
 		capacity = 16
 	}
 	return &Store[K]{
-		items:     make(map[K]*entry, capacity),
-		completed: make(map[K]time.Time, capacity),
+		items:      make(map[K]*entry, capacity),
+		completed:  make(map[K]time.Time, capacity),
+		maxEntries: capacity,
 	}
 }
 
@@ -54,6 +63,7 @@ func (s *Store[K]) Collect(key K, payload []byte, fragmentID uint8, totalFragmen
 		}
 
 		delete(s.items, key)
+		s.evictCompletedIfFullLocked()
 		s.completed[key] = now.Add(retention)
 		return append([]byte(nil), payload...), true, false
 	}
@@ -76,6 +86,9 @@ func (s *Store[K]) Collect(key K, payload []byte, fragmentID uint8, totalFragmen
 
 	current, ok := s.items[key]
 	if !ok || current.totalFragments != totalFragments {
+		if !ok {
+			s.evictItemIfFullLocked()
+		}
 		current = &entry{
 			createdAt:      now,
 			totalFragments: totalFragments,
@@ -152,6 +165,47 @@ func (s *Store[K]) RemoveIf(match func(K) bool) {
 		}
 	}
 	s.mu.Unlock()
+}
+
+// evictItemIfFullLocked keeps the reassembly table bounded. Eviction order is
+// arbitrary because Go randomises map iteration: this is a best-effort
+// reassembly cache, and under a flood of invented keys bounded memory is worth
+// more than perfect retention. Legitimate assemblies complete within a few
+// round trips, so they are unlikely to be the oldest entry when pressure hits.
+func (s *Store[K]) evictItemIfFullLocked() {
+	if s == nil || s.maxEntries <= 0 {
+		return
+	}
+	for len(s.items) >= s.maxEntries {
+		evicted := false
+		for key := range s.items {
+			delete(s.items, key)
+			evicted = true
+			break
+		}
+		if !evicted {
+			return
+		}
+	}
+}
+
+// evictCompletedIfFullLocked bounds the recent-completion markers, which are
+// also keyed by attacker-chosen sequence numbers.
+func (s *Store[K]) evictCompletedIfFullLocked() {
+	if s == nil || s.maxEntries <= 0 {
+		return
+	}
+	for len(s.completed) >= s.maxEntries {
+		evicted := false
+		for key := range s.completed {
+			delete(s.completed, key)
+			evicted = true
+			break
+		}
+		if !evicted {
+			return
+		}
+	}
 }
 
 func (s *Store[K]) purgeLocked(now time.Time, retention time.Duration) {

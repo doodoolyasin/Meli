@@ -26,6 +26,7 @@ import (
 	"github.com/doodoolyasin/meli/internal/mlq"
 	"github.com/doodoolyasin/meli/internal/security"
 	VpnProto "github.com/doodoolyasin/meli/internal/vpnproto"
+	"github.com/doodoolyasin/meli/pkg/pacer"
 )
 
 const (
@@ -134,6 +135,12 @@ type Client struct {
 
 	// SOCKS5 brute-force rate limiter
 	socksRateLimit *socksRateLimiter
+
+	// SOCKS handshake budget; zero means defaultSocksHandshakeTimeout.
+	socksHandshakeTimeout time.Duration
+
+	// Optional client-wide egress pacer (nil = unlimited).
+	pacerBucket atomic.Pointer[pacer.LeakyBucket]
 }
 
 // clientStreamTXPacket represents a queued packet pending transmission or retransmission.
@@ -203,6 +210,34 @@ type writerTask struct {
 	item      *clientStreamTXPacket
 	selected  *Stream_client
 	frames    []encodedOutboundDatagram
+}
+
+// SetPacerBytesPerSecond enables a client-wide egress rate limit, or disables
+// pacing when rate <= 0.
+//
+// The bucket is shared by every writer worker so the configured rate is the
+// aggregate egress rate, not a per-connection rate. It is stored atomically
+// because the writer goroutines read it on every datagram.
+func (c *Client) SetPacerBytesPerSecond(rate float64) {
+	if c == nil {
+		return
+	}
+	if rate <= 0 {
+		c.pacerBucket.Store(nil)
+		return
+	}
+	c.pacerBucket.Store(pacer.NewLeakyBucket(rate, rate*2))
+}
+
+// paceOutbound blocks until the shared bucket admits n bytes. A nil bucket is
+// the default and costs one atomic load per datagram.
+func (c *Client) paceOutbound(n int) {
+	if c == nil || n <= 0 {
+		return
+	}
+	if bucket := c.pacerBucket.Load(); bucket != nil {
+		bucket.SleepUntilSend(float64(n))
+	}
 }
 
 // Bootstrap initializes a new Client by loading configuration, setting up logging,

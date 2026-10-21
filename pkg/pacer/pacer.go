@@ -7,11 +7,11 @@ import (
 
 // LeakyBucket implements a simple leaky bucket rate limiter with microsecond precision
 type LeakyBucket struct {
-	rate      float64 // tokens per second
-	capacity  float64 // max tokens
-	tokens    float64
-	last      time.Time
-	mu        sync.Mutex
+	rate     float64 // tokens per second
+	capacity float64 // max tokens
+	tokens   float64
+	last     time.Time
+	mu       sync.Mutex
 }
 
 // NewLeakyBucket creates a bucket that leaks at rate tokens/sec with given capacity
@@ -42,45 +42,41 @@ func (b *LeakyBucket) Allow(n float64) bool {
 	return false
 }
 
-// SleepUntilSend blocks until bucket allows n tokens
+// SleepUntilSend blocks until the bucket admits n tokens, then deducts them.
+//
+// It only returns once the tokens were actually taken. The previous version
+// slept once and, if the wake-up was still short (which happens as soon as two
+// waiters share a bucket), fell through without deducting anything — so a
+// concurrent caller was admitted for free and the aggregate rate exceeded the
+// configured one.
 func (b *LeakyBucket) SleepUntilSend(n float64) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	now := time.Now()
-	elapsed := now.Sub(b.last).Seconds()
-	b.tokens += elapsed * b.rate
-	if b.tokens > b.capacity {
-		b.tokens = b.capacity
-	}
-	if b.tokens >= n {
-		b.tokens -= n
-		b.last = now
+	if b == nil || n <= 0 || b.rate <= 0 || b.capacity <= 0 {
 		return
 	}
-	// Need to wait for (n - b.tokens) tokens.
-	needed := (n - b.tokens) / b.rate
-	sleepTime := time.Duration(needed * float64(time.Second))
-	// Release lock while sleeping
-	b.mu.Unlock()
-	time.Sleep(sleepTime)
-	b.mu.Lock()
-	// After sleeping, update state: we have slept for sleepTime, so we add tokens for that period.
-	// We assume the sleep was accurate enough.
-	now = time.Now()
-	elapsed = now.Sub(b.last).Seconds()
-	b.tokens += elapsed * b.rate
-	if b.tokens > b.capacity {
-		b.tokens = b.capacity
+	if n > b.capacity {
+		// A single write larger than the whole bucket could never be admitted;
+		// charge the bucket's worth instead of blocking forever.
+		n = b.capacity
 	}
-	// Now we should have enough tokens for n.
-	if b.tokens >= n {
-		b.tokens -= n
-		b.last = now
-		return
+
+	for {
+		b.mu.Lock()
+		now := time.Now()
+		elapsed := now.Sub(b.last).Seconds()
+		if elapsed > 0 {
+			b.tokens = min(b.capacity, b.tokens+elapsed*b.rate)
+			b.last = now
+		}
+		if b.tokens >= n {
+			b.tokens -= n
+			b.mu.Unlock()
+			return
+		}
+		needed := (n - b.tokens) / b.rate
+		b.mu.Unlock()
+
+		// Never hold the mutex while sleeping: other writers must be able to
+		// observe the bucket and queue behind the same budget.
+		time.Sleep(time.Duration(needed * float64(time.Second)))
 	}
-	// This should not happen, but if it does, we wait again (should be rare due to inaccuracies in sleep).
-	// We'll set tokens to 0 and update last time to now.
-	// This is a fallback.
-	b.tokens = 0
-	b.last = now
 }

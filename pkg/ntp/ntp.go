@@ -23,6 +23,24 @@ type Packet struct {
 	Payload   []byte
 }
 
+// ntpEpochOffset is the number of seconds between the NTP epoch (1900-01-01)
+// and the Unix epoch (1970-01-01).
+const ntpEpochOffset = 2208988800
+
+// ntpTimestamp converts t into the 64-bit NTP timestamp format of RFC 5905
+// section 6: 32 bits of seconds since 1900 followed by 32 bits of fraction.
+//
+// The fraction is the nanosecond value scaled to 2^32, so it must be computed
+// in 64-bit arithmetic: shifting a 32-bit value by 32 yields zero, which would
+// make every packet claim to have been generated exactly on a second boundary.
+// That pattern is trivially flaggable by any NTP monitor or DPI middlebox that
+// this channel is supposed to blend into.
+func ntpTimestamp(t time.Time) (sec uint32, frac uint32) {
+	sec = uint32(t.Unix() + ntpEpochOffset)
+	frac = uint32((uint64(t.Nanosecond()) << 32) / uint64(time.Second))
+	return sec, frac
+}
+
 // TunnelClient provides emergency communication over UDP port 123 (NTP)
 // Unblockable because blocking UDP 123 causes system clock drift, breaking all TLS certificates nationwide.
 type TunnelClient struct {
@@ -87,9 +105,7 @@ func (c *TunnelClient) Send(ctx context.Context, sessionID uint32, seq uint32, d
 	ntpHeader[3] = 0xEC // Precision: -20
 
 	// Transmit Timestamp (seconds since 1900)
-	now := time.Now()
-	sec := uint32(now.Unix() + 2208988800)
-	frac := uint32(now.Nanosecond()) << 32 / 1000000000
+	sec, frac := ntpTimestamp(time.Now())
 	binary.BigEndian.PutUint32(ntpHeader[40:44], sec)
 	binary.BigEndian.PutUint32(ntpHeader[44:48], frac)
 

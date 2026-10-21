@@ -10,6 +10,7 @@ package udpserver
 import (
 	"context"
 	"io"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -22,13 +23,13 @@ import (
 )
 
 type testReadWriteCloser struct {
-	closed bool
+	closed atomic.Bool
 }
 
 func (t *testReadWriteCloser) Read(_ []byte) (int, error)  { return 0, io.EOF }
 func (t *testReadWriteCloser) Write(p []byte) (int, error) { return len(p), nil }
 func (t *testReadWriteCloser) Close() error {
-	t.closed = true
+	t.closed.Store(true)
 	return nil
 }
 
@@ -104,7 +105,7 @@ func TestCleanupClosedSessionClosesStreamsAndClearsQueues(t *testing.T) {
 
 	s.cleanupClosedSession(record.ID, record)
 
-	if !upstream.closed {
+	if !upstream.closed.Load() {
 		t.Fatalf("expected upstream connection to be closed")
 	}
 	if stream.Status != "CLOSED" {
@@ -187,7 +188,7 @@ func TestForceCloseStreamQueuesRSTOnServer(t *testing.T) {
 
 	stream.CloseStream(true, 0, "force close")
 
-	if !upstream.closed {
+	if !upstream.closed.Load() {
 		t.Fatal("expected force close to close upstream connection")
 	}
 
@@ -412,7 +413,7 @@ func TestCleanupTerminalStreamsAbortsAndRemovesExpiredStreams(t *testing.T) {
 	stream.Abort("test cleanup")
 	record.cleanupTerminalStreams(time.Now().Add(46*time.Second), 45*time.Second)
 
-	if !upstream.closed {
+	if !upstream.closed.Load() {
 		t.Fatalf("expected upstream connection to be closed during terminal cleanup")
 	}
 	if _, ok := record.getStream(2); ok {

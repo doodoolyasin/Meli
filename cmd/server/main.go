@@ -23,7 +23,6 @@ import (
 	"github.com/doodoolyasin/meli/internal/security"
 	UDPServer "github.com/doodoolyasin/meli/internal/udpserver"
 	"github.com/doodoolyasin/meli/internal/version"
-	"github.com/doodoolyasin/meli/pkg/desync"
 )
 
 func waitForExitInput() {
@@ -148,12 +147,10 @@ func main() {
 
 	log.Infof("🚀 <green>Server Configuration Loaded</green>")
 	if *edns0Stego {
-		_ = desync.EDNS0Option([]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, 65001, nil)
-		log.Infof("🔐 <cyan>EDNS0 OPT RR Steganography listener active (Option 65001)</cyan>")
+		log.Warnf("⚠️ <yellow>EDNS0 OPT steganography requested, but no parser for option 65001 is wired into the ingress path; the flag has no effect</yellow>")
 	}
 	if *quicStego {
-		_ = desync.QUICDCIDStego([]byte("MELI"))
-		log.Infof("🛡️ <cyan>QUIC DCID Initial Packet Camouflage active</cyan>")
+		log.Warnf("⚠️ <yellow>QUIC DCID camouflage requested, but it is not wired into the ingress path; the flag has no effect</yellow>")
 	}
 	if len(cfg.Domain) > 0 {
 		log.Infof(
