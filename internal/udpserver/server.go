@@ -66,6 +66,7 @@ type Server struct {
 	invalidCookieThreshold   int
 	socksConnectTimeout      time.Duration
 	useExternalSOCKS5        bool
+	allowPrivateTargets      bool
 	externalSOCKS5Address    string
 	externalSOCKS5Auth       bool
 	externalSOCKS5User       []byte
@@ -165,6 +166,7 @@ func New(cfg config.ServerConfig, log *logger.Logger, codec *security.Codec) *Se
 		invalidCookieThreshold:   cfg.InvalidCookieErrorThreshold,
 		socksConnectTimeout:      socksConnectTimeout,
 		useExternalSOCKS5:        cfg.UseExternalSOCKS5,
+		allowPrivateTargets:      cfg.AllowPrivateTargets,
 		externalSOCKS5Address:    net.JoinHostPort(cfg.ForwardIP, strconv.Itoa(cfg.ForwardPort)),
 		externalSOCKS5Auth:       cfg.SOCKS5Auth,
 		externalSOCKS5User:       []byte(cfg.SOCKS5User),

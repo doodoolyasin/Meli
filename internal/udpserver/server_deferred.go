@@ -260,6 +260,12 @@ func (s *Server) processDeferredSOCKS5Syn(ctx context.Context, vpnPacket VpnProt
 	)
 
 	if completed || !ready {
+		if s.log != nil {
+			s.log.Debugf(
+				"🧦 SOCKS5_SYN deferred assembly, Session: %d | Stream: %d | ready=%v completed=%v assembled=%dB",
+				vpnPacket.SessionID, vpnPacket.StreamID, ready, completed, len(assembledTarget),
+			)
+		}
 		return
 	}
 

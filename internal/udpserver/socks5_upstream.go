@@ -15,6 +15,7 @@ import (
 	"net"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	Enums "github.com/doodoolyasin/meli/internal/enums"
@@ -74,39 +75,55 @@ func (s *Server) dialSOCKSStreamTargetContext(ctx context.Context, host string, 
 		}
 	}
 
-	if err := validateSOCKSTargetHost(host); err != nil {
+	if err := s.validateSOCKSTarget(host); err != nil {
 		return nil, err
 	}
 
 	if !s.useExternalSOCKS5 || len(targetPayload) == 0 {
-		return s.dialTCPTargetContext(ctx, net.JoinHostPort(host, strconv.Itoa(int(port))))
+		return s.dialTCPTargetContextPolicy(ctx, net.JoinHostPort(host, strconv.Itoa(int(port))), true)
 	}
 	return s.dialExternalSOCKS5TargetContext(ctx, targetPayload)
 }
 
+// validateSOCKSTargetHost is the default (deny) policy used by unit tests and
+// by code paths that have no Server configuration available.
 func validateSOCKSTargetHost(host string) error {
+	return validateSOCKSTargetHostPolicy(host, false)
+}
+
+// validateSOCKSTargetHostPolicy rejects destinations that would turn the
+// tunnel into an SSRF pivot. link-local, multicast and unspecified addresses
+// are always rejected because they include the cloud metadata endpoints
+// (169.254.169.254, fd00:ec2::254) that hand out instance credentials.
+// Loopback, RFC1918, CGNAT and benchmarking ranges are additionally rejected
+// unless the operator explicitly opted in with ALLOW_PRIVATE_TARGETS.
+func validateSOCKSTargetHostPolicy(host string, allowPrivate bool) error {
 	trimmed := strings.TrimSpace(host)
 	if trimmed == "" {
 		return &blockedSOCKSTargetError{host: host}
 	}
 
 	lower := strings.ToLower(trimmed)
-	if lower == "localhost" || strings.HasSuffix(lower, ".localhost") {
+	if !allowPrivate && (lower == "localhost" || strings.HasSuffix(lower, ".localhost")) {
 		return &blockedSOCKSTargetError{host: host}
 	}
 
 	ip := net.ParseIP(trimmed)
 	if ip == nil {
+		// A DNS name: the final address is validated by the dialer's own
+		// resolution. Operators needing private-name access must opt in.
 		return nil
 	}
 
-	if !ip.IsGlobalUnicast() ||
-		ip.IsLoopback() ||
-		ip.IsPrivate() ||
-		ip.IsMulticast() ||
-		ip.IsLinkLocalUnicast() ||
-		ip.IsLinkLocalMulticast() ||
-		ip.IsUnspecified() {
+	if ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsMulticast() || ip.IsUnspecified() {
+		return &blockedSOCKSTargetError{host: host}
+	}
+
+	if allowPrivate {
+		return nil
+	}
+
+	if ip.IsLoopback() || ip.IsPrivate() {
 		return &blockedSOCKSTargetError{host: host}
 	}
 
@@ -122,11 +139,26 @@ func validateSOCKSTargetHost(host string) error {
 	return nil
 }
 
+// validateSOCKSTarget applies the server's configured target policy.
+func (s *Server) validateSOCKSTarget(host string) error {
+	allowPrivate := s != nil && s.allowPrivateTargets
+	return validateSOCKSTargetHostPolicy(host, allowPrivate)
+}
+
 func (s *Server) dialTCPTarget(address string) (net.Conn, error) {
 	return s.dialTCPTargetContext(context.Background(), address)
 }
 
 func (s *Server) dialTCPTargetContext(ctx context.Context, address string) (net.Conn, error) {
+	return s.dialTCPTargetContextPolicy(ctx, address, false)
+}
+
+// dialTCPTargetContextPolicy is dialTCPTargetContext with an optional
+// connect-time destination check. enforceTargetPolicy closes the DNS-rebinding
+// hole: a client can submit any hostname, so the policy must also be applied to
+// the address the resolver actually returns. Fixed FORWARD_IP destinations are
+// operator-controlled and therefore not subject to the client-target policy.
+func (s *Server) dialTCPTargetContextPolicy(ctx context.Context, address string, enforceTargetPolicy bool) (net.Conn, error) {
 	dialFn := s.dialStreamUpstreamFn
 	timeout := s.socksConnectTimeout
 	if timeout <= 0 {
@@ -142,6 +174,18 @@ func (s *Server) dialTCPTargetContext(ctx context.Context, address string) (net.
 
 	if dialFn == nil {
 		dialer := net.Dialer{Timeout: timeout}
+		if enforceTargetPolicy && s != nil && !s.allowPrivateTargets {
+			dialer.Control = func(network, resolved string, _ syscall.RawConn) error {
+				resolvedHost, _, splitErr := net.SplitHostPort(resolved)
+				if splitErr != nil {
+					return splitErr
+				}
+				if err := validateSOCKSTargetHostPolicy(resolvedHost, false); err != nil {
+					return err
+				}
+				return nil
+			}
+		}
 		conn, err := dialer.DialContext(ctx, "tcp", address)
 		return conn, err
 	}

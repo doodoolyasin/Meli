@@ -28,6 +28,7 @@ const (
 
 func (s *Server) handlePostSessionPacket(vpnPacket VpnProto.Packet, sessionRecord *sessionRuntimeView) bool {
 	if s.rejectProtocolMismatchedSyn(vpnPacket.PacketType) {
+		s.rejectProtocolMismatchedSynStream(vpnPacket, vpnPacket.PacketType, vpnPacket.StreamID, vpnPacket.SequenceNum)
 		return false
 	}
 
@@ -304,6 +305,7 @@ func (s *Server) handlePackedControlBlocksRequest(vpnPacket VpnProto.Packet, ses
 		}
 
 		if s.rejectProtocolMismatchedSyn(packetType) {
+			s.rejectProtocolMismatchedSynStream(vpnPacket, packetType, streamID, sequenceNum)
 			return true
 		}
 
@@ -788,7 +790,7 @@ func (s *Server) tryHandleImmediateRejectedSOCKS5Syn(vpnPacket VpnProto.Packet) 
 	if err != nil {
 		return false
 	}
-	if err := validateSOCKSTargetHost(target.Host); err != nil {
+	if err := s.validateSOCKSTarget(target.Host); err != nil {
 		packetType := s.mapSOCKSConnectError(err)
 		stream.ARQ.SendControlPacketWithTTL(
 			packetType,
@@ -854,6 +856,39 @@ func (s *Server) rejectProtocolMismatchedSyn(packetType uint8) bool {
 	}
 }
 
+// protocolMismatchReplyType maps a SYN that the current server protocol mode
+// must reject onto the matching connect-failure packet for that protocol.
+func protocolMismatchReplyType(packetType uint8) uint8 {
+	if packetType == Enums.PACKET_SOCKS5_SYN {
+		return Enums.PACKET_SOCKS5_CONNECT_FAIL
+	}
+	return Enums.PACKET_STREAM_CONNECT_FAIL
+}
+
+// rejectProtocolMismatchedSynStream answers a SYN that belongs to the other
+// protocol mode with an explicit CONNECT_FAIL. Silently dropping it left the
+// client retransmitting until its own SYN timeout, which looked like a dead
+// tunnel instead of a configuration error.
+func (s *Server) rejectProtocolMismatchedSynStream(vpnPacket VpnProto.Packet, packetType uint8, streamID uint16, sequenceNum uint16) {
+	if s == nil || streamID == 0 {
+		return
+	}
+
+	replyType := protocolMismatchReplyType(packetType)
+
+	if record, ok := s.sessions.Get(vpnPacket.SessionID); ok && record != nil {
+		record.enqueueOrphanReset(replyType, streamID, sequenceNum)
+		_ = s.queueImmediateControlAck(record, vpnPacket)
+	}
+
+	if s.log != nil {
+		s.log.Warnf(
+			"<yellow>Rejected protocol-mismatched SYN</yellow> <magenta>|</magenta> <blue>Session</blue>: <cyan>%d</cyan> <magenta>|</magenta> <blue>Stream</blue>: <cyan>%d</cyan> <magenta>|</magenta> <blue>Server protocol</blue>: <cyan>%s</cyan> <magenta>|</magenta> <blue>Fix</blue>: set PROTOCOL_TYPE on both client and server to the same value",
+			vpnPacket.SessionID, streamID, s.cfg.ProtocolType,
+		)
+	}
+}
+
 func (s *Server) handleSOCKS5SynRequest(vpnPacket VpnProto.Packet, sessionRecord *sessionRuntimeView) bool {
 	if !vpnPacket.HasStreamID || vpnPacket.StreamID == 0 || sessionRecord == nil {
 		return false
@@ -865,6 +900,18 @@ func (s *Server) handleSOCKS5SynRequest(vpnPacket VpnProto.Packet, sessionRecord
 
 	if !record.canCreateAdditionalStream(vpnPacket.StreamID) {
 		return s.rejectNewStreamBecauseLimit(record, vpnPacket)
+	}
+
+	if s.log != nil {
+		s.log.Debugf(
+			"🧦 <cyan>SOCKS5_SYN received, Session: <yellow>%d</yellow> | Stream: <yellow>%d</yellow> | Seq: <yellow>%d</yellow> | Frag: <yellow>%d/%d</yellow> | Payload: <yellow>%d</yellow>B</cyan>",
+			vpnPacket.SessionID,
+			vpnPacket.StreamID,
+			vpnPacket.SequenceNum,
+			vpnPacket.FragmentID,
+			vpnPacket.TotalFragments,
+			len(vpnPacket.Payload),
+		)
 	}
 
 	if s.tryHandleImmediateConnectedSOCKS5Syn(vpnPacket) {

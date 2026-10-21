@@ -185,6 +185,17 @@ SOCKS5_PASS = "123456"
 FORWARD_IP = ""
 FORWARD_PORT = 0
 
+# If true, SOCKS5 sessions may reach loopback, RFC1918, CGNAT and other
+# non-public addresses. Disabled by default so that a server cannot be turned
+# into an SSRF pivot into its own host or private network by anyone holding the
+# shared encryption key (cloud metadata endpoints, internal dashboards, ...).
+# Link-local, multicast and unspecified addresses stay blocked even when this
+# is enabled. The same policy is applied to the addresses that hostnames
+# resolve to, so DNS names pointing at 127.0.0.1 are blocked too.
+# Enable only when the server must forward into its own private network and
+# every client that knows the tunnel key is trusted.
+ALLOW_PRIVATE_TARGETS = false
+
 # ------------------------------------------------------------------------------
 # 7) Security
 # What this section does:

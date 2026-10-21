@@ -25,47 +25,53 @@ import (
 )
 
 type ServerConfig struct {
-	ConfigDir                         string   `toml:"-"`
-	ConfigPath                        string   `toml:"-"`
-	ProtocolType                      string   `toml:"PROTOCOL_TYPE"`
-	UDPHost                           string   `toml:"UDP_HOST"`
-	UDPPort                           int      `toml:"UDP_PORT"`
-	FallbackAddress                   string   `toml:"FALLBACK"`
-	UDPReaders                        int      `toml:"UDP_READERS"`
-	SocketBufferSize                  int      `toml:"SOCKET_BUFFER_SIZE"`
-	MaxConcurrentRequests             int      `toml:"MAX_CONCURRENT_REQUESTS"`
-	DNSRequestWorkers                 int      `toml:"DNS_REQUEST_WORKERS"`
-	DeferredSessionWorkers            int      `toml:"DEFERRED_SESSION_WORKERS"`
-	DeferredSessionQueueLimit         int      `toml:"DEFERRED_SESSION_QUEUE_LIMIT"`
-	MaxPacketSize                     int      `toml:"MAX_PACKET_SIZE"`
-	DropLogIntervalSecs               float64  `toml:"DROP_LOG_INTERVAL_SECONDS"`
-	InvalidCookieWindowSecs           float64  `toml:"INVALID_COOKIE_WINDOW_SECONDS"`
-	InvalidCookieErrorThreshold       int      `toml:"INVALID_COOKIE_ERROR_THRESHOLD"`
-	SessionTimeoutSecs                float64  `toml:"SESSION_TIMEOUT_SECONDS"`
-	SessionCleanupIntervalSecs        float64  `toml:"SESSION_CLEANUP_INTERVAL_SECONDS"`
-	ClosedSessionRetentionSecs        float64  `toml:"CLOSED_SESSION_RETENTION_SECONDS"`
-	SessionInitReuseTTLSeconds        float64  `toml:"SESSION_INIT_REUSE_TTL_SECONDS"`
-	RecentlyClosedStreamTTLSeconds    float64  `toml:"RECENTLY_CLOSED_STREAM_TTL_SECONDS"`
-	RecentlyClosedStreamCap           int      `toml:"RECENTLY_CLOSED_STREAM_CAP"`
-	TerminalStreamRetentionSeconds    float64  `toml:"TERMINAL_STREAM_RETENTION_SECONDS"`
-	MaxPacketsPerBatch                int      `toml:"MAX_PACKETS_PER_BATCH"`
-	PacketBlockControlDuplication     int      `toml:"PACKET_BLOCK_CONTROL_DUPLICATION"`
-	DNSUpstreamServers                []string `toml:"DNS_UPSTREAM_SERVERS"`
-	DNSUpstreamTimeoutSecs            float64  `toml:"DNS_UPSTREAM_TIMEOUT"`
-	DNSInflightWaitTimeoutSecs        float64  `toml:"DNS_INFLIGHT_WAIT_TIMEOUT_SECONDS"`
-	SOCKSConnectTimeoutSecs           float64  `toml:"SOCKS_CONNECT_TIMEOUT"`
-	DNSFragmentAssemblyTimeoutSecs    float64  `toml:"DNS_FRAGMENT_ASSEMBLY_TIMEOUT"`
-	StreamSetupAckTTLSeconds          float64  `toml:"STREAM_SETUP_ACK_TTL_SECONDS"`
-	StreamResultPacketTTLSeconds      float64  `toml:"STREAM_RESULT_PACKET_TTL_SECONDS"`
-	StreamFailurePacketTTLSeconds     float64  `toml:"STREAM_FAILURE_PACKET_TTL_SECONDS"`
-	DNSCacheMaxRecords                int      `toml:"DNS_CACHE_MAX_RECORDS"`
-	DNSCacheTTLSeconds                float64  `toml:"DNS_CACHE_TTL_SECONDS"`
-	UseExternalSOCKS5                 bool     `toml:"USE_EXTERNAL_SOCKS5"`
-	SOCKS5Auth                        bool     `toml:"SOCKS5_AUTH"`
-	SOCKS5User                        string   `toml:"SOCKS5_USER"`
-	SOCKS5Pass                        string   `toml:"SOCKS5_PASS"`
-	ForwardIP                         string   `toml:"FORWARD_IP"`
-	ForwardPort                       int      `toml:"FORWARD_PORT"`
+	ConfigDir                      string   `toml:"-"`
+	ConfigPath                     string   `toml:"-"`
+	ProtocolType                   string   `toml:"PROTOCOL_TYPE"`
+	UDPHost                        string   `toml:"UDP_HOST"`
+	UDPPort                        int      `toml:"UDP_PORT"`
+	FallbackAddress                string   `toml:"FALLBACK"`
+	UDPReaders                     int      `toml:"UDP_READERS"`
+	SocketBufferSize               int      `toml:"SOCKET_BUFFER_SIZE"`
+	MaxConcurrentRequests          int      `toml:"MAX_CONCURRENT_REQUESTS"`
+	DNSRequestWorkers              int      `toml:"DNS_REQUEST_WORKERS"`
+	DeferredSessionWorkers         int      `toml:"DEFERRED_SESSION_WORKERS"`
+	DeferredSessionQueueLimit      int      `toml:"DEFERRED_SESSION_QUEUE_LIMIT"`
+	MaxPacketSize                  int      `toml:"MAX_PACKET_SIZE"`
+	DropLogIntervalSecs            float64  `toml:"DROP_LOG_INTERVAL_SECONDS"`
+	InvalidCookieWindowSecs        float64  `toml:"INVALID_COOKIE_WINDOW_SECONDS"`
+	InvalidCookieErrorThreshold    int      `toml:"INVALID_COOKIE_ERROR_THRESHOLD"`
+	SessionTimeoutSecs             float64  `toml:"SESSION_TIMEOUT_SECONDS"`
+	SessionCleanupIntervalSecs     float64  `toml:"SESSION_CLEANUP_INTERVAL_SECONDS"`
+	ClosedSessionRetentionSecs     float64  `toml:"CLOSED_SESSION_RETENTION_SECONDS"`
+	SessionInitReuseTTLSeconds     float64  `toml:"SESSION_INIT_REUSE_TTL_SECONDS"`
+	RecentlyClosedStreamTTLSeconds float64  `toml:"RECENTLY_CLOSED_STREAM_TTL_SECONDS"`
+	RecentlyClosedStreamCap        int      `toml:"RECENTLY_CLOSED_STREAM_CAP"`
+	TerminalStreamRetentionSeconds float64  `toml:"TERMINAL_STREAM_RETENTION_SECONDS"`
+	MaxPacketsPerBatch             int      `toml:"MAX_PACKETS_PER_BATCH"`
+	PacketBlockControlDuplication  int      `toml:"PACKET_BLOCK_CONTROL_DUPLICATION"`
+	DNSUpstreamServers             []string `toml:"DNS_UPSTREAM_SERVERS"`
+	DNSUpstreamTimeoutSecs         float64  `toml:"DNS_UPSTREAM_TIMEOUT"`
+	DNSInflightWaitTimeoutSecs     float64  `toml:"DNS_INFLIGHT_WAIT_TIMEOUT_SECONDS"`
+	SOCKSConnectTimeoutSecs        float64  `toml:"SOCKS_CONNECT_TIMEOUT"`
+	DNSFragmentAssemblyTimeoutSecs float64  `toml:"DNS_FRAGMENT_ASSEMBLY_TIMEOUT"`
+	StreamSetupAckTTLSeconds       float64  `toml:"STREAM_SETUP_ACK_TTL_SECONDS"`
+	StreamResultPacketTTLSeconds   float64  `toml:"STREAM_RESULT_PACKET_TTL_SECONDS"`
+	StreamFailurePacketTTLSeconds  float64  `toml:"STREAM_FAILURE_PACKET_TTL_SECONDS"`
+	DNSCacheMaxRecords             int      `toml:"DNS_CACHE_MAX_RECORDS"`
+	DNSCacheTTLSeconds             float64  `toml:"DNS_CACHE_TTL_SECONDS"`
+	UseExternalSOCKS5              bool     `toml:"USE_EXTERNAL_SOCKS5"`
+	SOCKS5Auth                     bool     `toml:"SOCKS5_AUTH"`
+	SOCKS5User                     string   `toml:"SOCKS5_USER"`
+	SOCKS5Pass                     string   `toml:"SOCKS5_PASS"`
+	ForwardIP                      string   `toml:"FORWARD_IP"`
+	ForwardPort                    int      `toml:"FORWARD_PORT"`
+	// AllowPrivateTargets permits SOCKS5 sessions to reach loopback, RFC1918,
+	// CGNAT, link-local and other non-global addresses. It is disabled by
+	// default so a tunnel server cannot be abused as an SSRF pivot into its
+	// own host or private network. Enable it only on servers where every
+	// client holding the encryption key is trusted to reach those networks.
+	AllowPrivateTargets               bool     `toml:"ALLOW_PRIVATE_TARGETS"`
 	Domain                            []string `toml:"DOMAIN"`
 	MinVPNLabelLength                 int      `toml:"MIN_VPN_LABEL_LENGTH"`
 	SupportedUploadCompressionTypes   []int    `toml:"SUPPORTED_UPLOAD_COMPRESSION_TYPES"`
@@ -154,6 +160,7 @@ func defaultServerConfig() ServerConfig {
 		SOCKS5Pass:                        "123456",
 		ForwardIP:                         "",
 		ForwardPort:                       1080,
+		AllowPrivateTargets:               false,
 		Domain:                            nil,
 		MinVPNLabelLength:                 3,
 		SupportedUploadCompressionTypes:   []int{0, 1, 2, 3},
