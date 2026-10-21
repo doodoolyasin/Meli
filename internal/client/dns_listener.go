@@ -254,19 +254,41 @@ func (c *Client) HandleDNSQueryRes(packet VpnProto.Packet) error {
 		return nil
 	}
 
-	if c.localDNSCache != nil {
-		lite, err := dnsParser.ParsePacketLite(assembled)
-		if err == nil && lite.HasQuestion {
-			cacheKey := dnsCache.BuildKey(lite.FirstQuestion.Name, lite.FirstQuestion.Type, lite.FirstQuestion.Class)
-			c.localDNSCache.SetReady(cacheKey, lite.FirstQuestion.Name, lite.FirstQuestion.Type, lite.FirstQuestion.Class, assembled, time.Now())
+	now := time.Now()
+	lite, err := dnsParser.ParsePacketLite(assembled)
+	if err != nil || !lite.HasQuestion {
+		if c.log != nil {
+			c.log.Warnf("🔍 <yellow>DNS response could not be parsed, dropping %d bytes</yellow>", len(assembled))
 		}
+		return nil
+	}
+
+	answerKey := dnsCache.BuildKey(lite.FirstQuestion.Name, lite.FirstQuestion.Type, lite.FirstQuestion.Class)
+
+	if c.localDNSCache != nil {
+		c.localDNSCache.SetReady(answerKey, lite.FirstQuestion.Name, lite.FirstQuestion.Type, lite.FirstQuestion.Class, assembled, now)
+	}
+
+	// Deliver the answer to every stub that is still waiting for this name.
+	// Each waiter gets its own copy with its own transaction ID restored.
+	for _, waiter := range c.dnsWaiterRegistry().take(answerKey) {
+		if waiter.respond == nil {
+			continue
+		}
+		waiter.respond(dnsCache.PatchResponseForQuery(assembled, waiter.query))
 	}
 
 	return nil
 }
 
-// ProcessDNSQuery handles a DNS query by checking the local cache or dispatching to the tunnel.
-// It only responds on cache hits and uses "fire-and-forget" for misses.
+// ProcessDNSQuery answers a local DNS query from the cache, or registers the
+// caller's callback and dispatches the query into the tunnel.
+//
+// It returns true when the query has been accepted: either the answer was
+// written synchronously (cache hit) or the callback is now registered and will
+// be invoked once the tunnel delivers the answer. Returning true for a pending
+// query matters for the SOCKS5 UDP relay, which used to close the association
+// on a miss and rely on the stub retrying.
 func (c *Client) ProcessDNSQuery(query []byte, addr net.Addr, respond func([]byte)) bool {
 	if c == nil || !c.SessionReady() {
 		return false
@@ -280,10 +302,11 @@ func (c *Client) ProcessDNSQuery(query []byte, addr net.Addr, respond func([]byt
 
 	question := lite.FirstQuestion
 	now := time.Now()
+	key := dnsCache.BuildKey(question.Name, question.Type, question.Class)
 
 	// 2. Check Local Cache
+	dispatchNeeded := true
 	if c.localDNSCache != nil {
-		key := dnsCache.BuildKey(question.Name, question.Type, question.Class)
 		res := c.localDNSCache.LookupOrCreatePending(key, question.Name, question.Type, question.Class, now)
 
 		if res.Status == dnsCache.StatusReady && len(res.Response) > 0 {
@@ -298,19 +321,30 @@ func (c *Client) ProcessDNSQuery(query []byte, addr net.Addr, respond func([]byt
 			return true
 		}
 
-		if res.Status == dnsCache.StatusPending && !res.DispatchNeeded {
-			// Already pending in tunnel, don't re-dispatch
+		dispatchNeeded = res.DispatchNeeded
+	}
+
+	// 3. Keep the caller's callback alive until the answer is assembled.
+	if respond != nil {
+		if !c.dnsWaiterRegistry().add(key, query, respond, now, c.dnsWaiterTTL()) {
 			if c.log != nil {
-				c.log.Debugf("🔍 <yellow>DNS Query Pending: %s (%d)</yellow>", question.Name, question.Type)
+				c.log.Warnf("🔍 <yellow>DNS waiter registry rejected query for %s</yellow>", question.Name)
 			}
-			return false
 		}
 	}
 
-	// 3. Dispatch to Tunnel
-	c.log.Infof("🔍 <yellow>DNS Query Request: %s (%d)</yellow>", question.Name, question.Type)
-	c.dispatchDNSQueryToTunnel(query)
-	return false
+	// 4. Dispatch to the tunnel only when the cache entry asked for it, so a
+	// stub retrying an in-flight name does not multiply tunnel traffic.
+	if dispatchNeeded {
+		if c.log != nil {
+			c.log.Infof("🔍 <yellow>DNS Query Request: %s (%d)</yellow>", question.Name, question.Type)
+		}
+		c.dispatchDNSQueryToTunnel(query)
+	} else if c.log != nil {
+		c.log.Debugf("🔍 <yellow>DNS Query Pending: %s (%d)</yellow>", question.Name, question.Type)
+	}
+
+	return respond != nil
 }
 
 func (c *Client) dispatchDNSQueryToTunnel(query []byte) {

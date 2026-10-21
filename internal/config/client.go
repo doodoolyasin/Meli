@@ -459,6 +459,9 @@ func finalizeClientConfig(cfg ClientConfig) (ClientConfig, error) {
 	cfg.SessionInitRetryLinearAfter = clampInt(defaultIntBelow(cfg.SessionInitRetryLinearAfter, 0, 5), 0, 1000)
 	cfg.SessionInitRetryMaxSeconds = clampFloat(defaultFloatAtMostZero(cfg.SessionInitRetryMaxSeconds, 60.0), cfg.SessionInitRetryBaseSeconds, 3600.0)
 	cfg.SessionInitBusyRetryIntervalSeconds = clampFloat(defaultFloatAtMostZero(cfg.SessionInitBusyRetryIntervalSeconds, 60.0), 1.0, 3600.0)
+	// NOTE: session-init racing is not implemented; the client never reads this
+	// value. It is kept (and clamped) only so existing configuration files keep
+	// loading. Do not present it as a working feature.
 	cfg.SessionInitRacingCount = clampInt(defaultIntBelow(cfg.SessionInitRacingCount, 1, 3), 1, 5)
 	cfg.MTUServersFileName = strings.TrimSpace(cfg.MTUServersFileName)
 	cfg.MTUServersFileFormat = strings.TrimSpace(cfg.MTUServersFileFormat)

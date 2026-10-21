@@ -141,6 +141,10 @@ type Client struct {
 
 	// Optional client-wide egress pacer (nil = unlimited).
 	pacerBucket atomic.Pointer[pacer.LeakyBucket]
+
+	// Callbacks of stubs waiting for a cold DNS answer (see dns_waiters.go).
+	dnsWaitersOnce sync.Once
+	dnsWaiters     *dnsWaiters
 }
 
 // clientStreamTXPacket represents a queued packet pending transmission or retransmission.
@@ -210,6 +214,33 @@ type writerTask struct {
 	item      *clientStreamTXPacket
 	selected  *Stream_client
 	frames    []encodedOutboundDatagram
+}
+
+// dnsWaiterRegistry returns the lazily created registry of pending DNS clients.
+func (c *Client) dnsWaiterRegistry() *dnsWaiters {
+	if c == nil {
+		return nil
+	}
+	c.dnsWaitersOnce.Do(func() {
+		c.dnsWaiters = newDNSWaiters()
+	})
+	return c.dnsWaiters
+}
+
+// dnsWaiterTTL is how long a pending stub callback is retained, bounded so a
+// misconfigured LOCAL_DNS_PENDING_TIMEOUT cannot pin callbacks for minutes.
+func (c *Client) dnsWaiterTTL() time.Duration {
+	ttl := defaultDNSWaiterTTL
+	if c != nil && c.cfg.LocalDNSPendingTimeoutSec > 0 {
+		ttl = time.Duration(c.cfg.LocalDNSPendingTimeoutSec * float64(time.Second))
+	}
+	if ttl < minDNSWaiterTTL {
+		ttl = minDNSWaiterTTL
+	}
+	if ttl > maxDNSWaiterTTL {
+		ttl = maxDNSWaiterTTL
+	}
+	return ttl
 }
 
 // SetPacerBytesPerSecond enables a client-wide egress rate limit, or disables

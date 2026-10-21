@@ -22,7 +22,8 @@ No public resolver, no real censored network, no Android device was used.
 | Reconnect after server restart | `internal/client/client.go:Run` | **VERIFIED (loopback)** | `TestServerRestartRecovery` — recovered on attempt 2 after 2.5 s |
 | Malformed-datagram resilience | `internal/udpserver/server_ingress.go` | **VERIFIED (loopback)** | 500 malformed datagrams, session survived, RSS 12.7→14.2 MB |
 | fd/goroutine stability under churn | client + server lifecycle | **VERIFIED (loopback)** | 25 cycles, client fd 8→8, server fd 6→6 |
-| SOCKS5 UDP ASSOCIATE (DNS relay) | `internal/client/socks_manager.go:handleSocksUDPAssociate` | **PARTIALLY VERIFIED** | Unit tests: reachable BND.ADDR, foreign-source drop, TCP-lifetime teardown. No e2e DNS-through-UDP-associate test |
+| SOCKS5 UDP ASSOCIATE (DNS relay) | `internal/client/socks_manager.go:handleSocksUDPAssociate` | **VERIFIED (loopback)** | `TestSOCKSUDPAssociateCarriesColdDNSQuery` — real SOCKS5 handshake, relay address usable, cold DNS answer returned in-band, upstream saw exactly one query. Plus unit tests for BND.ADDR, foreign-source drop, TCP-lifetime teardown |
+| Local DNS proxy (`LOCAL_DNS_ENABLED`) | `internal/client/dns_listener.go`, `internal/client/dns_waiters.go` | **VERIFIED (loopback)** | `TestLocalDNSProxyAnswersColdQuery` — one uncached query answered with the upstream A record; the second is served from cache without touching the upstream |
 | Client egress pacer (`-pacer`) | `internal/client/client.go:SetPacerBytesPerSecond`, `async_runtime.go` | **PARTIALLY VERIFIED** | Wired in Phase 1; unit tests prove aggregate throttling (20 KB/s, shared bucket). No e2e throughput measurement yet |
 | MTU probing / clamping | `internal/client/mtu.go`, `internal/config` | **PARTIALLY VERIFIED** | Exercised implicitly (session init fails without it); no test asserts the negotiated values |
 | SOCKS5 username/password auth | `internal/client/socks_manager.go` | **IMPLEMENTED, NOT VERIFIED** | Only policy helpers are unit-tested |
@@ -57,7 +58,6 @@ No public resolver, no real censored network, no Android device was used.
 
 ## What would move each row forward
 
-- UDP ASSOCIATE: an e2e test that resolves a name through the SOCKS5 UDP relay.
 - Pacer: run the e2e throughput test with `-pacer` and compare with the 95.5 KiB/s
   baseline.
 - Stego/FEC/camouflage/interleaving/racing: wire each into
@@ -66,3 +66,14 @@ No public resolver, no real censored network, no Android device was used.
 - ICMP/NTP/FCM/WebRTC/Bale: a server-side listener per channel is a prerequisite.
 - Android: `./gradlew assembleFullRelease` in CI with a stable keystore, then a
   device/emulator smoke test.
+
+## Phase 2 addendum
+
+- The local DNS proxy used to answer only from cache: a cold query was
+  dispatched into the tunnel and the caller's callback was dropped, so stubs saw
+  a timeout before their retry happened to hit the cache. `dns_waiters.go` now
+  keeps the callback alive (bounded: 16 per name, 2048 total, 2–30 s TTL) and
+  `HandleDNSQueryRes` delivers the assembled answer to every waiter with its own
+  transaction ID restored.
+- `SESSION_INIT_RACING_COUNT` is parsed and clamped but never read by the
+  client; session-init racing is **not implemented** despite the knob existing.
