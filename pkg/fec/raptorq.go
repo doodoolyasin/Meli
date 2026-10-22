@@ -41,15 +41,14 @@ func (e *Encoder) Encode(data []byte) ([][]byte, error) {
 	shardSize := (total + e.dataShards - 1) / e.dataShards // ceil
 	e.shards = make([][]byte, e.totalShards)
 	for i := 0; i < e.dataShards; i++ {
+		e.shards[i] = make([]byte, shardSize)
 		start := i * shardSize
-		end := start + shardSize
-		if end > total {
-			end = total
-		}
-		if start >= total {
-			e.shards[i] = nil
-		} else {
-			e.shards[i] = data[start:end]
+		if start < total {
+			end := start + shardSize
+			if end > total {
+				end = total
+			}
+			copy(e.shards[i], data[start:end])
 		}
 	}
 	// parity shards will be filled by Encode

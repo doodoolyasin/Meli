@@ -70,20 +70,36 @@ func RewriteTLSClientHelloSNI(clientHello []byte, newSNI string) ([]byte, error)
 	binary.BigEndian.PutUint16(newExt[2:4], uint16(len(extData)))
 	copy(newExt[4:], extData)
 
-	// Construct modified ClientHello prefix + new extension + original trailing extensions
+	// Filter out any existing server_name (0x0000) extensions from original extensions
+	var otherExts []byte
+	origExts := clientHello[offset+2:]
+	p := 0
+	for p+4 <= len(origExts) {
+		extType := binary.BigEndian.Uint16(origExts[p : p+2])
+		extLen := int(binary.BigEndian.Uint16(origExts[p+2 : p+4]))
+		end := p + 4 + extLen
+		if end > len(origExts) {
+			break
+		}
+		if extType != 0x0000 {
+			otherExts = append(otherExts, origExts[p:end]...)
+		}
+		p = end
+	}
+
+	// Construct modified ClientHello prefix + new extension + original non-SNI extensions
 	prefix := clientHello[:offset]
 	var buf bytes.Buffer
 	buf.Write(prefix)
 
 	// Compute new extensions length
-	remainingExts := clientHello[offset+2:]
-	newExtsTotalLen := len(newExt) + len(remainingExts)
+	newExtsTotalLen := len(newExt) + len(otherExts)
 
 	extLenBytes := make([]byte, 2)
 	binary.BigEndian.PutUint16(extLenBytes, uint16(newExtsTotalLen))
 	buf.Write(extLenBytes)
 	buf.Write(newExt)
-	buf.Write(remainingExts)
+	buf.Write(otherExts)
 
 	out := buf.Bytes()
 

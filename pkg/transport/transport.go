@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"sync"
 	"time"
 
 	"golang.org/x/net/dns/dnsmessage"
@@ -26,6 +27,7 @@ type DNSTransport struct {
 	conn       *net.UDPConn
 	listener   PacketListener
 	closed     bool
+	mu         sync.Mutex
 }
 
 // NewDNSTransport creates a client-side DNS transport targeting serverAddr
@@ -171,6 +173,8 @@ func (t *DNSTransport) Serve(ctx context.Context, addr string) error {
 
 // Close closes the transport connection
 func (t *DNSTransport) Close() error {
+	t.mu.Lock()
+	defer t.mu.Unlock()
 	t.closed = true
 	if t.conn != nil {
 		return t.conn.Close()

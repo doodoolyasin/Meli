@@ -50,18 +50,40 @@ func (p *DNSPacket) Bytes() []byte {
 	return p.buf
 }
 
-// SetID sets the packet ID
+// SetID sets the packet ID (bytes 0-1)
 func (p *DNSPacket) SetID(id uint16) {
-	p.buf = grow(p.buf, 2)
+	if len(p.buf) < 2 {
+		p.buf = grow(p.buf, 2-len(p.buf))
+	}
 	p.buf[0] = byte(id >> 8)
 	p.buf[1] = byte(id)
 }
 
-// SetFlags sets the header flags
+// SetFlags sets the header flags (bytes 2-3)
 func (p *DNSPacket) SetFlags(flags uint16) {
-	p.buf = grow(p.buf, 2)
-	p.buf[len(p.buf)-2] = byte(flags >> 8)
-	p.buf[len(p.buf)-1] = byte(flags)
+	if len(p.buf) < 4 {
+		p.buf = grow(p.buf, 4-len(p.buf))
+	}
+	p.buf[2] = byte(flags >> 8)
+	p.buf[3] = byte(flags)
+}
+
+// SetQDCount sets QDCOUNT (bytes 4-5)
+func (p *DNSPacket) SetQDCount(count uint16) {
+	if len(p.buf) < 6 {
+		p.buf = grow(p.buf, 6-len(p.buf))
+	}
+	p.buf[4] = byte(count >> 8)
+	p.buf[5] = byte(count)
+}
+
+// SetANCount sets ANCOUNT (bytes 6-7)
+func (p *DNSPacket) SetANCount(count uint16) {
+	if len(p.buf) < 8 {
+		p.buf = grow(p.buf, 8-len(p.buf))
+	}
+	p.buf[6] = byte(count >> 8)
+	p.buf[7] = byte(count)
 }
 
 // grow ensures the slice has enough capacity and returns the new slice

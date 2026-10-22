@@ -78,6 +78,14 @@ func RaceQuery(ctx context.Context, queryPacket []byte, resolvers []net.IP, time
 		}
 		return nil, fmt.Errorf("all racing resolvers timed out or failed")
 	case <-ctx.Done():
+		// Check if a result arrived right as or before cancel() was invoked
+		select {
+		case res := <-resultChan:
+			if res != nil {
+				return res, nil
+			}
+		default:
+		}
 		return nil, fmt.Errorf("race query timed out after %v", timeout)
 	}
 }
