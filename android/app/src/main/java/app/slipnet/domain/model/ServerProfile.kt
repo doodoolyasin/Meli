@@ -204,7 +204,8 @@ enum class TunnelType(val value: String, val displayName: String) {
     VLESS("vless", "VLESS"),
     MASTERDNS("masterdns", "MasterDNS"),
     STORMDNS("stormdns", "StormDNS"),
-    PINGTUNNEL("pingtunnel", "PingTunnel (ICMP, root)");
+    PINGTUNNEL("pingtunnel", "PingTunnel (ICMP, root)"),
+    BALE("bale", "Bale Meet (WebRTC)");
 
     companion object {
         fun fromValue(value: String): TunnelType {

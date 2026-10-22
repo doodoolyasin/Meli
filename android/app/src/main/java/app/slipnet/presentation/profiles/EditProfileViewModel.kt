@@ -21,6 +21,8 @@ import app.slipnet.service.VpnConnectionManager
 import app.slipnet.tunnel.DOH_SERVERS
 import app.slipnet.tunnel.DohBridge
 import app.slipnet.tunnel.DohServer
+import app.slipnet.tunnel.HealthCheckEngine
+import app.slipnet.tunnel.HealthCheckReport
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
@@ -144,6 +146,8 @@ data class EditProfileUiState(
     val sortOrder: Int = 0,
     // Preserved pin state for updates (not editable)
     val isPinned: Boolean = false,
+    val isRunningHealthCheck: Boolean = false,
+    val healthCheckReport: HealthCheckReport? = null,
     // Locked profile state
     val isLocked: Boolean = false,
     val lockPasswordHash: String = "",
@@ -265,6 +269,18 @@ data class EditProfileUiState(
 
     val isVless: Boolean
         get() = tunnelType == TunnelType.VLESS
+
+    val isBale: Boolean
+        get() = tunnelType == TunnelType.BALE
+
+    val isMasterDns: Boolean
+        get() = tunnelType == TunnelType.MASTERDNS
+
+    val isStormDns: Boolean
+        get() = tunnelType == TunnelType.STORMDNS
+
+    val isPingTunnel: Boolean
+        get() = tunnelType == TunnelType.PINGTUNNEL
 
     val showConnectionMethod: Boolean
         get() = !isSshOnly && !isDoh && !isSnowflake && !isSocks5 && !isVless
@@ -1932,6 +1948,28 @@ class EditProfileViewModel @Inject constructor(
             saveProfileUseCase(unlocked)
             _uiState.value = _uiState.value.copy(isLocked = false, lockPasswordHash = "")
             onResult(true)
+        }
+    }
+
+    fun runHealthCheck() {
+        val state = _uiState.value
+        _uiState.value = state.copy(isRunningHealthCheck = true, healthCheckReport = null)
+        viewModelScope.launch {
+            val resolversList = parseResolvers(state.resolvers)
+            val profile = ServerProfile(
+                id = state.profileId ?: 0,
+                name = state.name.trim().ifEmpty { "Health Check" },
+                domain = state.domain.trim(),
+                resolvers = resolversList,
+                tunnelType = state.tunnelType,
+                sshPort = state.sshPort.toIntOrNull() ?: 22,
+                dohUrl = state.dohUrl.trim()
+            )
+            val report = HealthCheckEngine.runCheck(profile)
+            _uiState.value = _uiState.value.copy(
+                isRunningHealthCheck = false,
+                healthCheckReport = report
+            )
         }
     }
 }

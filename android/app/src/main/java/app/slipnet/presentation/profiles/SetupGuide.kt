@@ -173,6 +173,41 @@ internal fun setupSteps(tunnelType: TunnelType): List<GuideStep> {
                 "۳. ذخیره کن، به لیست برگرد، روی پروفایل بزن تا وصل شود."
             )
         )
+        TunnelType.BALE -> listOf(
+            GuideStep("1. Grant all VPN and battery permissions above.", "۱. تمام مجوزهای VPN و باتری در بالا را صادر کنید."),
+            GuideStep(
+                "2. In Bale messenger: start a new Video/Voice Call or Meeting, copy the meeting link or call code.",
+                "۲. در پیام‌رسان بله: یک تماس یا جلسه جدید ایجاد کنید و لینک جلسه یا شناسه تماس را کپی کنید."
+            ),
+            GuideStep(
+                "3. Domain / Meeting: paste the meeting link (or room code) into the Domain field.",
+                "۳. دامنه / شناسه جلسه: لینک جلسه یا کد اتاق بله را در فیلد Domain وارد کنید."
+            ),
+            GuideStep(
+                "4. Server / Companion: enter your VPS Companion IP and Port (where companion server runs).",
+                "۴. سرور Companion: آی‌پی و پورت سرور واسط خود را (که سرور همراه روی آن فعال است) وارد کنید."
+            ),
+            GuideStep(
+                "5. Common mistakes: DO NOT use the same Bale account on both phone and server (call will be dropped). Mute camera and mic to allocate all bandwidth to data (~10-50 KB/s).",
+                "۵. اشتباهات رایج: هرگز از یک حساب کاربری بله یکسان در هر دو طرف استفاده نکنید (تماس قطع می‌شود). دوربین و میکروفون را ببندید تا تمام پهنای‌باند به تبادل داده اختصاص یابد."
+            ),
+            GuideStep(
+                "6. Tap 'Health Check' (باز هست یا نه) below to verify Bale endpoints are accessible before connecting.",
+                "۶. دکمه 'بررسی سلامت' (باز هست یا نه) را بزنید تا پیش از اتصال از باز بودن شبکه بله مطمئن شوید."
+            )
+        )
+        TunnelType.STORMDNS, TunnelType.MASTERDNS -> listOf(
+            GuideStep("1. Grant all permissions above.", "۱. تمامی مجوزهای بالا را صادر کنید."),
+            GuideStep("2. Domain: Enter your delegated tunnel domain (e.g. t.example.com).", "۲. دامنه: دامنه تفویض‌شده به سرور را وارد کنید."),
+            GuideStep("3. Resolvers: Tap 'Scan for Working Resolvers' or enter a working UDP:53 resolver.", "۳. دی‌ان‌اس: دکمه اسکن را بزنید یا یک ريزالور فعال UDP:53 وارد کنید."),
+            GuideStep("4. Encryption: Select encryption method (ChaCha20 / AES-GCM / XOR) matching your server.", "۴. رمزنگاری: متد رمزنگاری مطابق با سرور را انتخاب کنید.")
+        )
+        TunnelType.PINGTUNNEL -> listOf(
+            GuideStep("1. Note: Root permission is required for ICMP raw sockets on Android.", "۱. نکته: دسترسی روت برای استفاده از سوکت‌های خام ICMP در اندروید الزامی است."),
+            GuideStep("2. Server: Enter your VPS server IP in the Domain field.", "۲. سرور: آی‌پی سرور VPS را در فیلد دامنه وارد کنید."),
+            GuideStep("3. Key: Enter the PingTunnel secret key matching server.", "۳. کلید: کلید امنیتی پینگ‌تانل مطابق سرور را وارد کنید."),
+            GuideStep("4. Tap 'Health Check' to ensure ICMP Echo is not dropped by ISP.", "۴. دکمه بررسی سلامت را بزنید تا مطمئن شوید پکت‌های ICMP توسط اپراتور فیلتر نشده‌اند.")
+        )
         else -> listOf(
             GuideStep(
                 "1. Grant the permissions above, fill the fields for this method, then save and tap the profile to connect.",

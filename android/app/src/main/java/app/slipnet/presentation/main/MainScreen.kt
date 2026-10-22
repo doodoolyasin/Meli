@@ -983,6 +983,15 @@ fun MainScreen(
                                 onNavigateToAddProfile(TunnelType.PINGTUNNEL.value)
                             }
                         )
+                        AddMenuGridItem(
+                            modifier = tileMod,
+                            icon = Icons.Default.Language,
+                            title = "Bale Meet",
+                            onClick = {
+                                showAddMenu = false
+                                onNavigateToAddProfile(TunnelType.BALE.value)
+                            }
+                        )
                     }
                     HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
                     AddMenuOption(

@@ -1249,6 +1249,13 @@ fun EditProfileScreen(
                 // selected method right here, then connect from the profile list.
                 MethodPermissionsSection(tunnelType = uiState.tunnelType)
 
+                // Health Check Section: "باز هست یا نه" (No-connect reachability probe)
+                HealthCheckSection(
+                    isRunning = uiState.isRunningHealthCheck,
+                    report = uiState.healthCheckReport,
+                    onRunCheck = { viewModel.runHealthCheck() }
+                )
+
                 // Domain / SSH Server (hidden for DOH, Snowflake, SOCKS5, and VLESS profiles)
                 if (!uiState.isDoh && !uiState.isSnowflake && !uiState.isSocks5 && !uiState.isVless) {
                     OutlinedTextField(
@@ -1259,6 +1266,8 @@ fun EditProfileScreen(
                                 when {
                                     uiState.isSshOnly -> "SSH Server"
                                     uiState.isNaiveBased -> "Server"
+                                    uiState.isBale -> "Bale Meeting Link or Room Code"
+                                    uiState.isPingTunnel -> "PingTunnel Server IP"
                                     else -> "Domain"
                                 }
                             )
@@ -1269,6 +1278,8 @@ fun EditProfileScreen(
                                     uiState.isDnsttOrNoizOrVaydnsBased -> "t.example.com"
                                     uiState.isSshOnly -> "ssh.example.com"
                                     uiState.isNaiveBased -> "proxy.example.com"
+                                    uiState.isBale -> "https://meet.bale.ai/call/abc or room ID"
+                                    uiState.isPingTunnel -> "1.2.3.4"
                                     else -> "vpn.example.com"
                                 }
                             )
@@ -1277,6 +1288,8 @@ fun EditProfileScreen(
                         supportingText = {
                             Text(
                                 uiState.domainError ?: when {
+                                    uiState.isBale -> "Bale call link, meeting URL, or room code"
+                                    uiState.isPingTunnel -> "PingTunnel server IPv4 or IPv6 address"
                                     uiState.isNoizdnsBased -> "NoizDNS tunnel domain"
                                     uiState.isVaydnsBased -> "VayDNS tunnel domain"
                                     uiState.isDnsttBased -> "DNSTT tunnel domain"

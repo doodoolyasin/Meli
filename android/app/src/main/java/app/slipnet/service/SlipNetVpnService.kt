@@ -546,6 +546,8 @@ class SlipNetVpnService : VpnService() {
                     TunnelType.VAYDNS_SSH -> connectVaydnsSsh(profile, dnsServer, remoteDns, remoteDnsFallback, globalResolverOverride)
                     TunnelType.SOCKS5 -> connectSocks5(profile, dnsServer, remoteDns)
                     TunnelType.VLESS -> connectVless(profile, dnsServer)
+                    TunnelType.MASTERDNS, TunnelType.STORMDNS -> connectDnstt(profile, dnsServer, remoteDns, remoteDnsFallback, globalResolverOverride)
+                    TunnelType.PINGTUNNEL, TunnelType.BALE -> connectSocks5(profile, dnsServer, remoteDns)
                 }
 
             } catch (e: kotlinx.coroutines.CancellationException) {
