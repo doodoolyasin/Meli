@@ -149,10 +149,14 @@ jobs:
 
       - name: Build Full Release APK
         working-directory: android
+        env:
+          GRADLE_OPTS: "-Xmx5g -XX:+UseG1GC -XX:MaxMetaspaceSize=1g"
         run: ./gradlew assembleFullRelease --no-daemon
 
       - name: Build Lite Release APK
         working-directory: android
+        env:
+          GRADLE_OPTS: "-Xmx5g -XX:+UseG1GC -XX:MaxMetaspaceSize=1g"
         run: ./gradlew assembleLiteRelease --no-daemon
 
       - name: Collect release APKs
