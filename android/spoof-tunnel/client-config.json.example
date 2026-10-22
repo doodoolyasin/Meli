@@ -1,0 +1,10 @@
+{
+    "mode": "local",
+    "listen": "127.0.0.1:533",
+    "remote": "[IP_ADDRESS]",
+    "remote_port": 8090,
+    "recv_port": 5001,
+    "spoof_ip": "[IP_ADDRESS]", (or "spoof_ip_file": "/path/to/ips.txt")
+    "spoof_port": 443,
+    "peer_spoof_ip": "[IP_ADDRESS]"
+}

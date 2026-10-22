@@ -1,0 +1,24 @@
+# Android-only workspace. The core `lktunnel` + `bale-signaling`
+# crates live at the repo top-level so they can be shared with the
+# CLI / host binary. Only the merged JNI shim — which actually
+# links to `libandroid.so` and ships as the `liblktunnel_jni.so`
+# artefact loaded by Kotlin — lives here.
+[workspace]
+resolver = "2"
+members = ["lktunnel-jni", "jni-shared"]
+
+[workspace.package]
+edition = "2021"
+publish = false
+
+[profile.release]
+opt-level     = "z"
+lto           = "thin"
+codegen-units = 1
+strip         = "symbols"
+panic         = "abort"
+
+# No vendored-crate patch anymore — the libwebrtc transport is gone. The
+# `lktunnel` core (shared with this workspace) now rides `webrtc-rs` (pure
+# Rust) plus crates.io `livekit-api` (signal client; `sdk=js` via
+# `SignalSdkOptions`) and `livekit-protocol` (wire types).

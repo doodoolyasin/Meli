@@ -1,0 +1,20 @@
+bale-vpn-node/node_modules/
+bale-vpn-node/.bale-token
+bale-vpn-node/.allowed-callers.json
+
+# Android / Gradle
+bale-vpn-android/**/build/
+bale-vpn-android/.gradle/
+bale-vpn-android/.idea/
+bale-vpn-android/local.properties
+bale-vpn-android/**/*.iml
+*.jks
+*.keystore
+
+# Rust build output — every crate's target/ at any depth.
+target/
+
+# Generated Android native libs (built from the Rust shims).
+bale-vpn-android/rust/jniLibs/
+
+.DS_Store

@@ -1,0 +1,30 @@
+# bale-vpn-rust — single Rust binary replacing the Node app.
+#
+# Same binary for headless deployments and the future GUI client.
+# CLI: `bale-vpn [--port 3001] [--mode client|server] [--nat-mode
+# kernel|userspace] [--headless]`. Build with `--no-default-features`
+# to drop the webview dep for a slim server-side binary.
+#
+# Layers (host-shared crates at the repo top-level):
+#   - lktunnel-rust/lktunnel         transport
+#   - lk-signaling-rust/lk-signaling trait
+#   - bale-signaling-rust/bale-signaling  Bale impl
+#
+# This crate is the entry point and composition layer over those.
+[workspace]
+resolver = "2"
+members  = ["bale-vpn"]
+
+[workspace.package]
+edition = "2021"
+publish = false
+
+[profile.release]
+opt-level     = 3
+lto           = "thin"
+codegen-units = 1
+panic         = "abort"
+
+# No vendored-crate patch — the libwebrtc transport is gone. Transitive
+# deps (via lktunnel) now use crates.io webrtc-rs + livekit-api +
+# livekit-protocol.

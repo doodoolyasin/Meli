@@ -1,0 +1,94 @@
+# masterdns-qs-tunnel
+
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/blackestwhite/masterdns-qs-tunnel)
+
+`masterdns-qs-tunnel` is a Go tunnel inspired by `QS-Tunnel` and `MasterDnsVPN`.
+
+DeepWiki uses AI to explain the repository, architecture, and code layout:
+[deepwiki.com/blackestwhite/masterdns-qs-tunnel](https://deepwiki.com/blackestwhite/masterdns-qs-tunnel)
+
+The project keeps the asymmetric idea from QS-Tunnel:
+
+- uplink traffic goes out through DNS queries
+- downlink traffic comes back through a spoofed UDP path
+
+For uplink speed, the DNS transport style is closer to MasterDnsVPN than the original QS-Tunnel framing. The client builds binary uplink fragments, encodes them with a MasterDns-style lower-base36 transport, and then splits them into DNS labels.
+
+> [!WARNING]
+> This project is experimental and can be risky to use.
+> DNS tunneling and spoofed packet techniques may be detected, blocked, or treated as suspicious by networks, providers, or governments.
+> Misconfiguration can break connectivity, expose traffic patterns, or disrupt networks.
+> Raw spoofing mode may violate provider rules or local laws in some jurisdictions.
+> Use it only if you understand the operational, legal, and safety risks, and only in environments where you accept responsibility for those risks.
+
+## What it does
+
+- runs as a `client` or `server` CLI
+- accepts local UDP traffic on the client side and tunnels it upward through DNS queries
+- reassembles the DNS uplink on the server side and forwards it to a UDP upstream
+- learns client return metadata from periodic info frames
+- sends downstream payloads back either:
+  - with raw spoofed IPv4 UDP packets when `use_raw_spoofing=true`
+  - or with a normal UDP socket when `use_raw_spoofing=false` for easier local testing
+
+## Downloads
+
+Release binaries are built with GitHub Actions and published on the release page:
+
+[GitHub Releases](https://github.com/blackestwhite/masterdns-qs-tunnel/releases)
+
+Current release targets:
+
+- Linux `amd64`
+- Linux `arm64`
+- macOS `amd64`
+- macOS `arm64`
+- FreeBSD `amd64`
+- FreeBSD `arm64`
+
+## Guides
+
+- [Setup guide](docs/SETUP.md)
+- [Configuration guide](docs/CONFIGURATION.md)
+
+## Build From Source
+
+```bash
+go test ./...
+go build ./...
+```
+
+## Run
+
+Server:
+
+```bash
+go run ./cmd/masterdns-qs-tunnel server -config configs/server.example.json
+```
+
+Client:
+
+```bash
+go run ./cmd/masterdns-qs-tunnel client -config configs/client.example.json
+```
+
+## Config files
+
+- `configs/client.example.json`
+- `configs/server.example.json`
+
+You will need to replace the example addresses and domains with real values before using it.
+
+## Notes
+
+- raw spoofed replies require infrastructure that can actually transmit spoofed packets
+- the current implementation focuses on the UDP relay model
+- IPv4 is supported for the spoof metadata and raw spoof sender
+
+## Support The Project
+
+If this project helps people connect to the internet, please consider donating to keep it alive and support further work.
+
+BEP-20 USDT (BNB Chain):
+
+`0x2455B82cEAD31ceC026ae930B932a22Bb994FB76`

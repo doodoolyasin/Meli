@@ -1,0 +1,28 @@
+# bale-signaling-rust — Bale-specific impl of the `lk-signaling`
+# trait. Owns:
+#   * the Bale `.proto` files (single source of truth — Android and
+#     Node previously each carried their own copies)
+#   * the WebSocket client to next-ws.bale.ai (protobuf-framed, NOT
+#     gRPC-web)
+#   * the gRPC-web client used for auth + a few side-channel RPCs
+#   * `BaleAuth`: SMS OTP + signup + cookie refresh, the irreducibly
+#     Bale-shaped flow that doesn't fit a generic trait
+#   * `BaleSignaling`: the full `lk_signaling::Signaling` impl
+[workspace]
+resolver = "2"
+members  = ["bale-signaling"]
+
+[workspace.package]
+edition = "2021"
+publish = false
+
+[profile.release]
+opt-level     = 3
+lto           = "thin"
+codegen-units = 1
+panic         = "abort"
+
+# No vendored-crate patch — the libwebrtc transport is gone. When the
+# optional `lktunnel` feature is enabled, bale-signaling path-deps on
+# lktunnel, which now uses crates.io webrtc-rs + livekit-api +
+# livekit-protocol (pure Rust, no patch).

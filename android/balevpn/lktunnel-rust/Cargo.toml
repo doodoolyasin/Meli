@@ -1,0 +1,34 @@
+# lktunnel-rust — host-side workspace for the platform-portable
+# pieces of the lktunnel stack. The Android JNI shim lives separately
+# under `bale-vpn-android/rust/lktunnel-android/` and depends back
+# into this workspace's `lktunnel` crate via a path dep.
+#
+#   lktunnel/  core library: LiveKit room wrapper, NAT dispatcher,
+#              TCP/UDP session state machines, SOCKS5 server. Pure
+#              Rust + libc. Builds for linux-gnu, linux-android, and
+#              (with some boilerplate) darwin.
+#
+#   cli/       headless executable that joins a LiveKit room with the
+#              url + token you pass on the command line and runs the
+#              same server-side NAT dispatcher the Android app uses.
+#              Useful for testing the tunnel from a Linux VPS without
+#              having to put a phone in the loop.
+[workspace]
+resolver = "2"
+members  = ["lktunnel", "cli"]
+
+[workspace.package]
+edition = "2021"
+publish = false
+
+[profile.release]
+opt-level     = 3
+lto           = "thin"
+codegen-units = 1
+panic         = "abort"
+
+# The libwebrtc carrier is gone — the transport now rides `webrtc-rs`
+# (pure Rust) via the `rtc` module in `lktunnel`, with the reused
+# crates.io `livekit-api` (signal client; `sdk=js` is set through
+# `SignalSdkOptions`, no fork needed) and `livekit-protocol` (wire
+# types). No vendored crates, no webrtc-sys/libwebrtc/livekit patch.

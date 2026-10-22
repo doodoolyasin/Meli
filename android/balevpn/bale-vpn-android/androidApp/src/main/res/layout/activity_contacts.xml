@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.coordinatorlayout.widget.CoordinatorLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent" android:layout_height="match_parent">
+
+    <LinearLayout
+        android:layout_width="match_parent" android:layout_height="match_parent"
+        android:orientation="vertical">
+
+        <!-- Shown only in search/add mode -->
+        <androidx.appcompat.widget.SearchView
+            android:id="@+id/searchView"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:queryHint="Search by name or phone…"
+            android:iconifiedByDefault="false"
+            android:visibility="gone"/>
+
+        <FrameLayout
+            android:layout_width="match_parent" android:layout_height="0dp"
+            android:layout_weight="1">
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/recycler"
+                android:layout_width="match_parent" android:layout_height="match_parent"/>
+
+            <!-- Centered loading indicator. Shown only on first launch (or after
+                 a cache wipe) while we fetch the contact peer list and the first
+                 batch. Subsequent launches show the cached list immediately. -->
+            <LinearLayout
+                android:id="@+id/loadingBox"
+                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:visibility="gone">
+                <ProgressBar
+                    android:layout_width="wrap_content" android:layout_height="wrap_content"/>
+                <TextView
+                    android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="Loading contacts…"
+                    android:textColor="?android:attr/textColorSecondary"/>
+            </LinearLayout>
+
+            <!-- Bottom footer indicator. Shown briefly while a scroll-triggered
+                 batch is in flight (LoadUsers RPC for the next ~30 placeholders). -->
+            <LinearLayout
+                android:id="@+id/loadingMore"
+                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:layout_gravity="bottom|center_horizontal"
+                android:layout_marginBottom="24dp"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:padding="8dp"
+                android:background="?android:attr/colorBackground"
+                android:elevation="2dp"
+                android:visibility="gone">
+                <ProgressBar
+                    style="?android:attr/progressBarStyleSmall"
+                    android:layout_width="wrap_content" android:layout_height="wrap_content"/>
+                <TextView
+                    android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:text="Loading more…"
+                    android:textColor="?android:attr/textColorSecondary"/>
+            </LinearLayout>
+
+        </FrameLayout>
+
+    </LinearLayout>
+
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:id="@+id/fabAdd"
+        android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:layout_gravity="bottom|end"
+        android:layout_margin="16dp"
+        android:contentDescription="Add contact"
+        app:srcCompat="@android:drawable/ic_input_add"/>
+
+</androidx.coordinatorlayout.widget.CoordinatorLayout>

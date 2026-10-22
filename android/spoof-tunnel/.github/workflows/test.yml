@@ -1,0 +1,123 @@
+name: Test
+
+on:
+  push:
+    branches: [main, master, dev]
+    paths-ignore:
+      - 'panel/**'
+  pull_request:
+    branches: [main, master, dev]
+    paths-ignore:
+      - 'panel/**'
+
+jobs:
+  # ─── Build eBPF program (nightly, bpf target) ───
+  build-ebpf:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install nightly Rust + BPF target
+        uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: rust-src
+
+      - name: Cache eBPF build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust/xdp-ebpf
+
+      - name: Install bpf-linker
+        run: cargo install bpf-linker
+
+      - name: Build eBPF program
+        working-directory: rust/xdp-ebpf
+        run: |
+          cargo build \
+            --target bpfel-unknown-none \
+            -Z build-std=core \
+            --release
+
+      - name: Upload eBPF binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: xdp-ebpf
+          path: rust/xdp-ebpf/target/bpfel-unknown-none/release/xdp-ebpf
+          retention-days: 1
+
+  # ─── Test Rust workspace ───
+  test-rust:
+    needs: build-ebpf
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install stable Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+
+      - name: Install libelf-dev (required by aya)
+        run: sudo apt-get update && sudo apt-get install -y libelf-dev
+
+      - name: Download eBPF binary
+        uses: actions/download-artifact@v4
+        with:
+          name: xdp-ebpf
+          path: rust/xdp-ebpf/target/bpfel-unknown-none/release/
+
+      - name: Test
+        working-directory: rust
+        run: cargo test
+
+  # ─── Test Go (depends on Rust workspace build) ───
+  test-go:
+    needs: build-ebpf
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        go-version: ['1.22', '1.23']
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install stable Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+
+      - name: Install libelf-dev (required by aya)
+        run: sudo apt-get update && sudo apt-get install -y libelf-dev
+
+      - name: Download eBPF binary
+        uses: actions/download-artifact@v4
+        with:
+          name: xdp-ebpf
+          path: rust/xdp-ebpf/target/bpfel-unknown-none/release/
+
+      - name: Build Rust library
+        working-directory: rust
+        run: cargo build --release -p spoof-transport
+
+      - name: Set up Go ${{ matrix.go-version }}
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go-version }}
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Vet
+        env:
+          CGO_ENABLED: 1
+        run: go vet ./...
+
+      - name: Build
+        env:
+          CGO_ENABLED: 1
+        run: go build -o spoof ./cmd/spoof/

@@ -1,0 +1,362 @@
+package transport
+
+import (
+	"bytes"
+	"fmt"
+	"io"
+	"log"
+	"sync"
+	"sync/atomic"
+	"time"
+)
+
+type streamState int
+
+const (
+	streamStateSynSent streamState = iota
+	streamStateOpen
+	streamStateFinSent
+	streamStateClosed
+)
+
+// Stream represents a single logical byte stream over the transport.
+type Stream struct {
+	ID        uint16
+	transport *Transport
+	state     streamState
+
+	// Send side
+	sendSeq   atomic.Uint32
+	sendBuf   []pendingSegment
+	sendMu    sync.Mutex
+	ackCh     chan uint32
+
+	// Receive side — ordered reassembly
+	recvBuf    bytes.Buffer
+	recvMu     sync.Mutex
+	recvNotify chan struct{}
+	recvSeq    uint32            // cumulative in-order ack number
+	recvNext   uint32            // next expected seq for ordered delivery
+	recvQueue  map[uint32][]byte // out-of-order segments waiting for reassembly
+	needsAck   bool
+	ackPending int               // count of unacked DATA frames (for batching)
+
+	// SYN payload (connection metadata)
+	synPayload  []byte
+	synSentData []byte // original SYN payload for retransmit
+
+	// Lifecycle
+	opened    chan struct{} // closed when SYN+ACK received
+	closed    atomic.Bool
+	doneCh    chan struct{} // closed when stream is fully done
+	createdAt time.Time
+	lastRecv  atomic.Int64 // unix nanos of last received data
+}
+
+type pendingSegment struct {
+	seqNum  uint32
+	data    []byte
+	sentAt  time.Time
+	retries int
+}
+
+func newStream(id uint16, t *Transport) *Stream {
+	s := &Stream{
+		ID:         id,
+		transport:  t,
+		state:      streamStateSynSent,
+		ackCh:      make(chan uint32, 64),
+		recvNotify: make(chan struct{}, 1),
+		recvNext:   1, // DATA seqs start at 1 (0 is SYN)
+		recvQueue:  make(map[uint32][]byte),
+		opened:     make(chan struct{}),
+		doneCh:     make(chan struct{}),
+		createdAt:  time.Now(),
+	}
+	s.lastRecv.Store(time.Now().UnixNano())
+	return s
+}
+
+// WaitOpen waits for the stream to be opened (SYN+ACK received).
+func (s *Stream) WaitOpen(timeout time.Duration) error {
+	select {
+	case <-s.opened:
+		return nil
+	case <-time.After(timeout):
+		return fmt.Errorf("stream %d: open timeout", s.ID)
+	}
+}
+
+// Write sends data over the stream.
+func (s *Stream) Write(data []byte) (int, error) {
+	if s.closed.Load() {
+		return 0, io.ErrClosedPipe
+	}
+
+	// Fragment into chunks
+	maxChunk := s.transport.config.BitmapConfig.MaxPayloadBytes() - transportHeaderSize
+	// In DataChannel mode, use much larger chunks — DC handles 64KB+ per message.
+	// Bitmap's 221-byte limit is irrelevant; bigger chunks = fewer frames = less overhead.
+	if s.transport.sendDataDirect != nil {
+		maxChunk = 16 * 1024 // 16KB per chunk
+	}
+	if maxChunk < 50 {
+		maxChunk = 50
+	}
+	written := 0
+
+	for written < len(data) {
+		if s.closed.Load() {
+			return written, io.ErrClosedPipe
+		}
+
+		end := written + maxChunk
+		if end > len(data) {
+			end = len(data)
+		}
+		// Copy chunk data — the caller's buffer (from io.Copy) may be reused
+		// before the transport layer encodes this frame.
+		chunk := make([]byte, end-written)
+		copy(chunk, data[written:end])
+
+		seq := s.sendSeq.Add(1)
+
+		s.sendMu.Lock()
+		s.sendBuf = append(s.sendBuf, pendingSegment{
+			seqNum: seq,
+			data:   chunk,
+			sentAt: time.Now(),
+		})
+		s.sendMu.Unlock()
+
+		// Queue for sending (non-blocking — if full, retransmit will pick it up)
+		select {
+		case s.transport.sendQueue <- &transportFrame{
+			Flags:      FlagDATA,
+			StreamID:   s.ID,
+			SeqNum:     seq,
+			WindowSize: uint16(s.transport.config.WindowSize),
+			Payload:    chunk,
+		}:
+		default:
+			// Queue full — frame stays in sendBuf, retransmit handles it
+		}
+
+		s.transport.BytesSent.Add(int64(len(chunk)))
+		written += len(chunk)
+	}
+
+	return written, nil
+}
+
+// Read reads data from the stream.
+func (s *Stream) Read(buf []byte) (int, error) {
+	for {
+		s.recvMu.Lock()
+		n, _ := s.recvBuf.Read(buf)
+		s.recvMu.Unlock()
+
+		if n > 0 {
+			return n, nil
+		}
+
+		if s.closed.Load() {
+			return 0, io.EOF
+		}
+
+		// Wait for data
+		select {
+		case <-s.recvNotify:
+			continue
+		case <-s.doneCh:
+			return 0, io.EOF
+		case <-time.After(30 * time.Second):
+			if s.closed.Load() {
+				return 0, io.EOF
+			}
+		}
+	}
+}
+
+// SetSYNPayload sets the metadata sent with the SYN (e.g., dst_host:port).
+func (s *Stream) SetSYNPayload(data []byte) {
+	s.synPayload = data
+}
+
+// ReadSYNPayload reads the metadata received with the SYN.
+func (s *Stream) ReadSYNPayload() []byte {
+	return s.synPayload
+}
+
+func (s *Stream) handleData(seqNum uint32, data []byte) {
+	s.recvMu.Lock()
+	defer s.recvMu.Unlock()
+
+	// Reduce hot-path logging — only log first segment and out-of-order
+	if seqNum == 1 || seqNum != s.recvNext {
+		log.Printf("[stream] handleData: stream=%d seq=%d data=%d bytes recvNext=%d", s.ID, seqNum, len(data), s.recvNext)
+	}
+
+	s.lastRecv.Store(time.Now().UnixNano())
+	s.ackPending++
+	// ACK every 8 frames or when we've received 32KB+ since last ACK.
+	// In DC mode with 16KB chunks, 8 frames = 128KB — aggressive enough.
+	if s.ackPending >= 8 {
+		s.needsAck = true
+		s.ackPending = 0
+	}
+
+	if seqNum == s.recvNext {
+		// In-order: write directly to buffer
+		s.recvBuf.Write(data)
+		s.recvNext++
+
+		// Flush any queued out-of-order segments that are now in order
+		for {
+			queued, ok := s.recvQueue[s.recvNext]
+			if !ok {
+				break
+			}
+			s.recvBuf.Write(queued)
+			delete(s.recvQueue, s.recvNext)
+			s.recvNext++
+		}
+	} else if seqNum > s.recvNext {
+		// Out of order: queue for later
+		if _, exists := s.recvQueue[seqNum]; !exists {
+			cp := make([]byte, len(data))
+			copy(cp, data)
+			s.recvQueue[seqNum] = cp
+		}
+	}
+	// else: duplicate or old segment, ignore
+
+	// ACK the cumulative in-order boundary (not the raw received seq).
+	// This ensures the sender only removes segments that have been delivered in order.
+	newAck := s.recvNext - 1
+	if newAck > s.recvSeq {
+		s.recvSeq = newAck
+		// Always ACK when the in-order frontier advances (triggers retransmit of next gap)
+		s.needsAck = true
+		s.ackPending = 0
+	}
+
+	// Notify readers
+	select {
+	case s.recvNotify <- struct{}{}:
+	default:
+	}
+}
+
+func (s *Stream) handleAck(ackNum uint32) {
+	s.sendMu.Lock()
+	defer s.sendMu.Unlock()
+
+	// Remove acknowledged segments
+	var remaining []pendingSegment
+	for _, seg := range s.sendBuf {
+		if seg.seqNum > ackNum {
+			remaining = append(remaining, seg)
+		}
+	}
+	s.sendBuf = remaining
+}
+
+func (s *Stream) handleFin() {
+	s.state = streamStateClosed
+	s.close()
+}
+
+// getPendingFrames returns transport frames that need to be sent (retransmits + ACKs).
+func (s *Stream) getPendingFrames() []*transportFrame {
+	// Don't retransmit for closed streams
+	if s.closed.Load() {
+		return nil
+	}
+
+	var frames []*transportFrame
+
+	// Send ACK if needed
+	s.recvMu.Lock()
+	if s.needsAck {
+		frames = append(frames, &transportFrame{
+			Flags:      FlagACK,
+			StreamID:   s.ID,
+			AckNum:     s.recvSeq,
+			WindowSize: uint16(s.transport.config.WindowSize),
+		})
+		s.needsAck = false
+	}
+	s.recvMu.Unlock()
+
+	// Retransmit SYN once after 3 seconds if stream hasn't opened
+	if s.state == streamStateSynSent {
+		age := time.Since(s.createdAt)
+		if age > 3*time.Second && age < 4*time.Second {
+			frames = append(frames, &transportFrame{
+				Flags:      FlagSYN,
+				StreamID:   s.ID,
+				WindowSize: uint16(s.transport.config.WindowSize),
+				Payload:    s.synSentData,
+			})
+		}
+		return frames
+	}
+
+	if s.state != streamStateOpen {
+		return frames
+	}
+
+	// Check for retransmits (max 5 attempts per frame, then give up)
+	s.sendMu.Lock()
+	rtt := time.Duration(s.transport.RTTEstimate.Load())
+	timeout := rtt * 2
+	if timeout < s.transport.config.RetransmitMin {
+		timeout = s.transport.config.RetransmitMin
+	}
+
+	now := time.Now()
+	var keepBuf []pendingSegment
+	for i := range s.sendBuf {
+		if s.sendBuf[i].retries >= 30 {
+			continue // give up — stop wasting bandwidth
+		}
+		keepBuf = append(keepBuf, s.sendBuf[i])
+		if now.Sub(s.sendBuf[i].sentAt) > timeout {
+			keepBuf[len(keepBuf)-1].sentAt = now
+			keepBuf[len(keepBuf)-1].retries++
+			frames = append(frames, &transportFrame{
+				Flags:      FlagDATA,
+				StreamID:   s.ID,
+				SeqNum:     s.sendBuf[i].seqNum,
+				WindowSize: uint16(s.transport.config.WindowSize),
+				Payload:    s.sendBuf[i].data,
+			})
+		}
+	}
+	s.sendBuf = keepBuf
+	s.sendMu.Unlock()
+
+	return frames
+}
+
+// Close sends FIN and marks stream as closed.
+func (s *Stream) Close() error {
+	if s.closed.Load() {
+		return nil
+	}
+
+	s.transport.sendQueue <- &transportFrame{
+		Flags:    FlagFIN,
+		StreamID: s.ID,
+	}
+	s.state = streamStateFinSent
+	s.close()
+	return nil
+}
+
+func (s *Stream) close() {
+	if s.closed.CompareAndSwap(false, true) {
+		close(s.doneCh)
+	}
+}

@@ -1,0 +1,7 @@
+# Windows MSVC: statically link the C runtime (/MT) so the binary is
+# self-contained — no dependency on the VC++ redistributable DLLs
+# (VCRUNTIME140.dll …) being installed on the user's machine. Rust
+# defaults to the dynamic CRT (/MD). Only affects the Windows-MSVC
+# target — Linux, macOS, and Android builds are untouched.
+[target.x86_64-pc-windows-msvc]
+rustflags = ["-C", "target-feature=+crt-static"]

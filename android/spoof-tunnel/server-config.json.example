@@ -1,0 +1,10 @@
+{
+    "mode": "remote",
+    "listen_port": 8090,
+    "forward": "[IP_ADDRESS]",
+    "client_ip": "[IP_ADDRESS]",
+    "client_port": 5001,
+    "spoof_ip": "[IP_ADDRESS]", (or "spoof_ip_file": "/path/to/ips.txt")
+    "spoof_port": 8090,
+    "peer_spoof_ip": "[IP_ADDRESS]"
+}

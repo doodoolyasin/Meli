@@ -1,0 +1,17 @@
+dist/
+*.exe
+/qr-tunnel
+node_modules/
+.DS_Store
+tests/screenshots/
+package-lock.json
+tests/test-results/
+profile-a/
+profile-b/
+bale-analysis/logs/
+bale-analysis/profile-*/
+hossein-bundle.tar.xz
+*.tar.xz
+*.tar.gz
+*.zip
+serve-cli.sh

@@ -1,0 +1,161 @@
+name: Rust
+
+# Runs the workspace test + build on every push and PR. The Android
+# and desktop-binary workflows also exercise the same Rust code, but
+# they're slower (cross-compile + APK packaging / GUI deps), so this
+# job is the fast feedback loop — pure cargo test against the lktunnel
+# core (now on the pure-Rust webrtc-rs stack) and the signaling crates.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build-and-test:
+    name: cargo test (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        # Linux is the fast path; macOS catches darwin-specific build
+        # issues. Windows catches the cfg(unix) gating regressions in
+        # lktunnel's TUN / NAT code — our crate has Unix-only paths that
+        # need to stay gated. macos-latest is Apple Silicon (arm64);
+        # macos-26-intel covers the x86_64 build that ships in releases.
+        os: [ubuntu-latest, macos-latest, macos-26-intel, windows-latest]
+    runs-on: ${{ matrix.os }}
+    # Use bash for every `run:` step (the rustup-guard step uses bash
+    # syntax) so the workflow is OS-uniform; git-bash is preinstalled on
+    # the Windows runner.
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # This job builds the core lib + CLI + the *headless* bale-vpn
+      # (no GUI feature), all on the pure-Rust webrtc-rs stack — so it
+      # needs no GTK/webkit/audio dev headers (those are only for the
+      # windowed build in bale-vpn-rust.yml). pkg-config + libssl-dev
+      # cover any transitive -sys build scripts.
+      - name: Install Linux system deps
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pkg-config libssl-dev
+
+      # macos-26-intel (and other newer slimmed runner images) don't ship
+      # rustup, which dtolnay/rust-toolchain assumes is preinstalled — so
+      # the next step can't put cargo on PATH ("cargo: command not found").
+      # Install rustup if missing and add ~/.cargo/bin to PATH. No-op on
+      # images that already have it.
+      - name: Ensure rustup + stable toolchain (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          if ! command -v rustup >/dev/null 2>&1; then
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
+              | sh -s -- -y --profile minimal --default-toolchain stable
+          fi
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+          # Make cargo usable in THIS step too (sanity-check the install).
+          "$HOME/.cargo/bin/cargo" --version || true
+
+      - name: Set up Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - name: Cache cargo + target
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            ~/.cargo/bin
+            lktunnel-rust/target
+            lk-signaling-rust/target
+            bale-signaling-rust/target
+            bale-vpn-rust/target
+            bale-vpn-android/rust/target
+          # Key on matrix.os, not runner.os: macos-latest (arm64) and
+          # macos-26-intel (x86_64) both report runner.os == "macOS", so a
+          # shared key lets the Intel runner restore the arm64 runner's
+          # ~/.cargo/bin (wrong-arch toolchain → "cargo: command not found").
+          key: rust-test-${{ matrix.os }}-${{ hashFiles('lktunnel-rust/Cargo.lock', 'lk-signaling-rust/Cargo.toml', 'bale-signaling-rust/Cargo.toml', 'bale-vpn-rust/Cargo.toml') }}
+          restore-keys: |
+            rust-test-${{ matrix.os }}-
+
+      # Core workspace — what every consumer (CLI, Android
+      # shim, bale-vpn-rust binary) ultimately links against.
+      # Test runs first because it's the only step that catches
+      # behaviour regressions; `cargo build` would still succeed
+      # on a broken unit test.
+      - name: cargo test --workspace
+        working-directory: lktunnel-rust
+        run: cargo test --workspace --release
+
+      - name: cargo build --workspace
+        working-directory: lktunnel-rust
+        run: cargo build --workspace --release
+
+      - name: cargo clippy --workspace
+        working-directory: lktunnel-rust
+        # `--no-deps` keeps clippy to our own crates; not gated on
+        # warnings for now — run for visibility only.
+        run: cargo clippy --workspace --release --no-deps
+
+      # bale-vpn-rust — the single Rust binary replacing the
+      # deleted Node app. Builds for host, exercises the HTTP
+      # UI + axum routes + signaling wiring at compile time.
+      #
+      # Headless (`--no-default-features`): this fast job doesn't install
+      # the GUI deps (libsoup-3.0 / webkit2gtk that `wry` needs via the
+      # default `gui` feature), and shouldn't — the windowed build is
+      # covered by bale-vpn-rust.yml, which does install them. Building
+      # the headless binary here keeps the compile-time coverage (axum /
+      # signaling / NAT wiring) without dragging webkit into the test job.
+      - name: cargo build (bale-vpn-rust, headless)
+        working-directory: bale-vpn-rust
+        run: cargo build -p bale-vpn --release --no-default-features
+
+      # ── Signaling stack ──────────────────────────────────────
+      #
+      # `lk-signaling-rust/` is the generic trait crate; cheap
+      # pure-Rust (async-trait + tokio). `bale-signaling-rust/`
+      # is the Bale impl on top — also pure Rust (reqwest /
+      # tokio-tungstenite / rustls). Both ship their own unit
+      # tests (~100 in total covering proto codec, gRPC-web,
+      # WS framing, RPC pending machinery, contact parsing,
+      # trait dispatch). Fast — finishes in under 30s per OS.
+
+      - name: cargo test (lk-signaling)
+        working-directory: lk-signaling-rust
+        run: cargo test --workspace --release
+
+      - name: cargo test (bale-signaling)
+        working-directory: bale-signaling-rust
+        run: cargo test --workspace --release
+
+      # The Android JNI shim depends on bale-signaling + lktunnel
+      # + jni-shared; confirms the FFI shape compiles for the host
+      # target. The full Android build (cargo-ndk → arm64) is
+      # exercised by android.yml when a release tag is pushed.
+      #
+      # `lktunnel-jni` is the single merged shim (covers what used
+      # to be split across `lktunnel-android` + `bale-signaling-
+      # android`); produces `liblktunnel_jni.so`.
+      #
+      # Skip on Windows: the shim calls `LkTunnel::attach_tun` /
+      # `detach_tun`, which are `#[cfg(unix)]` in `lktunnel-rust`
+      # (Android targets are *-linux-android, always unix). Linux
+      # + macOS already cover the FFI shape; Windows compile here
+      # would need to either gate every JNI binding or ship Windows
+      # TUN stubs neither of which is useful — Android never runs
+      # on Windows targets.
+      - name: cargo build (android jni shim)
+        if: runner.os != 'Windows'
+        working-directory: bale-vpn-android/rust
+        run: cargo build -p lktunnel-jni --release

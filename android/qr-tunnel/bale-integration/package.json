@@ -1,0 +1,7 @@
+{
+  "dependencies": {
+    "@livekit/protocol": "^1.45.1",
+    "playwright": "^1.58.2",
+    "ws": "^8.20.0"
+  }
+}

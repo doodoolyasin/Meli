@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Lint & sanity
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: ShellCheck
+        run: shellcheck -x golden-gre.sh scripts/*.sh tests/*.sh install.sh bench/*.sh bench/remote/*.sh tools/*.sh
+      - name: Python compiles
+        run: python3 -m py_compile bench/remote/*.py
+      - name: relay builds without warnings
+        run: gcc -O2 -Wall -Wextra -Werror -pthread -o /tmp/golden-gre-relay relay/golden-gre-relay.c relay/monocypher.c
+      - name: scripts are executable & have bash shebang
+        run: |
+          for s in golden-gre.sh scripts/*.sh tests/*.sh install.sh; do
+            head -1 "$s" | grep -q '^#!/usr/bin/env bash' || { echo "bad shebang: $s"; exit 1; }
+            # README tells users to run ./install.sh directly, so the committed
+            # mode has to carry +x — a shebang alone does not make it runnable.
+            [ -x "$s" ] || { echo "not executable: $s"; exit 1; }
+          done
+          echo "shebangs + exec bits ok"
+      - name: example config defines required keys, and no real address
+        run: |
+          for k in DEV LOCAL_PUB REMOTE_PUB TUN_ADDR; do
+            grep -q "^$k=" examples/point-to-point.conf.example || { echo "example missing $k"; exit 1; }
+          done
+          # the example must stay on RFC 5737 documentation addresses
+          grep -E '^(LOCAL_PUB|REMOTE_PUB)=' examples/point-to-point.conf.example | grep -vqE '=(192\.0\.2|198\.51\.100|203\.0\.113)\.' \
+            && { echo "example uses a non-documentation address"; exit 1; }
+          echo "examples ok"
+
+  e2e:
+    name: End-to-end tunnel (network namespaces)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: install.sh
+        run: sudo ./install.sh
+      - name: relay on loopback, both disguises
+        run: sudo tests/relay.sh
+      - name: two namespaces, real tunnels — up, data, second tunnel, failure paths, down
+        run: sudo tests/e2e.sh
+      - name: manager encryption helpers (key derivation, toggle)
+        run: sudo tests/manager_enc.sh
+      - name: systemd wiring — relay is the main process, check timer follows the tunnel
+        run: sudo tests/systemd.sh
+      - name: easy manager — both ends agree, setup builds a tunnel, then the menu under systemd (uninstalls, so last)
+        run: sudo GOLDEN_GRE_TEST_UNINSTALL=1 tests/manager.sh

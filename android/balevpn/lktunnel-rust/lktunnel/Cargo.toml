@@ -1,0 +1,82 @@
+# lktunnel — core LiveKit tunnel library.
+#
+# Pure Rust. No JNI, no extern "C", no Android-specific code. Wraps
+# the livekit crate with a session-keyed map of connect/disconnect
+# and a "tunnel" abstraction over LK's lossy DataChannel (the byte
+# pipeline that carries VPN data between peers).
+#
+# Consumers:
+#   - lktunnel-android : Android JNI shim (in this workspace).
+#   - Future: Node bindings via napi-rs, CLI test harness, etc.
+[package]
+name        = "lktunnel"
+version     = "0.1.0"
+edition.workspace = true
+publish.workspace = true
+description = "LiveKit-backed tunnel client: session-keyed connect/send/recv over lossy DataChannel."
+
+[lib]
+crate-type = ["lib"]
+
+[dependencies]
+# Signaling-trait surface for the `manager` module. Pure abstraction
+# (PeerId / TransportSession / Signaling / IncomingHandler) — no
+# transport coupling.
+lk-signaling = { path = "../../lk-signaling-rust/lk-signaling" }
+# Pure-Rust WebRTC stack (ICE/DTLS/SRTP/RTP) — replaces libwebrtc. No
+# C++, no NDK, no webrtc-sys. Drives the carrier media tracks in `rtc.rs`.
+webrtc      = "0.11"
+# Reused from the (otherwise dropped) LiveKit SDK: the signal-client
+# WebSocket and the protobuf wire types. `livekit-api` is patched to send
+# `sdk=js` (impersonate the JS SDK). webpki-roots bakes the CA bundle into
+# the binary — the native-roots alternative scans unix trust-store paths
+# that don't exist on Android (system CAs live under /system/etc/security/
+# cacerts as DER and need Android's TrustManager).
+livekit-api      = { version = "0.4", features = ["signal-client-tokio", "rustls-tls-webpki-roots"] }
+livekit-protocol = "0.7.7"
+# Async fns in `IncomingDecider` (manager's admission trait).
+async-trait = "0.1"
+# Trickle ICE candidates cross the wire as JSON (RTCIceCandidateInit).
+serde_json  = "1"
+tokio       = { version = "1",   features = ["rt-multi-thread", "sync", "macros"] }
+parking_lot = "0.12"
+once_cell   = "1"
+log         = "0.4"
+# Cross-platform reactor: epoll on Linux/Android, kqueue on macOS,
+# IOCP on Windows. Sessions hold mio::net::* types directly; the
+# dispatcher just owns the central Poll + Waker.
+mio         = { version = "1", features = ["os-poll", "net"] }
+# Builder for low-level socket configuration that mio::net doesn't
+# expose: setsockopt for SO_MARK, TCP_NODELAY, dual-stack v4/v6,
+# IPV6_V6ONLY etc. Portable and small.
+socket2     = "0.5"
+# Errno + a handful of POSIX constants we still poke directly. Will
+# shrink further as the session ports land in steps 2-4.
+libc        = "0.2"
+
+# QUIC carrier (Stage 1 of the SOCKS5-over-QUIC integration). quinn is
+# the reliability layer that sits ON TOP of the existing lossy RTP-as-
+# Opus substrate — its UDP send/recv calls are intercepted by a custom
+# `AsyncUdpSocket` impl in `quic_tunnel.rs` that ferries datagrams as
+# 'Q'-tagged frames through `LkTunnel`. Crypto is rustls/ring; ring is
+# already pulled in transitively by livekit so this adds no new C deps.
+#
+# `runtime-tokio` because we drive quinn from the same tokio runtime
+# the rest of the crate uses.
+quinn       = { version = "0.11", default-features = false, features = ["runtime-tokio", "rustls-ring"] }
+# Server-side: rcgen builds a self-signed cert at startup (we live
+# inside an already-DTLS-encrypted LK channel, so the TLS cert is
+# functionally throwaway). Client-side: rustls is configured with
+# `dangerous_configuration` to skip verification.
+rcgen       = "0.13"
+# Need rustls types directly to build the no-verify ClientConfig.
+rustls      = { version = "0.23", default-features = false, features = ["std", "ring"] }
+# quinn::AsyncUdpSocket returns Poll::Ready(()), so we lean on
+# futures_util's poll helpers in the bridge impl.
+futures-util = "0.3"
+# zero-copy byte buffer used in the quic datagram queues.
+bytes       = "1"
+
+[dev-dependencies]
+# Integration tests want a logger so failures are diagnosable.
+env_logger  = "0.11"
