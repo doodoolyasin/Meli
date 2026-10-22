@@ -139,7 +139,7 @@ android {
         }
     }
 
-    ndkVersion = "21.1.6352462"
+    ndkVersion = "27.0.12077973"
     packaging {
         jniLibs {
             useLegacyPackaging = true
