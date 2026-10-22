@@ -76,15 +76,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Clone external submodules
-        run: |
-          rm -rf android/noizdns android/vaydns android/vaydns-mobile android/dnstt android/app/src/main/rust/slipstream-rust android/app/src/main/rust/slipstream-rust-plus
-          git clone --depth 1 https://github.com/anonvector/noizdns.git android/noizdns
-          git clone --depth 1 https://github.com/anonvector/vaydns.git android/vaydns
-          git clone --depth 1 https://github.com/anonvector/vaydns-mobile.git android/vaydns-mobile
-          git clone --depth 1 https://github.com/anonvector/dnstt.git android/dnstt
-          git clone --depth 1 https://github.com/anonvector/slipstream-rust.git android/app/src/main/rust/slipstream-rust
-          git clone --depth 1 https://github.com/Fox-Fig/slipstream-rust-plus.git android/app/src/main/rust/slipstream-rust-plus
+      # External tunnel sources (noizdns, vaydns, vaydns-mobile, dnstt,
+      # slipstream-rust, slipstream-rust-plus) are vendored inside this
+      # repository, so nothing is cloned from third-party accounts here.
+      # Upstream commits can be brought in intentionally via the vendored
+      # directories themselves.
 
       - name: Set up JDK 21
         uses: actions/setup-java@v4
