@@ -1919,6 +1919,26 @@ private fun ChainListItem(
 
 // ── ConnectionStatusStrip ───────────────────────────────────────────────
 
+/**
+ * Short, non-reversible identifier for a tunnel key.
+ *
+ * The server prints the same 8 hex chars at startup (security.KeyFingerprint),
+ * so an operator can confirm both ends loaded the same key without the key ever
+ * appearing in a screenshot, a bug report or journald.
+ *
+ * Returns null for a blank key (non-DNSTT profiles, or not configured yet).
+ */
+private fun tunnelKeyFingerprint(key: String): String? {
+    if (key.isBlank()) return null
+    return try {
+        val digest = java.security.MessageDigest.getInstance("SHA-256")
+            .digest(key.toByteArray())
+        digest.joinToString("") { "%02x".format(it) }.substring(0, 8)
+    } catch (e: Exception) {
+        null
+    }
+}
+
 @Composable
 private fun ConnectionStatusStrip(
     connectionState: ConnectionState,
@@ -2046,6 +2066,44 @@ private fun ConnectionStatusStrip(
                             text = "\u2191 ${TrafficStats.formatBytes(totalUpload)}  \u2193 ${TrafficStats.formatBytes(totalDownload)}",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                        )
+                    }
+                }
+            }
+
+            // Tunnel fingerprint. The server prints the same 8-char fingerprint at
+            // startup, so both ends can be compared without either side ever
+            // printing the key itself (screenshots, bug reports, journald).
+            AnimatedVisibility(
+                visible = isConnected && activeProfile != null,
+                enter = expandVertically(animationSpec = tween(300)) + fadeIn(animationSpec = tween(300)),
+                exit = shrinkVertically(animationSpec = tween(200)) + fadeOut(animationSpec = tween(200))
+            ) {
+                val fingerprint = activeProfile?.let { tunnelKeyFingerprint(it.dnsttPublicKey) }
+                val resolverCount = activeProfile?.resolvers?.size ?: 0
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 22.dp, top = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = activeProfile?.tunnelType?.displayName ?: "",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f)
+                    )
+                    if (fingerprint != null) {
+                        Text(
+                            text = "  \u00B7  key $fingerprint",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f)
+                        )
+                    }
+                    if (resolverCount > 0) {
+                        Text(
+                            text = "  \u00B7  $resolverCount DNS",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f)
                         )
                     }
                 }

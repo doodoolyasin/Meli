@@ -107,6 +107,7 @@ import app.slipnet.domain.model.CongestionControl
 import app.slipnet.domain.model.DnsTransport
 import app.slipnet.domain.model.ResolverMode
 import app.slipnet.domain.model.SshAuthType
+import app.slipnet.domain.model.TunnelType
 import app.slipnet.tunnel.DOH_SERVERS
 import app.slipnet.tunnel.DohServer
 
@@ -1242,6 +1243,11 @@ fun EditProfileScreen(
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
+
+                // Permissions + exact setup guide (all methods).
+                // Lets the user grant every required Android permission for the
+                // selected method right here, then connect from the profile list.
+                MethodPermissionsSection(tunnelType = uiState.tunnelType)
 
                 // Domain / SSH Server (hidden for DOH, Snowflake, SOCKS5, and VLESS profiles)
                 if (!uiState.isDoh && !uiState.isSnowflake && !uiState.isSocks5 && !uiState.isVless) {

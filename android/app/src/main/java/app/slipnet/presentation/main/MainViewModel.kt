@@ -494,6 +494,20 @@ class MainViewModel @Inject constructor(
         }
     }
 
+    // KeyFingerprint computes a short, non-reversible identifier for a key.
+    // Consistent with server-side logging in cmd/server/main.go, which logs
+    // KeyFingerprint(keyInfo.Key) instead of the raw key to prevent leaking
+    // the tunnel's only secret into journald, syslog, and bug reports.
+    private fun computeKeyFingerprint(key: String): String {
+        if (key.isEmpty()) return "empty"
+        try {
+            val digest = java.security.MessageDigest.getInstance("SHA-256").digest(key.toByteArray())
+            return digest.joinToString("") { "%02x".format(it) }.substring(0, 8)
+        } catch (e: Exception) {
+            return "err"
+        }
+    }
+
     fun deleteDuplicateProfiles() {
         viewModelScope.launch {
             val profiles = _uiState.value.profiles
@@ -519,7 +533,7 @@ class MainViewModel @Inject constructor(
     }
 
     private fun ServerProfile.duplicateKey(): String = listOf(
-        tunnelType.value, domain, dnsttPublicKey, dohUrl,
+        tunnelType.value, domain, computeKeyFingerprint(dnsttPublicKey), dohUrl,
         sshHost, sshPort, sshUsername, sshPassword, sshAuthType.name, sshPrivateKey,
         resolvers.map { "${it.host}:${it.port}" }.sorted().joinToString(","),
         naivePort, naiveUsername, naivePassword,
