@@ -283,7 +283,7 @@ class EditProfileViewModel @Inject constructor(
 
     private val profileId: Long? = savedStateHandle.get<Long>("profileId")
     private val rawTunnelTypeArg: String? = savedStateHandle.get<String>("tunnelType")
-    private val isMeliInitial: Boolean = rawTunnelTypeArg == "meli"
+    private val isMasterDnsInitial: Boolean = rawTunnelTypeArg == "meli"
     private val initialTunnelType: TunnelType = rawTunnelTypeArg
         ?.let { TunnelType.fromValue(it) } ?: TunnelType.DNSTT
 
@@ -291,11 +291,11 @@ class EditProfileViewModel @Inject constructor(
         EditProfileUiState(
             profileId = profileId,
             tunnelType = initialTunnelType,
-            name = if (isMeliInitial) "Meli Tunnel" else "",
-            domain = if (isMeliInitial) "m.dolphin.work.gd" else "",
-            dnsttPublicKey = if (isMeliInitial) "8db08b7392e91a260ec78d1d6a0727b9b772a9ef9d3ccdbedfe5b67be7d4074d" else "",
-            resolvers = if (isMeliInitial) "45.38.249.16:53" else "",
-            authoritativeMode = if (isMeliInitial) true else false
+            name = if (isMasterDnsInitial) "MasterDNS Tunnel" else "",
+            domain = if (isMasterDnsInitial) "m.dolphin.work.gd" else "",
+            dnsttPublicKey = if (isMasterDnsInitial) "8db08b7392e91a260ec78d1d6a0727b9b772a9ef9d3ccdbedfe5b67be7d4074d" else "",
+            resolvers = if (isMasterDnsInitial) "45.38.249.16:53" else "",
+            authoritativeMode = if (isMasterDnsInitial) true else false
         )
     )
     val uiState: StateFlow<EditProfileUiState> = _uiState.asStateFlow()
@@ -1696,9 +1696,9 @@ class EditProfileViewModel @Inject constructor(
             return "Encryption / Public key is required"
         }
 
-        // Accept 16 bytes (32 hex) for Meli / MasterDNS and 32 bytes (64 hex) for DNSTT Curve25519
+        // Accept 16 bytes (32 hex) for MasterDNS and 32 bytes (64 hex) for DNSTT Curve25519
         if (trimmed.length != 32 && trimmed.length != 64) {
-            return "Key must be 32 hex characters (Meli/MasterDNS) or 64 hex characters (DNSTT), got ${trimmed.length}"
+            return "Key must be 32 hex characters (MasterDNS) or 64 hex characters (DNSTT), got ${trimmed.length}"
         }
 
         // Check if all characters are valid hex

@@ -64,7 +64,7 @@ class ResolverScannerRepositoryImpl @Inject constructor(
         val seen = mutableSetOf<String>()
         val boundaries = mutableListOf<Int>()
         try {
-            // Tier 0: Meli Iranian Priority Resolvers (7,854 nodes)
+            // Tier 0: MasterDNS Iranian Priority Resolvers (7,854 nodes)
             try {
                 context.resources.openRawResource(R.raw.iran_resolvers).bufferedReader().useLines { lines ->
                     for (line in lines) {

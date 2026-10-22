@@ -237,7 +237,7 @@ fun SettingsScreen(
             // Donate Card
             DonateCard()
 
-            // ── Meli Emergency National Intranet Section ─────────────────────
+            // ── MasterDNS Emergency National Intranet Section ─────────────────────
             var fixCaptivePortal by remember { mutableStateOf(true) }
             var baleMeetTunnel by remember { mutableStateOf(false) }
             var ntpPort123 by remember { mutableStateOf(false) }
@@ -1732,7 +1732,7 @@ private fun RemoteDnsDialog(
 private fun EmergencySettingsSection(
     content: @Composable () -> Unit
 ) {
-    val meliColor = Color(0xFF00E5FF)
+    val masterDnsColor = Color(0xFF00E5FF)
     Column {
         Row(
             modifier = Modifier.padding(start = 4.dp, bottom = 10.dp),
@@ -1741,7 +1741,7 @@ private fun EmergencySettingsSection(
             Icon(
                 imageVector = Icons.Default.Shield,
                 contentDescription = null,
-                tint = meliColor,
+                tint = masterDnsColor,
                 modifier = Modifier.size(18.dp)
             )
             Spacer(modifier = Modifier.width(6.dp))
@@ -1749,13 +1749,13 @@ private fun EmergencySettingsSection(
                 text = "⚡ Emergency Intranet Bypass (حالت اضطراری اینترنت ملی)",
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.Bold,
-                color = meliColor
+                color = masterDnsColor
             )
         }
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .border(1.5.dp, meliColor, RoundedCornerShape(16.dp)),
+                .border(1.5.dp, masterDnsColor, RoundedCornerShape(16.dp)),
             shape = RoundedCornerShape(16.dp),
             colors = CardDefaults.cardColors(
                 containerColor = Color(0xFF002230).copy(alpha = 0.6f)

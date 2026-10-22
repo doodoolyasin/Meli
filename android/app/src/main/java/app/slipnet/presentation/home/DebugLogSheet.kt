@@ -87,7 +87,7 @@ fun DebugLogSheet(onDismiss: () -> Unit) {
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "⚡ Meli Connection Logs & Diagnostics",
+                        text = "⚡ MasterDNS Connection Logs & Diagnostics",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
                         color = Color(0xFF00E5FF),

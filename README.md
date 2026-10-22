@@ -1,7 +1,7 @@
-# ⚡ Meli DNS Tunneling Suite & Multi-Engine Android Platform
+# ⚡ MasterDNS Tunneling Suite & Multi-Engine Android Platform
 
 <p align="center">
-  <img src="android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png" width="128" height="128" alt="Meli Logo" />
+  <img src="android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png" width="128" height="128" alt="MasterDNS Logo" />
 </p>
 
 <p align="center">
@@ -9,9 +9,9 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/doodoolyasin/Meli/releases/tag/v1.0.0"><img src="https://img.shields.io/badge/Release-v1.0.0-blue.svg" alt="Release" /></a>
-  <a href="https://github.com/doodoolyasin/Meli/actions"><img src="https://img.shields.io/badge/CI%2FCD-Passing-brightgreen.svg" alt="Build Status" /></a>
-  <a href="https://github.com/doodoolyasin/Meli/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-GPL%20v3-green.svg" alt="License" /></a>
+  <a href="https://github.com/doodoolyasin/meli/releases/tag/v1.0.0"><img src="https://img.shields.io/badge/Release-v1.0.0-blue.svg" alt="Release" /></a>
+  <a href="https://github.com/doodoolyasin/meli/actions"><img src="https://img.shields.io/badge/CI%2FCD-Passing-brightgreen.svg" alt="Build Status" /></a>
+  <a href="https://github.com/doodoolyasin/meli/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-GPL%20v3-green.svg" alt="License" /></a>
   <img src="https://img.shields.io/badge/Go-1.24-00ADD8.svg" alt="Go Version" />
   <img src="https://img.shields.io/badge/Platform-Android%20%7C%20Linux%20%7C%20Windows%20%7C%20macOS-orange.svg" alt="Platforms" />
 </p>
@@ -35,10 +35,10 @@ network or Android device has been used.
 
 ## 🏗️ Architecture & Fork Consolidation
 
-Meli unifies the best components of the modern DNS anti-censorship ecosystem into a single, high-performance monorepo:
+MasterDNS unifies the best components of the modern DNS anti-censorship ecosystem into a single, high-performance monorepo:
 
 ```
-github.com/doodoolyasin/Meli (Unified Monorepo)
+github.com/doodoolyasin/meli (Unified Monorepo)
 ├── cmd/
 │   ├── server/           # High-throughput Linux server (Multi-core UDP, SOCKS5 egress, ARQ)
 │   └── client/           # Cross-platform client CLI (Auto-hunt, Pacer, Desync, FEC)
@@ -49,7 +49,7 @@ github.com/doodoolyasin/Meli (Unified Monorepo)
 │   ├── security/         # Cryptographic layers (AES-GCM, ChaCha20-Poly1305, Dynamic Key Derivation)
 │   ├── udpserver/        # Multi-worker lock-free UDP server engine
 │   └── client/           # Parallel DNS query balancer, MTU discoverer & racer
-├── pkg/                  # Meli Advanced DPI Evasion & Reconnaissance
+├── pkg/                  # MasterDNS Advanced DPI Evasion & Reconnaissance
 │   ├── hunter/           # Embedded database of 7,854 Iranian ISP/Datacenter DNS nodes + Real A-Query Hunter
 │   ├── pacer/            # Microsecond Leaky-Bucket rate controller (anti-bufferbloat for MCI/Irancell)
 │   ├── desync/           # DPI camouflage: RFC 6891 EDNS0 OPT (Option 65001) & RFC 9000 QUIC DCID Steganography
@@ -63,12 +63,12 @@ github.com/doodoolyasin/Meli (Unified Monorepo)
 
 ## 🎨 Distinctive Visual Highlighting (SlipNet UI Integration)
 
-To distinguish the new **Meli** engine and features inside the SlipNet Android application, all Meli-specific components are visually rendered with **Glowing Electric Cyan (`#00E5FF`)** and custom badges:
+To distinguish the new **MasterDNS** engine and features inside the SlipNet Android application, all MasterDNS-specific components are visually rendered with **Glowing Electric Cyan (`#00E5FF`)** and custom badges:
 
-1. **⚡ Meli Tunnel in Add Profile Menu:**  
+1. **⚡ MasterDNS Tunnel in Add Profile Menu:**  
    Highlighted with a custom cyan border, dark-cyan background, and instant 1-click configuration for MasterDNS + FEC.
-2. **`[⚡ MELI PRO]` Badge in Profile View:**  
-   Displays an electric-cyan badge on profiles utilizing advanced Meli anti-DPI algorithms.
+2. **`[⚡ MASTERDNS PRO]` Badge in Profile View:**  
+   Displays an electric-cyan badge on profiles utilizing advanced MasterDNS anti-DPI algorithms.
 3. **🇮🇷 7,854 Iranian Priority Resolvers in DNS Scanner:**  
    The scanner auto-prioritizes domestic Iranian resolvers (Irancell, MCI, Shatel, Mokhaberat) under a dedicated `🇮🇷 7,854 IRAN NODES` cyan header, ensuring your tunnel bypasses international gateway filtering.
 
@@ -78,7 +78,7 @@ To distinguish the new **Meli** engine and features inside the SlipNet Android a
 
 ### 1. Download Binaries & Android APK
 Pre-built binaries and release APKs are automatically compiled and published via GitHub Actions on every commit:
-* 📥 **[Download Latest Releases (v1.0.0)](https://github.com/doodoolyasin/Meli/releases/tag/v1.0.0)**
+* 📥 **[Download Latest Releases (v1.0.0)](https://github.com/doodoolyasin/meli/releases/tag/v1.0.0)**
   * Android: `SlipNet-v2.5.5-full-release-arm64-v8a.apk` (or universal edition)
   * Linux Server: `meli-server-linux-amd64`, `meli-server-linux-arm64`
   * Client CLI: `meli-client-linux-amd64`, `meli-client-windows-amd64.exe`, `meli-client-darwin-arm64`
@@ -129,7 +129,7 @@ To connect from inside a filtered network (e.g. Iran, China):
 
 ### 4. Running on Android
 1. Install `SlipNet-v2.5.5-full-release-arm64-v8a.apk` on your Android device.
-2. Tap the `+` button and choose **`⚡ Meli Tunnel`** (highlighted in Electric Cyan).
+2. Tap the `+` button and choose **`⚡ MasterDNS Tunnel`** (highlighted in Electric Cyan).
 3. Set your tunnel domain (e.g. `t.yourdomain.com`) and encryption key.
 4. Go to **DNS Scanner**, where `🇮🇷 7,854 IRAN NODES` are tested at top priority.
 5. Tap **Connect**!
@@ -138,7 +138,7 @@ To connect from inside a filtered network (e.g. Iran, China):
 
 ## 🌪️ Emergency Circumvention Architecture (National Intranet & BGP Shutdown Mode)
 
-Meli incorporates advanced, battle-tested circumvention techniques researched from severe censorship battlegrounds across **Iran (NIN / SHOMA)**, **Russia (TSPU / RKN)**, **China (GFW)**, and **Cuba / Turkmenistan (Whitelist-Only)**:
+MasterDNS incorporates advanced, battle-tested circumvention techniques researched from severe censorship battlegrounds across **Iran (NIN / SHOMA)**, **Russia (TSPU / RKN)**, **China (GFW)**, and **Cuba / Turkmenistan (Whitelist-Only)**:
 
 | Layer | Technique | Mechanism | Threat Defeated |
 |---|---|---|---|

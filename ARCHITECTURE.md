@@ -1,4 +1,4 @@
-# Meli / SlipNet / MasterDnsVPN — Architecture (source-backed)
+# MasterDNS / SlipNet / MasterDnsVPN — Architecture (source-backed)
 
 This document describes the code that exists in this repository, not an intended
 design. Every path below was read during the Phase 1 audit (2026-10-21,

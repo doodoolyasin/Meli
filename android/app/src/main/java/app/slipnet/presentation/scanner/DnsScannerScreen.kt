@@ -461,7 +461,7 @@ private fun HeroCard() {
                 }
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
-                    text = "Meli Engine auto-prioritizes 7,854 domestic Iranian ISP resolvers (Irancell, MCI, Shatel) for bypass.",
+                    text = "MasterDNS Engine auto-prioritizes 7,854 domestic Iranian ISP resolvers (Irancell, MCI, Shatel) for bypass.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
                 )

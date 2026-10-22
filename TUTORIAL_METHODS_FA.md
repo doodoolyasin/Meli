@@ -1,11 +1,11 @@
-# 📖 راهنمای جامع و آموزش گام‌به‌گام تمام متدهای Meli & SlipNet
+# 📖 راهنمای جامع و آموزش گام‌به‌گام تمام متدهای MasterDNS & SlipNet
 
-این مستند راهنمای عملی راه‌اندازی، کانفیگ سرور و تنظیمات کلاینت اندروید برای تک‌تک متدهای موجود در اپلیکیشن **SlipNet v2.5.5 (Meli Suite)** است.
+این مستند راهنمای عملی راه‌اندازی، کانفیگ سرور و تنظیمات کلاینت اندروید برای تک‌تک متدهای موجود در اپلیکیشن **SlipNet v2.5.5 (MasterDNS Suite)** است.
 
 ---
 
 ## فهرست متدها:
-1. [متد ۱: Meli Tunnel (MasterDNS + FEC + ARQ) — متد طلایی اینترنت ملی](#1-meli-tunnel)
+1. [متد ۱: MasterDNS Tunnel (MasterDNS + FEC + ARQ) — متد طلایی اینترنت ملی](#1-meli-tunnel)
 2. [متد ۲: DNSTT (Noise Protocol over UDP / DoH / DoT)](#2-dnstt)
 3. [متد ۳: NoizDNS (تونل نویز بهینه با فشرده‌سازی ZSTD)](#3-noizdns)
 4. [متد ۴: VayDNS (تونل DNS سبک و پرسرعت)](#4-vaydns)
@@ -21,7 +21,7 @@
 ---
 
 <a name="1-meli-tunnel"></a>
-### ۱. متد Meli Tunnel (MasterDNS + FEC + ARQ)
+### ۱. متد MasterDNS Tunnel (MasterDNS + FEC + ARQ)
 * **سناریوی کاربرد:** زمان قطعی سراسری اینترنت بین‌الملل، فیلترینگ شدید UDP، افت شدید سرعت و پکت‌لاس‌های بالای ۷۰٪ روی همراه اول و ایرانسل.
 * **پیش‌نیاز دامنه:**
   - یک رکورد `A` که به IP سرور اشاره کند (مثلاً `ns1.yourdomain.com -> 1.2.3.4`).
@@ -29,7 +29,7 @@
 * **راه‌اندازی سمت سرور (Linux VPS خارج):**
   ```bash
   # ۱. دانلود باینری
-  wget https://github.com/doodoolyasin/Meli/releases/download/v1.0.0/meli-server-linux-amd64
+  wget https://github.com/doodoolyasin/meli/releases/download/v1.0.0/meli-server-linux-amd64
   chmod +x meli-server-linux-amd64
 
   # ۲. ساخت کلید اختصاصی
@@ -40,8 +40,8 @@
   ./meli-server-linux-amd64 -d "t.yourdomain.com" -k "YOUR_32_HEX_KEY" -edns0
   ```
 * **تنظیمات در اپلیکیشن اندروید:**
-  1. زدن دکمه `+` و انتخاب کاشی **`⚡ Meli Tunnel`** (کادر درخشان فیروزه‌ای).
-  2. **Profile Name:** دلخواه (مثلاً `Meli VIP`).
+  1. زدن دکمه `+` و انتخاب کاشی **`⚡ MasterDNS Tunnel`** (کادر درخشان فیروزه‌ای).
+  2. **Profile Name:** دلخواه (مثلاً `MasterDNS VIP`).
   3. **Domain:** دامنه تونل NS شما (مثلاً `t.yourdomain.com`).
   4. **Key:** کلید ۳۲ کاراکتری تولید شده در سرور.
   5. به تب **DNS Scanner** رفته، اسکن را بزنید تا بهترین DNSهای داخلی برای دور زدن فیلترینگ به عنوان سرور مبدا انتخاب شوند.

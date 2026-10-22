@@ -2471,7 +2471,7 @@ class ConfigImporter @Inject constructor() {
         }
 
         if (trimmed.length != 32 && trimmed.length != 64) {
-            return "Key must be 32 hex characters (Meli/MasterDNS) or 64 hex characters (DNSTT), got ${trimmed.length}"
+            return "Key must be 32 hex characters (MasterDNS) or 64 hex characters (DNSTT), got ${trimmed.length}"
         }
 
         if (!trimmed.all { it in '0'..'9' || it in 'a'..'f' || it in 'A'..'F' }) {
