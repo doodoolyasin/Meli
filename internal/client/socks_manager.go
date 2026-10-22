@@ -557,7 +557,7 @@ func (c *Client) removeStream(streamID uint16) {
 	c.streamsMu.Unlock()
 	c.bumpStreamSetVersion()
 
-	if ok {
+	if ok && s != nil {
 		s.Close()
 	}
 }

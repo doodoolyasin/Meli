@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -27,6 +28,7 @@ func startDNSResponder(t *testing.T, answerIP net.IP) (addr string, queries func
 	}
 	t.Cleanup(func() { conn.Close() })
 
+	var seenMu sync.Mutex
 	var seen int
 	done := make(chan struct{})
 	go func() {
@@ -41,11 +43,17 @@ func startDNSResponder(t *testing.T, answerIP net.IP) (addr string, queries func
 			if !ok {
 				continue
 			}
+			seenMu.Lock()
 			seen++
+			seenMu.Unlock()
 			_, _ = conn.WriteToUDP(resp, peer)
 		}
 	}()
-	return conn.LocalAddr().String(), func() int { return seen }
+	return conn.LocalAddr().String(), func() int {
+		seenMu.Lock()
+		defer seenMu.Unlock()
+		return seen
+	}
 }
 
 // buildDNSAnswer turns a query into a minimal NOERROR/A response.

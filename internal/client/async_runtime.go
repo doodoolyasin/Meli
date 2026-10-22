@@ -407,6 +407,12 @@ func (c *Client) asyncStreamCleanupWorker(ctx context.Context) {
 				}
 			}
 
+			// Snapshot stream pointers under the read lock, then inspect/advance
+			// each stream's ARQ lifecycle. Stream status fields have their own
+			// mutex (statusMu), so mutating them here does not race with the
+			// map itself. Entries must NOT be nilled here: the packet dispatch
+			// path (client.go), DNS listener and SOCKS manager resolve streams
+			// through this map, and an orphaned entry permanently stalls them.
 			c.streamsMu.RLock()
 			streams := make([]*Stream_client, 0, len(c.active_streams))
 			for _, s := range c.active_streams {

@@ -196,7 +196,10 @@ func main() {
 		)
 	}
 
-	log.Infof("\U0001F511 <green>Active Encryption Key: <yellow>%s</yellow></green>", keyInfo.Key)
+	// Never log the key itself: it is the tunnel's only secret and these lines end
+	// up in journald, syslog and user-pasted bug reports. The fingerprint lets an
+	// operator confirm that both ends loaded the same key.
+	log.Infof("\U0001F511 <green>Active Encryption Key fingerprint: <yellow>%s</yellow></green>", security.KeyFingerprint(keyInfo.Key))
 	log.Debugf("\u25B6\uFE0F <green>Starting UDP Server...</green>")
 
 	if err := srv.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {

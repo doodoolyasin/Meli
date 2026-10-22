@@ -377,6 +377,9 @@ func (s *Stream_client) OnARQClosed(reason string) {
 
 // Close gracefully shuts down the stream and releases all resources.
 func (s *Stream_client) Close() {
+	if s == nil {
+		return
+	}
 	if s.Stream != nil {
 		if a, ok := s.Stream.(*arq.ARQ); ok {
 			a.Close("Stream_client.Close cleanup", arq.CloseOptions{Force: true})

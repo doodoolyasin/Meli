@@ -149,6 +149,26 @@ func (s *Server) dialTCPTarget(address string) (net.Conn, error) {
 	return s.dialTCPTargetContext(context.Background(), address)
 }
 
+// socksTargetControl returns the connect-time destination check used by the
+// dialer. It re-applies the destination policy to the address the resolver
+// actually produced, which is the only way to stop a hostname that resolves to
+// a forbidden address (DNS rebinding, or a name the client controls).
+//
+// It is installed whenever the target policy is enforced, including when
+// ALLOW_PRIVATE_TARGETS is on: that flag relaxes RFC1918/loopback, not the
+// cloud-metadata, link-local, unspecified and multicast ranges that the policy
+// keeps blocking in both modes.
+func (s *Server) socksTargetControl() func(network, address string, c syscall.RawConn) error {
+	allowPrivate := s != nil && s.allowPrivateTargets
+	return func(_, resolved string, _ syscall.RawConn) error {
+		resolvedHost, _, splitErr := net.SplitHostPort(resolved)
+		if splitErr != nil {
+			return splitErr
+		}
+		return validateSOCKSTargetHostPolicy(resolvedHost, allowPrivate)
+	}
+}
+
 func (s *Server) dialTCPTargetContext(ctx context.Context, address string) (net.Conn, error) {
 	return s.dialTCPTargetContextPolicy(ctx, address, false)
 }
@@ -174,17 +194,8 @@ func (s *Server) dialTCPTargetContextPolicy(ctx context.Context, address string,
 
 	if dialFn == nil {
 		dialer := net.Dialer{Timeout: timeout}
-		if enforceTargetPolicy && s != nil && !s.allowPrivateTargets {
-			dialer.Control = func(network, resolved string, _ syscall.RawConn) error {
-				resolvedHost, _, splitErr := net.SplitHostPort(resolved)
-				if splitErr != nil {
-					return splitErr
-				}
-				if err := validateSOCKSTargetHostPolicy(resolvedHost, false); err != nil {
-					return err
-				}
-				return nil
-			}
+		if enforceTargetPolicy {
+			dialer.Control = s.socksTargetControl()
 		}
 		conn, err := dialer.DialContext(ctx, "tcp", address)
 		return conn, err
