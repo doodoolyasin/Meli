@@ -9,6 +9,7 @@ package bale
 
 import (
 	"io"
+	"sync"
 
 	"github.com/doodoolyasin/meli/pkg/bale/frame"
 	"github.com/doodoolyasin/meli/pkg/webrtc"
@@ -29,6 +30,7 @@ type ChannelTransport struct {
 // Send-side wraps with a monotonic seq; receive side reorders with
 // Reassembler then dispatches the inner webrtc.Frame.
 type ChannelPump struct {
+	mu      sync.Mutex
 	t       ChannelTransport
 	seq     uint32
 	start   uint32
@@ -54,6 +56,8 @@ func NewChannelPump(t ChannelTransport, startSeq uint32, onFrame func(f *webrtc.
 
 // SendFrame wraps and ships one inner frame with the next sequence number.
 func (p *ChannelPump) SendFrame(f *webrtc.Frame) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
 	// Inner frame becomes the transport payload: the receiving end
 	// unwraps back exactly (mine header format preserved verbatim).
 	inner := webrtc.EncodeFrame(f.ConnID, f.MsgType, f.Payload)
@@ -69,6 +73,8 @@ func (p *ChannelPump) SendFrame(f *webrtc.Frame) error {
 
 // SendKeepAlive ships a PING so peers judge link liveness without payload.
 func (p *ChannelPump) SendKeepAlive() error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
 	raw := frame.Encode(&frame.Frame{Flags: frame.FlagPING, StreamID: 1, SeqNum: p.seq})
 	p.seq++
 	return p.t.Send(raw)
@@ -81,9 +87,11 @@ func (p *ChannelPump) onRawMessage(raw []byte) {
 	}
 	switch {
 	case wf.Flags&frame.FlagPING != 0:
+		p.mu.Lock()
 		pong := frame.Encode(&frame.Frame{Flags: frame.FlagPONG, StreamID: wf.StreamID,
 			SeqNum: p.seq, AckNum: wf.SeqNum})
 		p.seq++
+		p.mu.Unlock()
 		_ = p.t.Send(pong)
 		return
 	case wf.Flags&frame.FlagPONG != 0:

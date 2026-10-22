@@ -1259,7 +1259,11 @@ class SlipNetVpnService : VpnService() {
                 SnowflakeBridge.stopClient()
             }
             TunnelType.DOH -> DohBridge.stop()
-            TunnelType.SOCKS5 -> Socks5ProxyBridge.stopAll()
+            TunnelType.SOCKS5, TunnelType.BALE, TunnelType.PINGTUNNEL, TunnelType.SPOOF_TUNNEL, TunnelType.GOLDEN_GRE -> Socks5ProxyBridge.stopAll()
+            TunnelType.MASTERDNS, TunnelType.STORMDNS, TunnelType.NOOSHDAROO, TunnelType.QWDTT -> {
+                DnsttSocksBridge.stop()
+                DnsttBridge.stopClient()
+            }
             TunnelType.VLESS -> VlessBridge.stop()
             else -> {}
         }
