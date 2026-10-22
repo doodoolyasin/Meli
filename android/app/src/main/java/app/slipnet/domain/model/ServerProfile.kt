@@ -160,7 +160,11 @@ data class ServerProfile(
     // When true, probe the resolver at connect time and pick DNS query length
     // (and, for VayDNS, the rate limit) automatically — overrides the manual
     // dnsPayloadSize / vaydnsMaxQnameLen / vaydnsRps values for that connect.
-    val dnsAutoTune: Boolean = false
+    val dnsAutoTune: Boolean = false,
+    // DNS-tunnel payload encryption method (MasterDNS / StormDNS): 0 = none,
+    // 1 = XOR, 2 = ChaCha20, 3/4/5 = AES-128/192/256-GCM. Must match the
+    // server's DATA_ENCRYPTION_METHOD.
+    val tunnelEncryptionMethod: Int = 1
 ) {
     val isExpired: Boolean get() = expirationDate > 0 && System.currentTimeMillis() > expirationDate
 }
@@ -197,7 +201,10 @@ enum class TunnelType(val value: String, val displayName: String) {
     SOCKS5("socks5", "SOCKS5 Proxy"),
     VAYDNS("vaydns", "VayDNS"),
     VAYDNS_SSH("vaydns_ssh", "VayDNS + SSH"),
-    VLESS("vless", "VLESS");
+    VLESS("vless", "VLESS"),
+    MASTERDNS("masterdns", "MasterDNS"),
+    STORMDNS("stormdns", "StormDNS"),
+    PINGTUNNEL("pingtunnel", "PingTunnel (ICMP, root)");
 
     companion object {
         fun fromValue(value: String): TunnelType {

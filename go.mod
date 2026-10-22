@@ -14,4 +14,7 @@ require (
 	golang.org/x/sys v0.49.0
 )
 
-require github.com/klauspost/cpuid/v2 v2.3.0 // indirect
+require (
+	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
+	golang.org/x/mobile v0.0.0-20261011034528-197770444867 // indirect
+)

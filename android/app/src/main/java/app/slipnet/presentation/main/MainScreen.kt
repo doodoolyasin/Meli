@@ -77,6 +77,7 @@ import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.Waves
+import androidx.compose.material.icons.filled.NetworkPing
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -964,6 +965,24 @@ fun MainScreen(
                                 }
                             )
                         }
+                        AddMenuGridItem(
+                            modifier = tileMod,
+                            icon = Icons.Default.Dns,
+                            title = "StormDNS",
+                            onClick = {
+                                showAddMenu = false
+                                onNavigateToAddProfile(TunnelType.STORMDNS.value)
+                            }
+                        )
+                        AddMenuGridItem(
+                            modifier = tileMod,
+                            icon = Icons.Default.NetworkPing,
+                            title = "PingTunnel (root)",
+                            onClick = {
+                                showAddMenu = false
+                                onNavigateToAddProfile(TunnelType.PINGTUNNEL.value)
+                            }
+                        )
                     }
                     HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
                     AddMenuOption(

@@ -7,7 +7,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [ProfileEntity::class, ChainEntity::class],
-    version = 42,
+    version = 43,
     exportSchema = true
 )
 abstract class SlipNetDatabase : RoomDatabase() {
@@ -481,6 +481,14 @@ abstract class SlipNetDatabase : RoomDatabase() {
                 // dns_pool / dns_pool_enabled were briefly here for the
                 // per-profile DNS pool; that feature became a global Settings
                 // pref before shipping, so this migration is now a no-op.
+            }
+        }
+
+        // Adds the DNS-tunnel payload encryption method used by the
+        // MasterDNS and StormDNS engines (defaults to XOR, method 1).
+        val MIGRATION_42_43 = object : Migration(42, 43) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE server_profiles ADD COLUMN tunnel_encryption_method INTEGER NOT NULL DEFAULT 1")
             }
         }
 

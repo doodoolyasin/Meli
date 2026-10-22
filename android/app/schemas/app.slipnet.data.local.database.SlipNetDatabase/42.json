@@ -1,0 +1,642 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 42,
+    "identityHash": "d8fbc9a178c9062a50b53d15657dee50",
+    "entities": [
+      {
+        "tableName": "server_profiles",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT NOT NULL, `domain` TEXT NOT NULL, `resolvers_json` TEXT NOT NULL, `authoritative_mode` INTEGER NOT NULL, `keep_alive_interval` INTEGER NOT NULL, `congestion_control` TEXT NOT NULL, `gso_enabled` INTEGER NOT NULL, `tcp_listen_port` INTEGER NOT NULL, `tcp_listen_host` TEXT NOT NULL, `socks_username` TEXT NOT NULL DEFAULT '', `socks_password` TEXT NOT NULL DEFAULT '', `is_active` INTEGER NOT NULL, `created_at` INTEGER NOT NULL, `updated_at` INTEGER NOT NULL, `tunnel_type` TEXT NOT NULL DEFAULT 'slipstream', `dnstt_public_key` TEXT NOT NULL DEFAULT '', `ssh_username` TEXT NOT NULL DEFAULT '', `ssh_password` TEXT NOT NULL DEFAULT '', `ssh_port` INTEGER NOT NULL DEFAULT 22, `ssh_host` TEXT NOT NULL DEFAULT '127.0.0.1', `doh_url` TEXT NOT NULL DEFAULT '', `last_connected_at` INTEGER NOT NULL DEFAULT 0, `dns_transport` TEXT NOT NULL DEFAULT 'udp', `ssh_auth_type` TEXT NOT NULL DEFAULT 'password', `ssh_private_key` TEXT NOT NULL DEFAULT '', `ssh_key_passphrase` TEXT NOT NULL DEFAULT '', `tor_bridge_lines` TEXT NOT NULL DEFAULT '', `sort_order` INTEGER NOT NULL DEFAULT 0, `dnstt_authoritative` INTEGER NOT NULL DEFAULT 0, `naive_port` INTEGER NOT NULL DEFAULT 443, `naive_username` TEXT NOT NULL DEFAULT '', `naive_password` TEXT NOT NULL DEFAULT '', `is_locked` INTEGER NOT NULL DEFAULT 0, `lock_password_hash` TEXT NOT NULL DEFAULT '', `expiration_date` INTEGER NOT NULL DEFAULT 0, `allow_sharing` INTEGER NOT NULL DEFAULT 0, `bound_device_id` TEXT NOT NULL DEFAULT '', `noizdns_stealth` INTEGER NOT NULL DEFAULT 0, `dns_payload_size` INTEGER NOT NULL DEFAULT 0, `resolvers_hidden` INTEGER NOT NULL DEFAULT 0, `default_resolvers_json` TEXT NOT NULL DEFAULT '[]', `socks5_server_port` INTEGER NOT NULL DEFAULT 1080, `vaydns_dnstt_compat` INTEGER NOT NULL DEFAULT 0, `vaydns_record_type` TEXT NOT NULL DEFAULT 'txt', `vaydns_max_qname_len` INTEGER NOT NULL DEFAULT 101, `vaydns_rps` REAL NOT NULL DEFAULT 0.0, `vaydns_idle_timeout` INTEGER NOT NULL DEFAULT 0, `vaydns_keepalive` INTEGER NOT NULL DEFAULT 0, `vaydns_udp_timeout` INTEGER NOT NULL DEFAULT 0, `vaydns_max_num_labels` INTEGER NOT NULL DEFAULT 0, `vaydns_clientid_size` INTEGER NOT NULL DEFAULT 0, `is_pinned` INTEGER NOT NULL DEFAULT 0, `ssh_tls_enabled` INTEGER NOT NULL DEFAULT 0, `ssh_tls_sni` TEXT NOT NULL DEFAULT '', `ssh_http_proxy_host` TEXT NOT NULL DEFAULT '', `ssh_http_proxy_port` INTEGER NOT NULL DEFAULT 8080, `ssh_http_proxy_custom_host` TEXT NOT NULL DEFAULT '', `ssh_ws_enabled` INTEGER NOT NULL DEFAULT 0, `ssh_ws_path` TEXT NOT NULL DEFAULT '/', `ssh_ws_use_tls` INTEGER NOT NULL DEFAULT 1, `ssh_ws_custom_host` TEXT NOT NULL DEFAULT '', `ssh_payload` TEXT NOT NULL DEFAULT '', `resolver_mode` TEXT NOT NULL DEFAULT 'fanout', `rr_spread_count` INTEGER NOT NULL DEFAULT 3, `vless_uuid` TEXT NOT NULL DEFAULT '', `vless_security` TEXT NOT NULL DEFAULT 'tls', `vless_transport` TEXT NOT NULL DEFAULT 'ws', `vless_ws_path` TEXT NOT NULL DEFAULT '/', `cdn_ip` TEXT NOT NULL DEFAULT '', `cdn_port` INTEGER NOT NULL DEFAULT 443, `sni_fragment_enabled` INTEGER NOT NULL DEFAULT 1, `sni_fragment_strategy` TEXT NOT NULL DEFAULT 'sni_split', `sni_fragment_delay_ms` INTEGER NOT NULL DEFAULT 100, `sni_spoof_ttl` INTEGER NOT NULL DEFAULT 8, `vless_sni` TEXT NOT NULL DEFAULT '', `fake_decoy_host` TEXT NOT NULL DEFAULT '', `tcp_max_seg` INTEGER NOT NULL DEFAULT 0, `ch_padding_enabled` INTEGER NOT NULL DEFAULT 0, `ws_header_obfuscation` INTEGER NOT NULL DEFAULT 0, `ws_padding_enabled` INTEGER NOT NULL DEFAULT 0, `dns_auto_tune` INTEGER NOT NULL DEFAULT 0)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "domain",
+            "columnName": "domain",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "resolversJson",
+            "columnName": "resolvers_json",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "authoritativeMode",
+            "columnName": "authoritative_mode",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "keepAliveInterval",
+            "columnName": "keep_alive_interval",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "congestionControl",
+            "columnName": "congestion_control",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "gsoEnabled",
+            "columnName": "gso_enabled",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "tcpListenPort",
+            "columnName": "tcp_listen_port",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "tcpListenHost",
+            "columnName": "tcp_listen_host",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "socksUsername",
+            "columnName": "socks_username",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "''"
+          },
+          {
+            "fieldPath": "socksPassword",
+            "columnName": "socks_password",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "''"
+          },
+          {
+            "fieldPath": "isActive",
+            "columnName": "is_active",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "created_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAt",
+            "columnName": "updated_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "tunnelType",
+            "columnName": "tunnel_type",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "'slipstream'"
+          },
+          {
+            "fieldPath": "dnsttPublicKey",
+            "columnName": "dnstt_public_key",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "''"
+          },
+          {
+            "fieldPath": "sshUsername",
+            "columnName": "ssh_username",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "''"
+          },
+          {
+            "fieldPath": "sshPassword",
+            "columnName": "ssh_password",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "''"
+          },
+          {
+            "fieldPath": "sshPort",
+            "columnName": "ssh_port",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "22"
+          },
+          {
+            "fieldPath": "sshHost",
+            "columnName": "ssh_host",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "'127.0.0.1'"
+          },
+          {
+            "fieldPath": "dohUrl",
+            "columnName": "doh_url",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "''"
+          },
+          {
+            "fieldPath": "lastConnectedAt",
+            "columnName": "last_connected_at",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "dnsTransport",
+            "columnName": "dns_transport",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "'udp'"
+          },
+          {
+            "fieldPath": "sshAuthType",
+            "columnName": "ssh_auth_type",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "'password'"
+          },
+          {
+            "fieldPath": "sshPrivateKey",
+            "columnName": "ssh_private_key",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "''"
+          },
+          {
+            "fieldPath": "sshKeyPassphrase",
+            "columnName": "ssh_key_passphrase",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "''"
+          },
+          {
+            "fieldPath": "torBridgeLines",
+            "columnName": "tor_bridge_lines",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "''"
+          },
+          {
+            "fieldPath": "sortOrder",
+            "columnName": "sort_order",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "dnsttAuthoritative",
+            "columnName": "dnstt_authoritative",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "naivePort",
+            "columnName": "naive_port",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "443"
+          },
+          {
+            "fieldPath": "naiveUsername",
+            "columnName": "naive_username",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "''"
+          },
+          {
+            "fieldPath": "naivePassword",
+            "columnName": "naive_password",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "''"
+          },
+          {
+            "fieldPath": "isLocked",
+            "columnName": "is_locked",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "lockPasswordHash",
+            "columnName": "lock_password_hash",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "''"
+          },
+          {
+            "fieldPath": "expirationDate",
+            "columnName": "expiration_date",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "allowSharing",
+            "columnName": "allow_sharing",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "boundDeviceId",
+            "columnName": "bound_device_id",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "''"
+          },
+          {
+            "fieldPath": "noizdnsStealth",
+            "columnName": "noizdns_stealth",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "dnsPayloadSize",
+            "columnName": "dns_payload_size",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "resolversHidden",
+            "columnName": "resolvers_hidden",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "defaultResolversJson",
+            "columnName": "default_resolvers_json",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "'[]'"
+          },
+          {
+            "fieldPath": "socks5ServerPort",
+            "columnName": "socks5_server_port",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "1080"
+          },
+          {
+            "fieldPath": "vaydnsDnsttCompat",
+            "columnName": "vaydns_dnstt_compat",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "vaydnsRecordType",
+            "columnName": "vaydns_record_type",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "'txt'"
+          },
+          {
+            "fieldPath": "vaydnsMaxQnameLen",
+            "columnName": "vaydns_max_qname_len",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "101"
+          },
+          {
+            "fieldPath": "vaydnsRps",
+            "columnName": "vaydns_rps",
+            "affinity": "REAL",
+            "notNull": true,
+            "defaultValue": "0.0"
+          },
+          {
+            "fieldPath": "vaydnsIdleTimeout",
+            "columnName": "vaydns_idle_timeout",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "vaydnsKeepalive",
+            "columnName": "vaydns_keepalive",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "vaydnsUdpTimeout",
+            "columnName": "vaydns_udp_timeout",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "vaydnsMaxNumLabels",
+            "columnName": "vaydns_max_num_labels",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "vaydnsClientIdSize",
+            "columnName": "vaydns_clientid_size",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "isPinned",
+            "columnName": "is_pinned",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "sshTlsEnabled",
+            "columnName": "ssh_tls_enabled",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "sshTlsSni",
+            "columnName": "ssh_tls_sni",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "''"
+          },
+          {
+            "fieldPath": "sshHttpProxyHost",
+            "columnName": "ssh_http_proxy_host",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "''"
+          },
+          {
+            "fieldPath": "sshHttpProxyPort",
+            "columnName": "ssh_http_proxy_port",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "8080"
+          },
+          {
+            "fieldPath": "sshHttpProxyCustomHost",
+            "columnName": "ssh_http_proxy_custom_host",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "''"
+          },
+          {
+            "fieldPath": "sshWsEnabled",
+            "columnName": "ssh_ws_enabled",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "sshWsPath",
+            "columnName": "ssh_ws_path",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "'/'"
+          },
+          {
+            "fieldPath": "sshWsUseTls",
+            "columnName": "ssh_ws_use_tls",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "1"
+          },
+          {
+            "fieldPath": "sshWsCustomHost",
+            "columnName": "ssh_ws_custom_host",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "''"
+          },
+          {
+            "fieldPath": "sshPayload",
+            "columnName": "ssh_payload",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "''"
+          },
+          {
+            "fieldPath": "resolverMode",
+            "columnName": "resolver_mode",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "'fanout'"
+          },
+          {
+            "fieldPath": "rrSpreadCount",
+            "columnName": "rr_spread_count",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "3"
+          },
+          {
+            "fieldPath": "vlessUuid",
+            "columnName": "vless_uuid",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "''"
+          },
+          {
+            "fieldPath": "vlessSecurity",
+            "columnName": "vless_security",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "'tls'"
+          },
+          {
+            "fieldPath": "vlessTransport",
+            "columnName": "vless_transport",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "'ws'"
+          },
+          {
+            "fieldPath": "vlessWsPath",
+            "columnName": "vless_ws_path",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "'/'"
+          },
+          {
+            "fieldPath": "cdnIp",
+            "columnName": "cdn_ip",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "''"
+          },
+          {
+            "fieldPath": "cdnPort",
+            "columnName": "cdn_port",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "443"
+          },
+          {
+            "fieldPath": "sniFragmentEnabled",
+            "columnName": "sni_fragment_enabled",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "1"
+          },
+          {
+            "fieldPath": "sniFragmentStrategy",
+            "columnName": "sni_fragment_strategy",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "'sni_split'"
+          },
+          {
+            "fieldPath": "sniFragmentDelayMs",
+            "columnName": "sni_fragment_delay_ms",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "100"
+          },
+          {
+            "fieldPath": "sniSpoofTtl",
+            "columnName": "sni_spoof_ttl",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "8"
+          },
+          {
+            "fieldPath": "vlessSni",
+            "columnName": "vless_sni",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "''"
+          },
+          {
+            "fieldPath": "fakeDecoyHost",
+            "columnName": "fake_decoy_host",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "''"
+          },
+          {
+            "fieldPath": "tcpMaxSeg",
+            "columnName": "tcp_max_seg",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "chPaddingEnabled",
+            "columnName": "ch_padding_enabled",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "wsHeaderObfuscation",
+            "columnName": "ws_header_obfuscation",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "wsPaddingEnabled",
+            "columnName": "ws_padding_enabled",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "dnsAutoTune",
+            "columnName": "dns_auto_tune",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        }
+      },
+      {
+        "tableName": "profile_chains",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT NOT NULL, `profile_ids_json` TEXT NOT NULL, `is_active` INTEGER NOT NULL DEFAULT 0, `created_at` INTEGER NOT NULL, `updated_at` INTEGER NOT NULL, `sort_order` INTEGER NOT NULL DEFAULT 0)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "profileIdsJson",
+            "columnName": "profile_ids_json",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isActive",
+            "columnName": "is_active",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "created_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAt",
+            "columnName": "updated_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sortOrder",
+            "columnName": "sort_order",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        }
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'd8fbc9a178c9062a50b53d15657dee50')"
+    ]
+  }
+}

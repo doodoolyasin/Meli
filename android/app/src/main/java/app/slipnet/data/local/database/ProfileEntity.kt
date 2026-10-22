@@ -264,5 +264,10 @@ data class ProfileEntity(
     // When true, the DNS query length (and, for VayDNS, the rate limit) are
     // probed at connect time instead of read from the user-set fields.
     @ColumnInfo(name = "dns_auto_tune", defaultValue = "0")
-    val dnsAutoTune: Boolean = false
+    val dnsAutoTune: Boolean = false,
+
+    // DNS-tunnel payload encryption method (MasterDNS / StormDNS): 0 = none,
+    // 1 = XOR, 2 = ChaCha20, 3/4/5 = AES-128/192/256-GCM.
+    @ColumnInfo(name = "tunnel_encryption_method", defaultValue = "1")
+    val tunnelEncryptionMethod: Int = 1
 )
