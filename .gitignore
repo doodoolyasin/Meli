@@ -11,6 +11,8 @@ dist/
 # Android build outputs
 .gradle/
 build/
+!android/app/src/main/rust/slipstream-rust/crates/slipstream-ffi/build/
+!android/app/src/main/rust/slipstream-rust-plus/crates/slipstream-ffi/build/
 android/app/build/
 android/.gradle/
 local.properties
