@@ -84,6 +84,10 @@ func Decode(data []byte) (*Frame, error) {
 	}, nil
 }
 
+// MaxReorderWindow limits how far ahead out-of-order frames can be buffered
+// to protect against memory exhaustion from malicious or broken peers.
+const MaxReorderWindow = 512
+
 // Reassembler orders DATA frames into a sequential byte stream, dropping
 // duplicates and tracking gaps. Not thread-safe; the owning channel pump
 // serializes delivery.
@@ -121,6 +125,10 @@ func (r *Reassembler) Feed(seq uint32, payload []byte) ([][]byte, uint32) {
 	}
 	if seq < r.next { // duplicate of already-delivered data
 		r.dupCnt++
+		return nil, r.next
+	}
+	if seq > r.next+MaxReorderWindow || len(r.pend) >= MaxReorderWindow {
+		// Out of sliding window or buffer full: drop to prevent memory bloat
 		return nil, r.next
 	}
 	if r.pend[seq] == nil {

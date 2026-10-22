@@ -55,7 +55,7 @@ object ChainValidation {
         TunnelType.DNSTT, TunnelType.NOIZDNS, TunnelType.VAYDNS -> LayerOutput.SOCKS5
         TunnelType.SLIPSTREAM -> LayerOutput.SOCKS5
         TunnelType.MASTERDNS, TunnelType.STORMDNS, TunnelType.NOOSHDAROO, TunnelType.QWDTT -> LayerOutput.SOCKS5
-        TunnelType.PINGTUNNEL, TunnelType.BALE, TunnelType.SPOOF_TUNNEL, TunnelType.GOLDEN_GRE -> LayerOutput.SOCKS5
+        TunnelType.PINGTUNNEL, TunnelType.BALE, TunnelType.SPOOF_TUNNEL, TunnelType.GOLDEN_GRE, TunnelType.PAQET -> LayerOutput.SOCKS5
         TunnelType.SSH -> LayerOutput.SOCKS5
         TunnelType.NAIVE -> LayerOutput.SOCKS5
         TunnelType.SNOWFLAKE -> LayerOutput.SOCKS5
@@ -72,7 +72,7 @@ object ChainValidation {
         TunnelType.SSH -> true  // SSH can connect over raw TCP or SOCKS5
         TunnelType.SOCKS5 -> true  // SOCKS5 outbound traffic is routed through VPN/previous layer
         TunnelType.DNSTT, TunnelType.NOIZDNS, TunnelType.VAYDNS, TunnelType.MASTERDNS, TunnelType.STORMDNS, TunnelType.NOOSHDAROO, TunnelType.QWDTT -> input == LayerOutput.SOCKS5  // needs SOCKS5 for resolver bypass
-        TunnelType.PINGTUNNEL, TunnelType.BALE, TunnelType.SPOOF_TUNNEL, TunnelType.GOLDEN_GRE -> true
+        TunnelType.PINGTUNNEL, TunnelType.BALE, TunnelType.SPOOF_TUNNEL, TunnelType.GOLDEN_GRE, TunnelType.PAQET -> true
         TunnelType.NAIVE -> true  // NaiveProxy outbound is routed through VPN/previous layer
         TunnelType.SLIPSTREAM -> false  // Slipstream connects to its own server directly
         // DoH can route its upstream HTTPS through a previous SOCKS5 layer

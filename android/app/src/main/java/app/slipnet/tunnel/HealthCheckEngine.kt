@@ -62,7 +62,8 @@ object HealthCheckEngine {
                 checks.add(probeIcmp(host))
             }
 
-            TunnelType.SSH, TunnelType.SOCKS5, TunnelType.NAIVE, TunnelType.NAIVE_SSH -> {
+            TunnelType.SSH, TunnelType.SOCKS5, TunnelType.NAIVE, TunnelType.NAIVE_SSH,
+            TunnelType.SPOOF_TUNNEL, TunnelType.GOLDEN_GRE, TunnelType.PAQET -> {
                 val host = profile.domain.ifEmpty { profile.sshHost }
                 val port = if (profile.sshPort > 0) profile.sshPort else profile.socks5ServerPort
                 if (host.isNotEmpty()) {

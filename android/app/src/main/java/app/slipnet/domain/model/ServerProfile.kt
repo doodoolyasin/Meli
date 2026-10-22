@@ -209,7 +209,8 @@ enum class TunnelType(val value: String, val displayName: String) {
     NOOSHDAROO("nooshdaroo", "Nooshdaroo (DNS)"),
     SPOOF_TUNNEL("spoof_tunnel", "Spoof-Tunnel (TCP)"),
     GOLDEN_GRE("golden_gre", "Golden-GRE (Tunnel)"),
-    QWDTT("qwdtt", "qWDTT (QUIC-DNS)");
+    QWDTT("qwdtt", "qWDTT (QUIC-DNS)"),
+    PAQET("paqet", "Paqet (Raw-TCP / KCP)");
 
     companion object {
         fun fromValue(value: String): TunnelType {

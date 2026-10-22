@@ -1028,6 +1028,15 @@ fun MainScreen(
                                 onNavigateToAddProfile(TunnelType.QWDTT.value)
                             }
                         )
+                        AddMenuGridItem(
+                            modifier = tileMod,
+                            icon = Icons.Default.Shield,
+                            title = "Paqet (Raw-TCP)",
+                            onClick = {
+                                showAddMenu = false
+                                onNavigateToAddProfile(TunnelType.PAQET.value)
+                            }
+                        )
                     }
                     HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
                     AddMenuOption(

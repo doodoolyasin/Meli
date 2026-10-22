@@ -230,6 +230,12 @@ internal fun setupSteps(tunnelType: TunnelType): List<GuideStep> {
             GuideStep("2. Resolvers: Scan and pick low-latency UDP:53 resolvers.", "۲. دی‌ان‌اس: ريزالورهای کم‌تاخیر UDP:53 را انتخاب کنید."),
             GuideStep("3. Feature: Uses QUIC framing over DNS for reliable ordered delivery.", "۳. ویژگی: از فریمینگ QUIC بر بستر DNS برای ارسال بسته‌ها بدون ریزش استفاده می‌کند.")
         )
+        TunnelType.PAQET -> listOf(
+            GuideStep("1. Server: Enter Paqet server IP:Port (e.g. 1.2.3.4:9999).", "۱. سرور: آی‌پی و پورت سرور Paqet را وارد کنید (مثل 1.2.3.4:9999)."),
+            GuideStep("2. Key: Enter the KCP encryption secret key matching your server.", "۲. کلید: کلید رمزنگاری KCP مطابق سرور را وارد کنید."),
+            GuideStep("3. Note: Root permission or Termux root is required on Android for raw socket capture.", "۳. نکته: دسترسی روت برای کپچر سوکت خام در اندروید الزامی است."),
+            GuideStep("4. Pitfall: You MUST set iptables NOTRACK and RST DROP rules on your server; otherwise the Linux kernel OS will send TCP RST packets that kill raw sessions.", "۴. اشتباه رایج: حتماً باید رول‌های iptables NOTRACK و RST DROP را روی سرور اعمال کنید؛ در غیر این صورت کرنل لینوکس پکت‌های ریست ارسال کرده و سشن را قطع می‌کند.")
+        )
         else -> listOf(
             GuideStep(
                 "1. Grant the permissions above, fill the fields for this method, then save and tap the profile to connect.",

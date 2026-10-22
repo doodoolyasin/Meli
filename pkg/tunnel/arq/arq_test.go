@@ -88,9 +88,37 @@ type testLogger struct {
 	t *testing.T
 }
 
-func (l *testLogger) Debugf(format string, args ...any) { l.t.Logf("[DEBUG] "+format, args...) }
-func (l *testLogger) Infof(format string, args ...any)  { l.t.Logf("[INFO] "+format, args...) }
-func (l *testLogger) Errorf(format string, args ...any) { l.t.Logf("[ERROR] "+format, args...) }
+var (
+	testRegMu       sync.Mutex
+	registeredTests = make(map[*testing.T]bool)
+	finishedTests   = make(map[*testing.T]bool)
+)
+
+func (l *testLogger) log(prefix, format string, args ...any) {
+	if l == nil || l.t == nil {
+		return
+	}
+	testRegMu.Lock()
+	if !registeredTests[l.t] {
+		registeredTests[l.t] = true
+		t := l.t
+		t.Cleanup(func() {
+			testRegMu.Lock()
+			finishedTests[t] = true
+			testRegMu.Unlock()
+		})
+	}
+	isDone := finishedTests[l.t]
+	testRegMu.Unlock()
+
+	if !isDone {
+		l.t.Logf(prefix+format, args...)
+	}
+}
+
+func (l *testLogger) Debugf(format string, args ...any) { l.log("[DEBUG] ", format, args...) }
+func (l *testLogger) Infof(format string, args ...any)  { l.log("[INFO] ", format, args...) }
+func (l *testLogger) Errorf(format string, args ...any) { l.log("[ERROR] ", format, args...) }
 
 type eofAfterDataConn struct {
 	mu     sync.Mutex
@@ -961,10 +989,20 @@ func TestARQ_ReceiveDataClearsQueuedNackWhenMissingDataArrives(t *testing.T) {
 	a.ReceiveData(0, []byte("packet 0"))
 	<-enqueuer.Packets
 
-	enqueuer.mu.Lock()
-	defer enqueuer.mu.Unlock()
-	if len(enqueuer.removedNackSeqs) != 1 || enqueuer.removedNackSeqs[0] != 0 {
-		t.Fatalf("expected queued NACK purge for seq 0, got %#v", enqueuer.removedNackSeqs)
+	deadline := time.Now().Add(500 * time.Millisecond)
+	var removed []uint16
+	for time.Now().Before(deadline) {
+		enqueuer.mu.Lock()
+		removed = append([]uint16(nil), enqueuer.removedNackSeqs...)
+		enqueuer.mu.Unlock()
+		if len(removed) == 1 && removed[0] == 0 {
+			break
+		}
+		time.Sleep(2 * time.Millisecond)
+	}
+
+	if len(removed) != 1 || removed[0] != 0 {
+		t.Fatalf("expected queued NACK purge for seq 0, got %#v", removed)
 	}
 }
 

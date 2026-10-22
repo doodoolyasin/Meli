@@ -1272,6 +1272,7 @@ fun EditProfileScreen(
                                     uiState.isGoldenGre -> "Golden-GRE Server Endpoint"
                                     uiState.isNooshdaroo -> "Nooshdaroo Tunnel Domain"
                                     uiState.isQwdtt -> "qWDTT Tunnel Domain"
+                                    uiState.isPaqet -> "Paqet Server IP:Port"
                                     else -> "Domain"
                                 }
                             )
@@ -1283,7 +1284,7 @@ fun EditProfileScreen(
                                     uiState.isSshOnly -> "ssh.example.com"
                                     uiState.isNaiveBased -> "proxy.example.com"
                                     uiState.isBale -> "https://meet.bale.ai/call/abc or room ID"
-                                    uiState.isPingTunnel -> "1.2.3.4"
+                                    uiState.isPingTunnel, uiState.isPaqet -> "1.2.3.4:9999"
                                     else -> "vpn.example.com"
                                 }
                             )

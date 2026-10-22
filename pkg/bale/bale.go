@@ -306,6 +306,7 @@ func (s *TunnelSession) Close() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.peerSender = nil
+	_ = s.mux.Close()
 	if s.socksListener != nil {
 		return s.socksListener.Close()
 	}
@@ -404,5 +405,6 @@ func (b *RelayBridge) handleConnect(f *webrtc.Frame) error {
 // Close terminates the relay bridge.
 func (b *RelayBridge) Close() error {
 	b.cancel()
+	_ = b.mux.Close()
 	return nil
 }

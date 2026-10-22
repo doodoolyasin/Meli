@@ -294,6 +294,9 @@ data class EditProfileUiState(
     val isQwdtt: Boolean
         get() = tunnelType == TunnelType.QWDTT
 
+    val isPaqet: Boolean
+        get() = tunnelType == TunnelType.PAQET
+
     val showConnectionMethod: Boolean
         get() = !isSshOnly && !isDoh && !isSnowflake && !isSocks5 && !isVless
 }

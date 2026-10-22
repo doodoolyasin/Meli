@@ -183,6 +183,20 @@ func (m *ChannelMultiplexer) ActiveCount() int {
 	return len(m.conns)
 }
 
+// Close closes all active connections registered in the multiplexer and cancels waiters.
+func (m *ChannelMultiplexer) Close() error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for id, c := range m.conns {
+		_ = c.Close()
+		delete(m.conns, id)
+	}
+	for id := range m.waiters {
+		delete(m.waiters, id)
+	}
+	return nil
+}
+
 // KeepaliveTicker generates background keepalive pulses to prevent SFU / TURN relay timeouts
 func (m *ChannelMultiplexer) KeepaliveTicker(interval time.Duration, sendFn func([]byte) error) {
 	ticker := time.NewTicker(interval)

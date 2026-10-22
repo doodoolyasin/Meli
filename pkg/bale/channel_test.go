@@ -24,6 +24,7 @@ func mustSockURL(t *testing.T, port int) func(*http.Request) (*url.URL, error) {
 // chanTransport builds a channel-based transport between the two pumps
 // (loopback stand-in for an ordered DataChannel).
 func chanTransport(myBus <-chan []byte, peerBus chan<- []byte) ChannelTransport {
+	done := make(chan struct{})
 	return ChannelTransport{
 		Send: func(raw []byte) error {
 			cp := make([]byte, len(raw))
@@ -31,20 +32,37 @@ func chanTransport(myBus <-chan []byte, peerBus chan<- []byte) ChannelTransport 
 			select {
 			case peerBus <- cp:
 				return nil
+			case <-done:
+				return fmt.Errorf("transport closed")
 			case <-time.After(10 * time.Second):
 				return fmt.Errorf("peer bus full")
 			}
 		},
 		SetOnMessage: func(on func([]byte)) {
 			go func() {
-				for raw := range myBus {
-					cp := make([]byte, len(raw))
-					copy(cp, raw)
-					on(cp)
+				for {
+					select {
+					case raw, ok := <-myBus:
+						if !ok {
+							return
+						}
+						cp := make([]byte, len(raw))
+						copy(cp, raw)
+						on(cp)
+					case <-done:
+						return
+					}
 				}
 			}()
 		},
-		Close: func() error { return nil },
+		Close: func() error {
+			select {
+			case <-done:
+			default:
+				close(done)
+			}
+			return nil
+		},
 	}
 }
 

@@ -547,7 +547,7 @@ class SlipNetVpnService : VpnService() {
                     TunnelType.SOCKS5 -> connectSocks5(profile, dnsServer, remoteDns)
                     TunnelType.VLESS -> connectVless(profile, dnsServer)
                     TunnelType.MASTERDNS, TunnelType.STORMDNS, TunnelType.NOOSHDAROO, TunnelType.QWDTT -> connectDnstt(profile, dnsServer, remoteDns, remoteDnsFallback, globalResolverOverride)
-                    TunnelType.PINGTUNNEL, TunnelType.BALE, TunnelType.SPOOF_TUNNEL, TunnelType.GOLDEN_GRE -> connectSocks5(profile, dnsServer, remoteDns)
+                    TunnelType.PINGTUNNEL, TunnelType.BALE, TunnelType.SPOOF_TUNNEL, TunnelType.GOLDEN_GRE, TunnelType.PAQET -> connectSocks5(profile, dnsServer, remoteDns)
                 }
 
             } catch (e: kotlinx.coroutines.CancellationException) {
@@ -1259,7 +1259,7 @@ class SlipNetVpnService : VpnService() {
                 SnowflakeBridge.stopClient()
             }
             TunnelType.DOH -> DohBridge.stop()
-            TunnelType.SOCKS5, TunnelType.BALE, TunnelType.PINGTUNNEL, TunnelType.SPOOF_TUNNEL, TunnelType.GOLDEN_GRE -> Socks5ProxyBridge.stopAll()
+            TunnelType.SOCKS5, TunnelType.BALE, TunnelType.PINGTUNNEL, TunnelType.SPOOF_TUNNEL, TunnelType.GOLDEN_GRE, TunnelType.PAQET -> Socks5ProxyBridge.stopAll()
             TunnelType.MASTERDNS, TunnelType.STORMDNS, TunnelType.NOOSHDAROO, TunnelType.QWDTT -> {
                 DnsttSocksBridge.stop()
                 DnsttBridge.stopClient()
