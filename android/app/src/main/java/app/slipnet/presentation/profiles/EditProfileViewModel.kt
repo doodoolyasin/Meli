@@ -1970,7 +1970,7 @@ class EditProfileViewModel @Inject constructor(
         val state = _uiState.value
         _uiState.value = state.copy(isRunningHealthCheck = true, healthCheckReport = null)
         viewModelScope.launch {
-            val resolversList = parseResolvers(state.resolvers)
+            val resolversList = parseResolvers(state.resolvers, state.authoritativeMode)
             val profile = ServerProfile(
                 id = state.profileId ?: 0,
                 name = state.name.trim().ifEmpty { "Health Check" },

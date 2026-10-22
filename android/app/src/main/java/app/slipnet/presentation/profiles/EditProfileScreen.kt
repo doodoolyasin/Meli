@@ -1284,7 +1284,7 @@ fun EditProfileScreen(
                                     uiState.isSshOnly -> "ssh.example.com"
                                     uiState.isNaiveBased -> "proxy.example.com"
                                     uiState.isBale -> "https://meet.bale.ai/call/abc or room ID"
-                                    uiState.isPingTunnel, uiState.isPaqet -> "1.2.3.4:9999"
+                                    uiState.isPingTunnel || uiState.isPaqet -> "1.2.3.4:9999"
                                     else -> "vpn.example.com"
                                 }
                             )

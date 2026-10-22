@@ -182,14 +182,14 @@ object HealthCheckEngine {
                 socket.soTimeout = timeoutMs
                 // RFC 5389 STUN Binding Request (20 bytes header)
                 val req = ByteArray(20)
-                req[0] = 0x00
-                req[1] = 0x01 // Binding Request
-                req[2] = 0x00
-                req[3] = 0x00 // Length 0
-                req[4] = 0x21
-                req[5] = 0x12
-                req[6] = 0xA4
-                req[7] = 0x42 // Magic Cookie
+                req[0] = 0x00.toByte()
+                req[1] = 0x01.toByte() // Binding Request
+                req[2] = 0x00.toByte()
+                req[3] = 0x00.toByte() // Length 0
+                req[4] = 0x21.toByte()
+                req[5] = 0x12.toByte()
+                req[6] = 0xA4.toByte()
+                req[7] = 0x42.toByte() // Magic Cookie
                 Random.nextBytes(req, 8, 20) // Transaction ID
 
                 val addr = InetAddress.getByName(host)

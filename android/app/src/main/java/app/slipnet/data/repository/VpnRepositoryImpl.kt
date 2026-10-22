@@ -1039,15 +1039,20 @@ class VpnRepositoryImpl @Inject constructor(
                 NaiveSocksBridge.stop()
                 NaiveBridge.stop()
             }
-            TunnelType.SOCKS5 -> {
-                Log.d(TAG, "Stopping SOCKS5 proxy bridge")
+            TunnelType.SOCKS5, TunnelType.BALE, TunnelType.PINGTUNNEL, TunnelType.SPOOF_TUNNEL, TunnelType.GOLDEN_GRE, TunnelType.PAQET -> {
+                Log.d(TAG, "Stopping SOCKS5-compatible proxy bridge")
                 Socks5ProxyBridge.stop()
+            }
+            TunnelType.MASTERDNS, TunnelType.STORMDNS, TunnelType.NOOSHDAROO, TunnelType.QWDTT -> {
+                Log.d(TAG, "Stopping DNS-based proxy bridge")
+                DnsttBridge.stopClient()
+                DnsDoHProxy.stop()
             }
             TunnelType.VLESS -> {
                 Log.d(TAG, "Stopping VLESS proxy bridge")
                 VlessBridge.stop()
             }
-            null -> {
+            else -> {
                 // Try to stop all just in case
                 Log.d(TAG, "No tunnel type set, stopping all proxies")
                 SlipstreamSocksBridge.stop()

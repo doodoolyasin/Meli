@@ -3314,6 +3314,7 @@ class SlipNetVpnService : VpnService() {
             TunnelType.SNOWFLAKE -> SnowflakeBridge.isRunning()
             TunnelType.SOCKS5 -> Socks5ProxyBridge.isRunning()
             TunnelType.VLESS -> VlessBridge.isRunning()
+            else -> true
         }
         Log.e(TAG, "Proxy failed to become ready on port $port, nativeRunning=$nativeRunning")
 
@@ -3560,6 +3561,7 @@ class SlipNetVpnService : VpnService() {
                         }
                     }
                     TunnelType.VLESS -> VlessBridge.isRunning()
+                    else -> true
                 }
 
                 if (!nativeRunning) {
@@ -4832,6 +4834,16 @@ class SlipNetVpnService : VpnService() {
                 Log.d(TAG, "Stopping VLESS bridge")
                 VlessBridge.stop()
             }
+            TunnelType.BALE, TunnelType.PINGTUNNEL, TunnelType.SPOOF_TUNNEL, TunnelType.GOLDEN_GRE, TunnelType.PAQET -> {
+                Log.d(TAG, "Stopping SOCKS5-compatible bridge")
+                Socks5ProxyBridge.stopAll()
+            }
+            TunnelType.MASTERDNS, TunnelType.STORMDNS, TunnelType.NOOSHDAROO, TunnelType.QWDTT -> {
+                Log.d(TAG, "Stopping DNS-based bridge")
+                DnsttSocksBridge.stop()
+                DnsttBridge.stopClient()
+            }
+            else -> {}
         }
     }
 
@@ -4855,6 +4867,7 @@ class SlipNetVpnService : VpnService() {
             TunnelType.SNOWFLAKE -> { /* Snowflake: no bridge reference to clear */ }
             TunnelType.SOCKS5 -> { /* SOCKS5: no bridge reference to clear */ }
             TunnelType.VLESS -> { /* VLESS: no VpnService reference to clear */ }
+            else -> {}
         }
     }
 
@@ -4884,6 +4897,7 @@ class SlipNetVpnService : VpnService() {
             TunnelType.SNOWFLAKE -> SnowflakeBridge.isClientHealthy() && TorSocksBridge.isClientHealthy()
             TunnelType.SOCKS5 -> Socks5ProxyBridge.isRunning() && Socks5ProxyBridge.isClientHealthy()
             TunnelType.VLESS -> VlessBridge.isRunning() && VlessBridge.isClientHealthy()
+            else -> true
         }
     }
 

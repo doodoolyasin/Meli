@@ -166,6 +166,7 @@ class ConfigExporter @Inject constructor() {
             TunnelType.VAYDNS -> MODE_VAYDNS
             TunnelType.VAYDNS_SSH -> MODE_VAYDNS_SSH
             TunnelType.VLESS -> MODE_VLESS
+            else -> profile.tunnelType.value
         }
 
         // When hideResolvers is true, leave position 4 empty so old versions (v1-v16)
