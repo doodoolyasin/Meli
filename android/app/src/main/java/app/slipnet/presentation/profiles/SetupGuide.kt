@@ -208,6 +208,28 @@ internal fun setupSteps(tunnelType: TunnelType): List<GuideStep> {
             GuideStep("3. Key: Enter the PingTunnel secret key matching server.", "۳. کلید: کلید امنیتی پینگ‌تانل مطابق سرور را وارد کنید."),
             GuideStep("4. Tap 'Health Check' to ensure ICMP Echo is not dropped by ISP.", "۴. دکمه بررسی سلامت را بزنید تا مطمئن شوید پکت‌های ICMP توسط اپراتور فیلتر نشده‌اند.")
         )
+        TunnelType.NOOSHDAROO -> listOf(
+            GuideStep("1. Grant all permissions above.", "۱. تمامی مجوزهای بالا را صادر کنید."),
+            GuideStep("2. Domain: Enter your Nooshdaroo delegated DNS domain (e.g. n.example.com).", "۲. دامنه: دامنه دی‌ان‌اس تفویض‌شده نوشدارو را وارد کنید."),
+            GuideStep("3. Resolvers: Tap 'Scan for Working Resolvers' for active resolvers.", "۳. ريزالور: دکمه اسکن را برای یافتن ريزالورهای فعال بزنید."),
+            GuideStep("4. Pitfall: Avoid resolvers with deep packet inspection on label sizes.", "۴. اشتباه رایج: از ريزالورهایی که اندازه لیبل‌های DNS را فیلتر می‌کنند استفاده نکنید.")
+        )
+        TunnelType.SPOOF_TUNNEL -> listOf(
+            GuideStep("1. Server: Enter the remote Spoof-Tunnel server IP and port.", "۱. سرور: آی‌پی و پورت سرور Spoof-Tunnel را وارد کنید."),
+            GuideStep("2. Method: Select TTL spoofing / TCP split strategy.", "۲. متد: استراتژی جعل TTL یا برش پکت‌های TCP را انتخاب کنید."),
+            GuideStep("3. Tap 'Health Check' to verify direct TCP handshake.", "۳. دکمه بررسی سلامت را برای سنجش هندشیک مستقیم TCP بزنید."),
+            GuideStep("4. Pitfall: Spoofing requires adjusting TTL according to your carrier hops.", "۴. اشتباه رایج: مقدار TTL جعل‌شده باید متناسب با تعداد هاپ‌های شبکه اپراتور شما تنظیم شود.")
+        )
+        TunnelType.GOLDEN_GRE -> listOf(
+            GuideStep("1. Server: Enter the Golden-GRE bridge server endpoint.", "۱. سرور: آدرس سرور واسط Golden-GRE را وارد کنید."),
+            GuideStep("2. Tunnel ID: Enter the GRE key / tunnel index assigned by server.", "۲. شناسه تونل: شناسه GRE یا اندیس تونل اختصاص داده شده را وارد کنید."),
+            GuideStep("3. Tap 'Health Check' to test encapsulation reachability.", "۳. دکمه بررسی سلامت را جهت اطمینان از مسدود نبودن GRE بزنید.")
+        )
+        TunnelType.QWDTT -> listOf(
+            GuideStep("1. Domain: Enter your qWDTT tunnel domain (e.g. q.example.com).", "۱. دامنه: دامنه تونل qWDTT را وارد کنید."),
+            GuideStep("2. Resolvers: Scan and pick low-latency UDP:53 resolvers.", "۲. دی‌ان‌اس: ريزالورهای کم‌تاخیر UDP:53 را انتخاب کنید."),
+            GuideStep("3. Feature: Uses QUIC framing over DNS for reliable ordered delivery.", "۳. ویژگی: از فریمینگ QUIC بر بستر DNS برای ارسال بسته‌ها بدون ریزش استفاده می‌کند.")
+        )
         else -> listOf(
             GuideStep(
                 "1. Grant the permissions above, fill the fields for this method, then save and tap the profile to connect.",

@@ -1268,6 +1268,10 @@ fun EditProfileScreen(
                                     uiState.isNaiveBased -> "Server"
                                     uiState.isBale -> "Bale Meeting Link or Room Code"
                                     uiState.isPingTunnel -> "PingTunnel Server IP"
+                                    uiState.isSpoofTunnel -> "Spoof-Tunnel Server IP:Port"
+                                    uiState.isGoldenGre -> "Golden-GRE Server Endpoint"
+                                    uiState.isNooshdaroo -> "Nooshdaroo Tunnel Domain"
+                                    uiState.isQwdtt -> "qWDTT Tunnel Domain"
                                     else -> "Domain"
                                 }
                             )

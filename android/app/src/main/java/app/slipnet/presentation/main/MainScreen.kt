@@ -992,6 +992,42 @@ fun MainScreen(
                                 onNavigateToAddProfile(TunnelType.BALE.value)
                             }
                         )
+                        AddMenuGridItem(
+                            modifier = tileMod,
+                            icon = Icons.Default.Dns,
+                            title = "Nooshdaroo",
+                            onClick = {
+                                showAddMenu = false
+                                onNavigateToAddProfile(TunnelType.NOOSHDAROO.value)
+                            }
+                        )
+                        AddMenuGridItem(
+                            modifier = tileMod,
+                            icon = Icons.Default.Shield,
+                            title = "Spoof-Tunnel",
+                            onClick = {
+                                showAddMenu = false
+                                onNavigateToAddProfile(TunnelType.SPOOF_TUNNEL.value)
+                            }
+                        )
+                        AddMenuGridItem(
+                            modifier = tileMod,
+                            icon = Icons.Default.Waves,
+                            title = "Golden-GRE",
+                            onClick = {
+                                showAddMenu = false
+                                onNavigateToAddProfile(TunnelType.GOLDEN_GRE.value)
+                            }
+                        )
+                        AddMenuGridItem(
+                            modifier = tileMod,
+                            icon = Icons.Default.Air,
+                            title = "qWDTT",
+                            onClick = {
+                                showAddMenu = false
+                                onNavigateToAddProfile(TunnelType.QWDTT.value)
+                            }
+                        )
                     }
                     HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
                     AddMenuOption(

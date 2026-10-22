@@ -282,6 +282,18 @@ data class EditProfileUiState(
     val isPingTunnel: Boolean
         get() = tunnelType == TunnelType.PINGTUNNEL
 
+    val isNooshdaroo: Boolean
+        get() = tunnelType == TunnelType.NOOSHDAROO
+
+    val isSpoofTunnel: Boolean
+        get() = tunnelType == TunnelType.SPOOF_TUNNEL
+
+    val isGoldenGre: Boolean
+        get() = tunnelType == TunnelType.GOLDEN_GRE
+
+    val isQwdtt: Boolean
+        get() = tunnelType == TunnelType.QWDTT
+
     val showConnectionMethod: Boolean
         get() = !isSshOnly && !isDoh && !isSnowflake && !isSocks5 && !isVless
 }

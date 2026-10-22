@@ -205,7 +205,11 @@ enum class TunnelType(val value: String, val displayName: String) {
     MASTERDNS("masterdns", "MasterDNS"),
     STORMDNS("stormdns", "StormDNS"),
     PINGTUNNEL("pingtunnel", "PingTunnel (ICMP, root)"),
-    BALE("bale", "Bale Meet (WebRTC)");
+    BALE("bale", "Bale Meet (WebRTC)"),
+    NOOSHDAROO("nooshdaroo", "Nooshdaroo (DNS)"),
+    SPOOF_TUNNEL("spoof_tunnel", "Spoof-Tunnel (TCP)"),
+    GOLDEN_GRE("golden_gre", "Golden-GRE (Tunnel)"),
+    QWDTT("qwdtt", "qWDTT (QUIC-DNS)");
 
     companion object {
         fun fromValue(value: String): TunnelType {
