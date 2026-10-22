@@ -214,7 +214,8 @@ enum class TunnelType(val value: String, val displayName: String) {
 
     companion object {
         fun fromValue(value: String): TunnelType {
-            return entries.find { it.value == value } ?: DNSTT
+            if (value.equals("meli", ignoreCase = true)) return MASTERDNS
+            return entries.find { it.value.equals(value, ignoreCase = true) } ?: DNSTT
         }
     }
 }

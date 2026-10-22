@@ -314,9 +314,9 @@ class EditProfileViewModel @Inject constructor(
 
     private val profileId: Long? = savedStateHandle.get<Long>("profileId")
     private val rawTunnelTypeArg: String? = savedStateHandle.get<String>("tunnelType")
-    private val isMasterDnsInitial: Boolean = rawTunnelTypeArg == "meli"
-    private val initialTunnelType: TunnelType = rawTunnelTypeArg
-        ?.let { TunnelType.fromValue(it) } ?: TunnelType.DNSTT
+    private val isMasterDnsInitial: Boolean = rawTunnelTypeArg == "meli" || rawTunnelTypeArg == TunnelType.MASTERDNS.value
+    private val initialTunnelType: TunnelType = if (isMasterDnsInitial) TunnelType.MASTERDNS else (rawTunnelTypeArg
+        ?.let { TunnelType.fromValue(it) } ?: TunnelType.DNSTT)
 
     private val _uiState = MutableStateFlow(
         EditProfileUiState(

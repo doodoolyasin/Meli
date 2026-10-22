@@ -868,7 +868,7 @@ fun MainScreen(
                             isMasterDnsTile = true,
                             onClick = {
                                 showAddMenu = false
-                                onNavigateToAddProfile("meli")
+                                onNavigateToAddProfile(TunnelType.MASTERDNS.value)
                             }
                         )
                         AddMenuGridItem(
