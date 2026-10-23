@@ -2739,8 +2739,7 @@ class ResolverScannerRepositoryImpl @Inject constructor(
                 E2eTestResult(
                     success = true,
                     totalMs = result.responseTimeMs ?: (SystemClock.elapsedRealtime() - start),
-                    socksSuccess = true,
-                    httpSuccess = true
+                    httpStatusCode = 200
                 )
             } else {
                 E2eTestResult(
