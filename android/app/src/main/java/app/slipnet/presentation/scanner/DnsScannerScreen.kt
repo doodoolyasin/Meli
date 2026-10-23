@@ -17,6 +17,7 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Arrangement
@@ -268,16 +269,14 @@ fun DnsScannerScreen(
             // Hero
             HeroCard()
 
-            // Scan Mode Toggle — hide when only Advanced is available (no profile)
-            if (uiState.canUseSimpleMode || uiState.canUsePrismMode) {
-                ScanModeToggle(
-                    scanMode = uiState.scanMode,
-                    canUseSimpleMode = uiState.canUseSimpleMode,
-                    canUsePrismMode = uiState.canUsePrismMode,
-                    enabled = !uiState.scannerState.isScanning && !uiState.simpleModeE2eState.isRunning,
-                    onModeChange = { viewModel.setScanMode(it) }
-                )
-            }
+            // Scan Mode Toggle — shows all modes
+            ScanModeToggle(
+                scanMode = uiState.scanMode,
+                canUseSimpleMode = uiState.canUseSimpleMode,
+                canUsePrismMode = uiState.canUsePrismMode,
+                enabled = !uiState.scannerState.isScanning && !uiState.simpleModeE2eState.isRunning,
+                onModeChange = { viewModel.setScanMode(it) }
+            )
 
             // Start Scan + View Results
             ActionSection(
@@ -482,11 +481,19 @@ private fun ActionSection(
     val buttonLabel = when (scanMode) {
         ScanMode.SIMPLE -> "Start Simple Scan"
         ScanMode.E2E -> "Start E2E Scan"
+        ScanMode.MASTERDNS -> "Start MasterDNS Scan"
+        ScanMode.CLEAN_IP -> "Start Clean IP Scan"
+        ScanMode.DOH_DOT -> "Start DoH/DoT Scan"
+        ScanMode.POISON_DETECTOR -> "Start Anti-Poison Scan"
         else -> "Start Scan"
     }
     val resultsLabel = when (scanMode) {
         ScanMode.SIMPLE, ScanMode.E2E -> "View Results ($workingCount passed)"
         ScanMode.PRISM -> "View Results ($workingCount verified)"
+        ScanMode.MASTERDNS -> "View Results ($workingCount MasterDNS ready)"
+        ScanMode.CLEAN_IP -> "View Results ($workingCount clean IPs)"
+        ScanMode.DOH_DOT -> "View Results ($workingCount active)"
+        ScanMode.POISON_DETECTOR -> "View Results ($workingCount unpoisoned)"
         else -> "View Results ($workingCount working)"
     }
 
@@ -553,6 +560,9 @@ private fun ScanModeToggle(
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             if (canUseSimpleMode) {
@@ -617,6 +627,62 @@ private fun ScanModeToggle(
                     )
                 )
             }
+            FilterChip(
+                selected = scanMode == ScanMode.MASTERDNS,
+                onClick = { onModeChange(ScanMode.MASTERDNS) },
+                enabled = enabled,
+                label = { Text("MasterDNS") },
+                leadingIcon = if (scanMode == ScanMode.MASTERDNS) {
+                    { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp)) }
+                } else null,
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                    selectedLabelColor = MaterialTheme.colorScheme.primary,
+                    selectedLeadingIconColor = MaterialTheme.colorScheme.primary
+                )
+            )
+            FilterChip(
+                selected = scanMode == ScanMode.CLEAN_IP,
+                onClick = { onModeChange(ScanMode.CLEAN_IP) },
+                enabled = enabled,
+                label = { Text("Clean IP") },
+                leadingIcon = if (scanMode == ScanMode.CLEAN_IP) {
+                    { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp)) }
+                } else null,
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                    selectedLabelColor = MaterialTheme.colorScheme.primary,
+                    selectedLeadingIconColor = MaterialTheme.colorScheme.primary
+                )
+            )
+            FilterChip(
+                selected = scanMode == ScanMode.DOH_DOT,
+                onClick = { onModeChange(ScanMode.DOH_DOT) },
+                enabled = enabled,
+                label = { Text("DoH/DoT") },
+                leadingIcon = if (scanMode == ScanMode.DOH_DOT) {
+                    { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp)) }
+                } else null,
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                    selectedLabelColor = MaterialTheme.colorScheme.primary,
+                    selectedLeadingIconColor = MaterialTheme.colorScheme.primary
+                )
+            )
+            FilterChip(
+                selected = scanMode == ScanMode.POISON_DETECTOR,
+                onClick = { onModeChange(ScanMode.POISON_DETECTOR) },
+                enabled = enabled,
+                label = { Text("Anti-Poison") },
+                leadingIcon = if (scanMode == ScanMode.POISON_DETECTOR) {
+                    { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp)) }
+                } else null,
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                    selectedLabelColor = MaterialTheme.colorScheme.primary,
+                    selectedLeadingIconColor = MaterialTheme.colorScheme.primary
+                )
+            )
         }
 
         if (scanMode == ScanMode.PRISM) {
@@ -650,6 +716,10 @@ private fun ScanModeToggle(
                 text = when (scanMode) {
                     ScanMode.SIMPLE -> "Scans DNS resolvers and automatically tests each one through the tunnel. Only resolvers that pass the tunnel test are shown."
                     ScanMode.E2E -> "Tests each resolver directly through the tunnel, skipping DNS compatibility checks. Slower but tests real connectivity."
+                    ScanMode.MASTERDNS -> "Specialized MasterDNS tunnel probe: measures handshake latency and MTU transmission."
+                    ScanMode.CLEAN_IP -> "Scans Cloudflare & CDN Anycast IPs on port 443 with TCP ping to find lowest-latency clean IPs."
+                    ScanMode.DOH_DOT -> "Tests DNS-over-HTTPS and DNS-over-TLS endpoints for TLS handshake and censorship bypass."
+                    ScanMode.POISON_DETECTOR -> "Probes resolvers with blocked canary domains to detect DNS poisoning and PEV injection."
                     else -> "Scan DNS resolvers first, then optionally run tunnel test separately."
                 },
                 style = MaterialTheme.typography.bodySmall,

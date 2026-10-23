@@ -255,13 +255,20 @@ fun ScanResultsScreen(
         val e2e = mutableListOf<String>()
         val stage1 = mutableListOf<String>()
         for (result in throttledResults) {
-            // Prism and E2E-only results have no tunnelTestResult (score), skip score filter for them
+            val isCustomMode = isPrism || isE2eOnly ||
+                uiState.scanMode == ScanMode.MASTERDNS ||
+                uiState.scanMode == ScanMode.CLEAN_IP ||
+                uiState.scanMode == ScanMode.DOH_DOT ||
+                uiState.scanMode == ScanMode.POISON_DETECTOR
             val matchesFilters = if (isPrism) {
                 result.prismVerified == true &&
                     (result.prismPassedProbes ?: 0) >= prismMinProbes &&
                     (query.isEmpty() || result.host.contains(query))
             } else if (isE2eOnly) {
                 result.e2eTestResult?.success == true &&
+                    (query.isEmpty() || result.host.contains(query))
+            } else if (isCustomMode) {
+                result.status == ResolverStatus.WORKING &&
                     (query.isEmpty() || result.host.contains(query))
             } else {
                 (result.tunnelTestResult?.score ?: 0) >= scoreFilter.minScore &&
@@ -1814,6 +1821,15 @@ private fun ResultsResolverItem(
                     transportSupport?.let { (udpOk, tcpOk) ->
                         if (udpOk) TransportBadge("UDP")
                         if (tcpOk) TransportBadge("TCP")
+                    }
+
+                    result.scannerNote?.let { note ->
+                        Text(
+                            text = note,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = WorkingGreen,
+                            fontWeight = FontWeight.Medium
+                        )
                     }
 
                     result.responseTimeMs?.let { ms ->

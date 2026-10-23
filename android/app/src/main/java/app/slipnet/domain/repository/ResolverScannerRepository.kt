@@ -195,4 +195,42 @@ interface ResolverScannerRepository {
      * DNSTT/NoizDNS create ephemeral Go clients, supporting higher concurrency.
      */
     fun maxE2eConcurrency(profile: ServerProfile): Int
+
+    /**
+     * Scan a resolver for MasterDNS protocol support & latency
+     */
+    suspend fun scanMasterDns(
+        host: String,
+        port: Int = 53,
+        testDomain: String,
+        timeoutMs: Long = 3000
+    ): ResolverScanResult
+
+    /**
+     * Scan an IP for Clean CDN/Cloudflare connectivity (TCP handshake + latency)
+     */
+    suspend fun scanCleanIp(
+        host: String,
+        port: Int = 443,
+        timeoutMs: Long = 3000
+    ): ResolverScanResult
+
+    /**
+     * Scan a DoH or DoT endpoint for secure resolution and TLS latency
+     */
+    suspend fun scanDohDot(
+        host: String,
+        port: Int = 853,
+        timeoutMs: Long = 3000
+    ): ResolverScanResult
+
+    /**
+     * Scan a resolver for DNS poisoning / spoofing against censored canary domains
+     */
+    suspend fun scanPoisonDetector(
+        host: String,
+        port: Int = 53,
+        testDomain: String = "twitter.com",
+        timeoutMs: Long = 3000
+    ): ResolverScanResult
 }
