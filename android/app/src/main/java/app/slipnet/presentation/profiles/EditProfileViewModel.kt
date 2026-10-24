@@ -332,18 +332,36 @@ class EditProfileViewModel @Inject constructor(
     private val profileId: Long? = savedStateHandle.get<Long>("profileId")
     private val rawTunnelTypeArg: String? = savedStateHandle.get<String>("tunnelType")
     private val isMasterDnsInitial: Boolean = rawTunnelTypeArg == "meli" || rawTunnelTypeArg == TunnelType.MASTERDNS.value
-    private val initialTunnelType: TunnelType = if (isMasterDnsInitial) TunnelType.MASTERDNS else (rawTunnelTypeArg
-        ?.let { TunnelType.fromValue(it) } ?: TunnelType.DNSTT)
+    private val isStormDnsInitial: Boolean = rawTunnelTypeArg == TunnelType.STORMDNS.value
+    private val initialTunnelType: TunnelType = when {
+        isMasterDnsInitial -> TunnelType.MASTERDNS
+        isStormDnsInitial -> TunnelType.STORMDNS
+        else -> rawTunnelTypeArg?.let { TunnelType.fromValue(it) } ?: TunnelType.DNSTT
+    }
 
     private val _uiState = MutableStateFlow(
         EditProfileUiState(
             profileId = profileId,
             tunnelType = initialTunnelType,
-            name = if (isMasterDnsInitial) "MasterDNS Tunnel" else "",
-            domain = if (isMasterDnsInitial) "goi.dhafhdtjdti.site" else "",
-            dnsttPublicKey = if (isMasterDnsInitial) "5d790e75a6262fe95f70979c7bddd360" else "",
-            resolvers = if (isMasterDnsInitial) "8.8.8.8:53, 1.1.1.1:53" else "",
-            authoritativeMode = if (isMasterDnsInitial) true else false
+            name = when {
+                isMasterDnsInitial -> "MasterDNS Tunnel"
+                isStormDnsInitial -> "StormDNS Tunnel"
+                else -> ""
+            },
+            domain = when {
+                isMasterDnsInitial -> "goi.dhafhdtjdti.site"
+                isStormDnsInitial -> "storm.dhafhdtjdti.site"
+                else -> ""
+            },
+            dnsttPublicKey = when {
+                isMasterDnsInitial || isStormDnsInitial -> "5d790e75a6262fe95f70979c7bddd360"
+                else -> ""
+            },
+            resolvers = when {
+                isMasterDnsInitial || isStormDnsInitial -> "8.8.8.8:53, 1.1.1.1:53"
+                else -> ""
+            },
+            authoritativeMode = isMasterDnsInitial || isStormDnsInitial
         )
     )
     val uiState: StateFlow<EditProfileUiState> = _uiState.asStateFlow()
@@ -368,7 +386,10 @@ class EditProfileViewModel @Inject constructor(
             TunnelType.DNSTT, TunnelType.DNSTT_SSH,
             TunnelType.NOIZDNS, TunnelType.NOIZDNS_SSH,
             TunnelType.VAYDNS, TunnelType.VAYDNS_SSH,
-            TunnelType.SLIPSTREAM, TunnelType.SLIPSTREAM_SSH
+            TunnelType.SLIPSTREAM, TunnelType.SLIPSTREAM_SSH,
+            TunnelType.MASTERDNS, TunnelType.MASTERDNS_SSH,
+            TunnelType.STORMDNS, TunnelType.STORMDNS_SSH,
+            TunnelType.NOOSHDAROO, TunnelType.QWDTT
         )
         if (!needsResolver) return
         viewModelScope.launch {

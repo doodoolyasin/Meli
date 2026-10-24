@@ -554,7 +554,7 @@ fun EditProfileScreen(
 
                             // DNS Query Size (locked profiles, not for VayDNS — it uses QNAME length instead).
                             // Hidden when Auto is on.
-                            if (uiState.isDnsttOrNoizOrVaydnsBased && !uiState.isVaydnsBased && !uiState.dnsAutoTune) {
+                            if (uiState.isDnsttOrNoizOrVaydnsBased && !uiState.isVaydnsBased && !uiState.isMasterDns && !uiState.isStormDns && !uiState.dnsAutoTune) {
                                 var showMtuDialogLocked by remember { mutableStateOf(false) }
                                 HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
                                 Row(
@@ -1747,8 +1747,8 @@ fun EditProfileScreen(
                     }
                 }
 
-                // DNS Transport selector (DNSTT-based profiles only)
-                if (uiState.isDnsttOrNoizOrVaydnsBased) {
+                // DNS Transport selector (DNSTT-based profiles only; MasterDNS and StormDNS use raw UDP)
+                if (uiState.isDnsttOrNoizOrVaydnsBased && !uiState.isMasterDns && !uiState.isStormDns) {
                     Text(
                         text = "DNS Transport",
                         style = MaterialTheme.typography.titleMedium,
@@ -2093,6 +2093,7 @@ fun EditProfileScreen(
                 // Auto-tune DNS query parameters (DNSTT/NoizDNS/VayDNS).
                 // Hidden when Authoritative is on — probe would be a no-op there.
                 val autoToggleVisible = uiState.isDnsttOrNoizOrVaydnsBased &&
+                    !uiState.isMasterDns && !uiState.isStormDns &&
                     !(uiState.isDnsttOrNoizBased && uiState.dnsttAuthoritative)
                 if (autoToggleVisible) {
                     Row(
