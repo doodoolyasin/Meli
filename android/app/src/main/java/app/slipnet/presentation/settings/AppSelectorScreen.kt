@@ -29,6 +29,9 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.material.icons.filled.AutoFixHigh
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Checkbox
@@ -145,25 +148,27 @@ fun AppSelectorScreen(
         ) {
             // Filter chips row
             Row(
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                modifier = Modifier
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                    .horizontalScroll(rememberScrollState()),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 FilterChip(
+                    selected = false,
+                    onClick = { viewModel.selectDomesticIranianApps() },
+                    label = { Text("🇮🇷 Select Iran Apps") },
+                    leadingIcon = { Icon(Icons.Default.AutoFixHigh, contentDescription = null, modifier = Modifier.size(16.dp)) }
+                )
+                FilterChip(
                     selected = uiState.showSelectedOnly,
                     onClick = { viewModel.toggleSelectedOnly() },
-                    label = { Text("Selected") }
+                    label = { Text("Selected (${uiState.selectedApps.size})") }
                 )
                 FilterChip(
                     selected = !uiState.showSystemApps,
                     onClick = { viewModel.toggleSystemApps() },
                     label = { Text("Hide system") }
-                )
-                Spacer(modifier = Modifier.weight(1f))
-                Text(
-                    text = "${uiState.selectedApps.size} selected",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
 

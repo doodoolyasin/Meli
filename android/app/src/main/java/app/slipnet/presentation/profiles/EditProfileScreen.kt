@@ -1673,16 +1673,16 @@ fun EditProfileScreen(
                 }
 
                 // DNSTT / MasterDNS Key
-                if (uiState.isDnsttOrNoizOrVaydnsBased) {
-                    val isMasterDnsProfile = uiState.name.contains("meli", ignoreCase = true)
+                if (uiState.isDnsttOrNoizOrVaydnsBased || uiState.isMasterDns) {
+                    val isMasterDnsProfile = uiState.isMasterDns || uiState.name.contains("meli", ignoreCase = true)
                     OutlinedTextField(
                         value = uiState.dnsttPublicKey,
                         onValueChange = { viewModel.updateDnsttPublicKey(it) },
-                        label = { Text(if (isMasterDnsProfile) "Public Key / MasterDNS Key" else "Public Key") },
-                        placeholder = { Text(if (isMasterDnsProfile) "64 hex (DNSTT) or 32 hex (MasterDNS)" else "Server's Noise public key (hex)") },
+                        label = { Text(if (isMasterDnsProfile) "MasterDNS Encryption Key" else "Public Key") },
+                        placeholder = { Text(if (isMasterDnsProfile) "32 hex characters (e.g. 5d79...)" else "Server's Noise public key (hex)") },
                         isError = uiState.dnsttPublicKeyError != null,
                         supportingText = {
-                            Text(uiState.dnsttPublicKeyError ?: if (isMasterDnsProfile) "Noise public key (64 hex) or MasterDNS encryption key (32 hex)" else "Server's Noise protocol public key in hex format")
+                            Text(uiState.dnsttPublicKeyError ?: if (isMasterDnsProfile) "MasterDNS encryption key (32 hex characters)" else "Server's Noise protocol public key in hex format")
                         },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
@@ -1854,15 +1854,30 @@ fun EditProfileScreen(
                             modifier = Modifier.fillMaxWidth()
                         )
 
-                        if (onNavigateToScanner != null) {
-                            Button(
-                                onClick = { viewModel.saveForScanner() },
-                                modifier = Modifier.fillMaxWidth(),
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            OutlinedButton(
+                                onClick = { viewModel.addFastPublicResolvers() },
+                                modifier = Modifier.weight(1f),
                                 shape = RoundedCornerShape(10.dp)
                             ) {
-                                Icon(Icons.Default.Search, contentDescription = null)
-                                Spacer(Modifier.width(8.dp))
-                                Text("Scan for Working Resolvers")
+                                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(Modifier.width(4.dp))
+                                Text("+ Fast Resolvers", fontSize = 12.sp)
+                            }
+
+                            if (onNavigateToScanner != null) {
+                                Button(
+                                    onClick = { viewModel.saveForScanner() },
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(10.dp)
+                                ) {
+                                    Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(Modifier.width(4.dp))
+                                    Text("Scan Resolvers", fontSize = 12.sp)
+                                }
                             }
                         }
                     }
@@ -1876,6 +1891,76 @@ fun EditProfileScreen(
                         )
                     }
 
+                }
+
+                // Smart One-Tap Network Benchmark & Auto-Tuner Card
+                if (uiState.isDnsttOrNoizOrVaydnsBased || uiState.isMasterDns || uiState.isStormDns) {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 8.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f)
+                        ),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    Icons.Default.Bolt,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "تست و تنظیم هوشمند (Auto-Tuner)",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Text(
+                                        text = "ارزیابی واقعی شبکه شما برای محاسبه اندازه بهینه پکت و نرخ ارسال بدون قطعی",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                            Spacer(Modifier.height(8.dp))
+                            Button(
+                                onClick = { viewModel.benchmarkAndAutoTune() },
+                                enabled = !uiState.isAutoTuning,
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                if (uiState.isAutoTuning) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(16.dp),
+                                        strokeWidth = 2.dp,
+                                        color = MaterialTheme.colorScheme.onPrimary
+                                    )
+                                    Spacer(Modifier.width(8.dp))
+                                    Text("در حال اندازه‌گیری توان خط...")
+                                } else {
+                                    Icon(Icons.Default.Speed, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(Modifier.width(8.dp))
+                                    Text("سنجش و اعمال بهترین تنظیمات اینترنت شما")
+                                }
+                            }
+                            uiState.autoTuneResult?.let { res ->
+                                Spacer(Modifier.height(6.dp))
+                                Text(
+                                    text = res.summary,
+                                    style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        }
+                    }
                 }
 
                 // Authoritative Mode toggle (DNSTT/NoizDNS only — VayDNS has no authoritative mode)

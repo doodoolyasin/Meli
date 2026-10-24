@@ -299,11 +299,17 @@ fun ProfileListItem(
                 )
 
                 // Detail line: tunnel type
+                val tunnelTypeLabel = when {
+                    profile.tunnelType == TunnelType.MASTERDNS -> "MasterDNS"
+                    profile.tunnelType == TunnelType.STORMDNS -> "StormDNS"
+                    profile.name.contains("masterdns", ignoreCase = true) || profile.name.contains("meli", ignoreCase = true) -> "MasterDNS"
+                    profile.name.contains("stormdns", ignoreCase = true) -> "StormDNS"
+                    profile.domain.startsWith("goi.") || profile.domain.contains(".goi.") -> "MasterDNS"
+                    profile.tunnelType == TunnelType.SNOWFLAKE -> EditProfileViewModel.detectBridgeType(profile.torBridgeLines).displayName
+                    else -> profile.tunnelType.displayName
+                }
                 Text(
-                    text = when (profile.tunnelType) {
-                        TunnelType.SNOWFLAKE -> EditProfileViewModel.detectBridgeType(profile.torBridgeLines).displayName
-                        else -> profile.tunnelType.displayName
-                    },
+                    text = tunnelTypeLabel,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,

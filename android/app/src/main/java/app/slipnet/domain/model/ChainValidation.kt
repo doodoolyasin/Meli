@@ -30,6 +30,7 @@ object ChainValidation {
     /** Tunnel types that can be used in a chain (single-layer types only). */
     val CHAINABLE_TYPES = setOf(
         TunnelType.DNSTT, TunnelType.NOIZDNS, TunnelType.VAYDNS, TunnelType.SLIPSTREAM,
+        TunnelType.MASTERDNS, TunnelType.STORMDNS,
         TunnelType.SSH, TunnelType.NAIVE, TunnelType.SNOWFLAKE, TunnelType.DOH,
         TunnelType.SOCKS5
     )
@@ -37,6 +38,7 @@ object ChainValidation {
     /** Tunnel types that can serve as an intermediate (non-final) layer. */
     val CAN_BE_INTERMEDIATE = setOf(
         TunnelType.DNSTT, TunnelType.NOIZDNS, TunnelType.VAYDNS, TunnelType.SLIPSTREAM,
+        TunnelType.MASTERDNS, TunnelType.STORMDNS,
         TunnelType.NAIVE, TunnelType.SNOWFLAKE, TunnelType.SOCKS5,
         TunnelType.SSH, TunnelType.DOH
     )
@@ -44,7 +46,8 @@ object ChainValidation {
     /** Tunnel types that can serve as the final (innermost) layer. */
     val CAN_BE_FINAL = setOf(
         TunnelType.SSH, TunnelType.DNSTT, TunnelType.NOIZDNS, TunnelType.VAYDNS,
-        TunnelType.SLIPSTREAM, TunnelType.NAIVE, TunnelType.SNOWFLAKE, TunnelType.DOH,
+        TunnelType.SLIPSTREAM, TunnelType.MASTERDNS, TunnelType.STORMDNS,
+        TunnelType.NAIVE, TunnelType.SNOWFLAKE, TunnelType.DOH,
         TunnelType.SOCKS5
     )
 
@@ -93,6 +96,7 @@ object ChainValidation {
     fun bridgeGroup(type: TunnelType): String = when (type) {
         TunnelType.DNSTT, TunnelType.NOIZDNS -> "dnstt"
         TunnelType.VAYDNS -> "vaydns"
+        TunnelType.MASTERDNS, TunnelType.STORMDNS -> "masterdns"
         TunnelType.SLIPSTREAM -> "slipstream"
         TunnelType.SSH -> "ssh"
         TunnelType.NAIVE -> "naive"

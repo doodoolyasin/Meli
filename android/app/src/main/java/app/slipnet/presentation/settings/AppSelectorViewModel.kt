@@ -116,6 +116,28 @@ class AppSelectorViewModel @Inject constructor(
         )
     }
 
+    fun selectDomesticIranianApps() {
+        val iranianPatterns = listOf(
+            "ir.", "org.bale.", "rubika", "bazaar", "divar", "snapp", "tapsell",
+            "mellat", "sepah", "melli", "tejarat", "shaparak", "asanpardakht",
+            "mci", "irancell", "torob", "digikala", "eitaa", "soroush", "gap.im"
+        )
+        val matchedPackages = allApps.filter { app ->
+            val pkg = app.packageName.lowercase()
+            val name = app.appName.lowercase()
+            iranianPatterns.any { pat -> pkg.contains(pat) || name.contains(pat) }
+        }.map { it.packageName }.toSet()
+
+        val updated = _uiState.value.selectedApps + matchedPackages
+        _uiState.value = _uiState.value.copy(
+            selectedApps = updated,
+            apps = filterApps(allApps, _uiState.value.searchQuery, _uiState.value.showSystemApps, _uiState.value.showSelectedOnly, updated)
+        )
+        viewModelScope.launch {
+            preferencesDataStore.setSplitTunnelingApps(updated)
+        }
+    }
+
     private fun filterApps(
         apps: List<InstalledApp>,
         query: String,

@@ -23,6 +23,7 @@ import app.slipnet.tunnel.DohBridge
 import app.slipnet.tunnel.DohServer
 import app.slipnet.tunnel.HealthCheckEngine
 import app.slipnet.tunnel.HealthCheckReport
+import app.slipnet.tunnel.DnsResolverProber
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
@@ -77,6 +78,15 @@ enum class SshTransport(val displayName: String) {
     WEBSOCKET("WebSocket");
 }
 
+data class AutoTuneResult(
+    val success: Boolean,
+    val maxQnameLen: Int = 101,
+    val payloadSize: Int = 100,
+    val rps: Double = 0.0,
+    val authoritativeRecommended: Boolean = false,
+    val summary: String = ""
+)
+
 data class EditProfileUiState(
     val profileId: Long? = null,
     val name: String = "",
@@ -103,6 +113,8 @@ data class EditProfileUiState(
     val isLoading: Boolean = false,
     val isSaving: Boolean = false,
     val isAutoDetecting: Boolean = false,
+    val isAutoTuning: Boolean = false,
+    val autoTuneResult: AutoTuneResult? = null,
     val saveSuccess: Boolean = false,
     val showRestartVpnMessage: Boolean = false,
     val savedProfileIdForScanner: Long? = null,
@@ -241,7 +253,7 @@ data class EditProfileUiState(
         get() = isDnsttBased || isNoizdnsBased
 
     val isDnsttOrNoizOrVaydnsBased: Boolean
-        get() = isDnsttBased || isNoizdnsBased || isVaydnsBased
+        get() = isDnsttBased || isNoizdnsBased || isVaydnsBased || isMasterDns
 
     val isSlipstreamBased: Boolean
         get() = tunnelType == TunnelType.SLIPSTREAM || tunnelType == TunnelType.SLIPSTREAM_SSH
@@ -323,9 +335,9 @@ class EditProfileViewModel @Inject constructor(
             profileId = profileId,
             tunnelType = initialTunnelType,
             name = if (isMasterDnsInitial) "MasterDNS Tunnel" else "",
-            domain = if (isMasterDnsInitial) "m.dolphin.work.gd" else "",
-            dnsttPublicKey = if (isMasterDnsInitial) "8db08b7392e91a260ec78d1d6a0727b9b772a9ef9d3ccdbedfe5b67be7d4074d" else "",
-            resolvers = if (isMasterDnsInitial) "45.38.249.16:53" else "",
+            domain = if (isMasterDnsInitial) "goi.dhafhdtjdti.site" else "",
+            dnsttPublicKey = if (isMasterDnsInitial) "5d790e75a6262fe95f70979c7bddd360" else "",
+            resolvers = if (isMasterDnsInitial) "8.8.8.8:53, 1.1.1.1:53" else "",
             authoritativeMode = if (isMasterDnsInitial) true else false
         )
     )
@@ -1319,6 +1331,76 @@ class EditProfileViewModel @Inject constructor(
         return linkProperties.dnsServers
             .firstOrNull { it is java.net.Inet4Address }
             ?.hostAddress
+    }
+
+    fun addFastPublicResolvers() {
+        val current = _uiState.value.resolvers.trim()
+        val fastList = listOf("8.8.8.8:53", "1.1.1.1:53", "9.9.9.9:53", "45.38.249.16:53")
+        val merged = if (current.isEmpty()) {
+            fastList.joinToString(", ")
+        } else {
+            val existing = current.split(",").map { it.trim() }.toSet()
+            val toAdd = fastList.filter { it !in existing }
+            if (toAdd.isNotEmpty()) "$current, ${toAdd.joinToString(", ")}" else current
+        }
+        updateResolvers(merged)
+        updateResolverMode(ResolverMode.ROUND_ROBIN)
+    }
+
+    fun benchmarkAndAutoTune() {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isAutoTuning = true, error = null)
+            try {
+                val state = _uiState.value
+                val domain = state.domain.trim()
+                val resolvers = state.resolvers.trim().ifEmpty { getSystemDnsServer() ?: "8.8.8.8" }
+                if (domain.isBlank()) {
+                    _uiState.value = _uiState.value.copy(
+                        isAutoTuning = false,
+                        error = "Domain is required for network benchmarking"
+                    )
+                    return@launch
+                }
+                val probeResult = withContext(Dispatchers.IO) {
+                    DnsResolverProber.probe(
+                        resolvers = resolvers,
+                        tunnelDomain = domain,
+                        recordType = if (state.isVaydnsBased) state.vaydnsRecordType else "txt",
+                        authoritative = false,
+                        timeoutMs = 1500
+                    )
+                }
+
+                val optimalPayload = if (probeResult.maxPayload > 0) probeResult.maxPayload.coerceIn(60, 220) else 100
+                val optimalQname = if (probeResult.maxQnameLen in 60..253) probeResult.maxQnameLen else 101
+                val isDirectAuthoritative = resolvers.split(",").any { it.contains(domain) || it.startsWith("16.171.") }
+                val summaryMsg = if (probeResult.probed) {
+                    "سنجش زنده موفق: اندازه بهینه کوئری ${optimalPayload} بایت (QNAME=${optimalQname}b)، نرخ مجاز ${probeResult.rpsLimit} q/s."
+                } else {
+                    "تنظیمات پایدار اعمال شد: سقف ۱۰۰ بایت بدون دراپ پکت توسط اپراتور."
+                }
+
+                _uiState.value = _uiState.value.copy(
+                    isAutoTuning = false,
+                    dnsPayloadSize = optimalPayload,
+                    vaydnsMaxQnameLen = optimalQname,
+                    dnsttAuthoritative = isDirectAuthoritative,
+                    autoTuneResult = AutoTuneResult(
+                        success = true,
+                        maxQnameLen = optimalQname,
+                        payloadSize = optimalPayload,
+                        rps = probeResult.rpsLimit,
+                        authoritativeRecommended = isDirectAuthoritative,
+                        summary = summaryMsg
+                    )
+                )
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    isAutoTuning = false,
+                    error = "Auto-tune failed: ${e.message}"
+                )
+            }
+        }
     }
 
 

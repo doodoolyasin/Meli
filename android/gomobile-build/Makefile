@@ -10,7 +10,8 @@ build-full:
 		-o ../app/libs/golibs-full.aar \
 		noizdns/mobile \
 		vaydns-mobile/vaydns \
-		snowflake-mobile/snowflake
+		snowflake-mobile/snowflake \
+		stormdns-go/mobile
 
 build-lite:
 	mkdir -p ../app/libs
@@ -18,7 +19,8 @@ build-lite:
 		-ldflags '-s -w -checklinkname=0 -extldflags -Wl,-z,max-page-size=16384,-z,common-page-size=16384' \
 		-o ../app/libs/golibs-lite.aar \
 		noizdns/mobile \
-		vaydns-mobile/vaydns
+		vaydns-mobile/vaydns \
+		stormdns-go/mobile
 
 clean:
 	rm -f ../app/libs/golibs-full.aar ../app/libs/golibs-full-sources.jar
