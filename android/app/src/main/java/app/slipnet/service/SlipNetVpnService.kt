@@ -1269,6 +1269,9 @@ class SlipNetVpnService : VpnService() {
                 MasterDnsBridge.stopClient()
                 SshTunnelBridge.stop()
             }
+            TunnelType.BALE -> {
+                app.slipnet.tunnel.BaleTunnelBridge.stopClient()
+            }
             TunnelType.NOOSHDAROO, TunnelType.QWDTT -> {
                 DnsttSocksBridge.stop()
                 DnsttBridge.stopClient()
@@ -2780,7 +2783,7 @@ class SlipNetVpnService : VpnService() {
                 return
             }
             delay(200)
-            vpnRepository.startTun2Socks(socksPort = port)
+            vpnRepository.startTun2Socks(profile, vpnInterface!!, socksPortOverride = port)
         }
         vpnRepository.setProxyConnected(profile)
         finishConnection()

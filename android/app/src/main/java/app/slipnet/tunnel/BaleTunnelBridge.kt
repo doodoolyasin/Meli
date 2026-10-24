@@ -40,7 +40,7 @@ object BaleTunnelBridge {
             val serverSocket = ServerSocket(listenPort, 50, java.net.InetAddress.getByName(listenHost))
             isRunningFlag.set(true)
 
-            serverThread = Thread({
+            serverThread = Thread(Runnable {
                 try {
                     while (isRunningFlag.get()) {
                         val clientSock = try {
@@ -50,22 +50,22 @@ object BaleTunnelBridge {
                         }
 
                         // Forward SOCKS5 stream to companion or WebRTC SFU bridge
-                        Thread({
+                        Thread(Runnable {
                             try {
                                 val targetHost = if (companionHost.isNotBlank()) companionHost else "16.171.152.115"
                                 val targetPort = if (companionPort > 0) companionPort else 22
                                 val upstream = Socket(targetHost, targetPort)
 
-                                val t1 = Thread {
+                                val t1 = Thread(Runnable {
                                     try {
                                         clientSock.getInputStream().copyTo(upstream.getOutputStream())
                                     } catch (_: Exception) {}
-                                }
-                                val t2 = Thread {
+                                })
+                                val t2 = Thread(Runnable {
                                     try {
                                         upstream.getInputStream().copyTo(clientSock.getOutputStream())
                                     } catch (_: Exception) {}
-                                }
+                                })
                                 t1.start()
                                 t2.start()
                             } catch (e: Exception) {
