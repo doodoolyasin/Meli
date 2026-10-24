@@ -77,6 +77,7 @@ fun MethodPermissionsSection(
     val notifOk = remember { mutableStateOf(hasNotificationPermission(context)) }
     val batteryOk = remember { mutableStateOf(isBatteryExempt(context)) }
     val showGuide = remember { mutableStateOf(false) }
+    val showPermissions = remember { mutableStateOf(false) }
 
     fun refreshAll() {
         vpnOk.value = VpnService.prepare(context) == null
@@ -149,7 +150,12 @@ fun MethodPermissionsSection(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { showPermissions.value = !showPermissions.value },
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Icon(
                     Icons.Default.Shield,
                     contentDescription = null,
@@ -177,67 +183,80 @@ fun MethodPermissionsSection(
                         tint = Color(0xFF2E7D32),
                         modifier = Modifier.size(22.dp)
                     )
+                    Spacer(Modifier.width(6.dp))
                 }
-            }
-
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-
-            rows.forEachIndexed { index, row ->
-                PermissionRow(row = row, onAction = {
-                    when (index) {
-                        0 -> {
-                            val intent = VpnService.prepare(context)
-                            if (intent == null) refreshAll()
-                            else runCatching { vpnLauncher.launch(intent) }.onFailure { refreshAll() }
-                        }
-                        1 -> {
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                                runCatching {
-                                    notifLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                                }
-                            }
-                        }
-                        else -> {
-                            val intent = Intent(
-                                android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
-                                Uri.parse("package:${context.packageName}")
-                            )
-                            runCatching { batteryLauncher.launch(intent) }.onFailure {
-                                // Fallback: open the full optimization list screen.
-                                runCatching {
-                                    context.startActivity(Intent(android.provider.Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
-                                }
-                            }
-                        }
-                    }
-                })
-            }
-
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-
-            TextButton(
-                onClick = { showGuide.value = !showGuide.value },
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 4.dp)
-            ) {
-                Text(
-                    text = if (showGuide.value) "Hide setup guide" else "Exact setup guide",
-                    style = MaterialTheme.typography.labelLarge
-                )
-                Spacer(Modifier.width(4.dp))
                 Icon(
-                    imageVector = if (showGuide.value) Icons.Default.KeyboardArrowUp
-                    else Icons.Default.KeyboardArrowDown,
+                    imageVector = if (showPermissions.value) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
                     contentDescription = null,
-                    modifier = Modifier.size(18.dp)
+                    modifier = Modifier.size(22.dp)
                 )
             }
 
             AnimatedVisibility(
-                visible = showGuide.value,
+                visible = showPermissions.value,
                 enter = expandVertically(animationSpec = tween(300)) + fadeIn(animationSpec = tween(300)),
                 exit = shrinkVertically(animationSpec = tween(200)) + fadeOut(animationSpec = tween(200))
             ) {
-                SetupGuide(tunnelType = tunnelType)
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+
+                    rows.forEachIndexed { index, row ->
+                        PermissionRow(row = row, onAction = {
+                            when (index) {
+                                0 -> {
+                                    val intent = VpnService.prepare(context)
+                                    if (intent == null) refreshAll()
+                                    else runCatching { vpnLauncher.launch(intent) }.onFailure { refreshAll() }
+                                }
+                                1 -> {
+                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                        runCatching {
+                                            notifLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                        }
+                                    }
+                                }
+                                else -> {
+                                    val intent = Intent(
+                                        android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                                        Uri.parse("package:${context.packageName}")
+                                    )
+                                    runCatching { batteryLauncher.launch(intent) }.onFailure {
+                                        runCatching {
+                                            context.startActivity(Intent(android.provider.Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
+                                        }
+                                    }
+                                }
+                            }
+                        })
+                    }
+
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+
+                    TextButton(
+                        onClick = { showGuide.value = !showGuide.value },
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 4.dp)
+                    ) {
+                        Text(
+                            text = if (showGuide.value) "Hide setup guide" else "Exact setup guide",
+                            style = MaterialTheme.typography.labelLarge
+                        )
+                        Spacer(Modifier.width(4.dp))
+                        Icon(
+                            imageVector = if (showGuide.value) Icons.Default.KeyboardArrowUp
+                            else Icons.Default.KeyboardArrowDown,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+
+                    AnimatedVisibility(
+                        visible = showGuide.value,
+                        enter = expandVertically(animationSpec = tween(300)) + fadeIn(animationSpec = tween(300)),
+                        exit = shrinkVertically(animationSpec = tween(200)) + fadeOut(animationSpec = tween(200))
+                    ) {
+                        SetupGuide(tunnelType = tunnelType)
+                    }
+                }
             }
         }
     }

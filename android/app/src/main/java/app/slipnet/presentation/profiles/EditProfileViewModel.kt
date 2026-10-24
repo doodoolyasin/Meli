@@ -257,7 +257,8 @@ data class EditProfileUiState(
         get() = isDnsttBased || isNoizdnsBased
 
     val isDnsttOrNoizOrVaydnsBased: Boolean
-        get() = isDnsttBased || isNoizdnsBased || isVaydnsBased || isMasterDns
+        get() = isDnsttBased || isNoizdnsBased || isVaydnsBased || isMasterDns || isStormDns ||
+                tunnelType == TunnelType.NOOSHDAROO || tunnelType == TunnelType.QWDTT
 
     val isSlipstreamBased: Boolean
         get() = tunnelType == TunnelType.SLIPSTREAM || tunnelType == TunnelType.SLIPSTREAM_SSH

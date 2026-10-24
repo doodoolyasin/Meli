@@ -258,6 +258,7 @@ class SshTunnelInstance(val instanceId: String = "default") {
                 newSession.setConfig("PreferredAuthentications", "publickey")
             } else {
                 newSession.setPassword(sshPassword)
+                newSession.setConfig("PreferredAuthentications", "password,keyboard-interactive")
             }
             // Wrap connection: payload + optional TLS, or TLS-only, or plain
             if (sshPayload.isNotBlank()) {
@@ -355,6 +356,7 @@ class SshTunnelInstance(val instanceId: String = "default") {
                 newSession.setConfig("PreferredAuthentications", "publickey")
             } else {
                 newSession.setPassword(sshPassword)
+                newSession.setConfig("PreferredAuthentications", "password,keyboard-interactive")
             }
 
             // Set up HTTP CONNECT proxy with optional TLS and custom Host header
@@ -449,6 +451,7 @@ class SshTunnelInstance(val instanceId: String = "default") {
                 newSession.setConfig("PreferredAuthentications", "publickey")
             } else {
                 newSession.setPassword(sshPassword)
+                newSession.setConfig("PreferredAuthentications", "password,keyboard-interactive")
             }
 
             val proxy = ProxyWebSocket(
@@ -553,6 +556,7 @@ class SshTunnelInstance(val instanceId: String = "default") {
                 newSession.setConfig("PreferredAuthentications", "publickey")
             } else {
                 newSession.setPassword(sshPassword)
+                newSession.setConfig("PreferredAuthentications", "password,keyboard-interactive")
             }
             applySessionConfig(newSession)
             newSession.connect(TUNNEL_CONNECT_TIMEOUT_MS)
@@ -652,6 +656,7 @@ class SshTunnelInstance(val instanceId: String = "default") {
                 newSession.setConfig("PreferredAuthentications", "publickey")
             } else {
                 newSession.setPassword(sshPassword)
+                newSession.setConfig("PreferredAuthentications", "password,keyboard-interactive")
             }
 
             // Set up SOCKS5 proxy

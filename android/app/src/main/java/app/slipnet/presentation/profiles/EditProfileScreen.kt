@@ -1673,23 +1673,23 @@ fun EditProfileScreen(
                     )
                 }
 
-                // DNSTT / MasterDNS Key
-                if (uiState.isDnsttOrNoizOrVaydnsBased || uiState.isMasterDns) {
-                    val isMasterDnsProfile = uiState.isMasterDns || uiState.name.contains("meli", ignoreCase = true)
+                // DNSTT / MasterDNS / StormDNS / Nooshdaroo / qWDTT Key
+                if (uiState.isDnsttOrNoizOrVaydnsBased || uiState.isMasterDns || uiState.isStormDns) {
+                    val isMasterOrStormDnsProfile = uiState.isMasterDns || uiState.isStormDns || uiState.name.contains("meli", ignoreCase = true)
                     OutlinedTextField(
                         value = uiState.dnsttPublicKey,
                         onValueChange = { viewModel.updateDnsttPublicKey(it) },
-                        label = { Text(if (isMasterDnsProfile) "MasterDNS Encryption Key" else "Public Key") },
-                        placeholder = { Text(if (isMasterDnsProfile) "32 hex characters (e.g. 5d79...)" else "Server's Noise public key (hex)") },
+                        label = { Text(if (isMasterOrStormDnsProfile) "Encryption Key" else "Public Key") },
+                        placeholder = { Text(if (isMasterOrStormDnsProfile) "32 hex characters (e.g. 5d79...)" else "Server's Noise public key (64 hex)") },
                         isError = uiState.dnsttPublicKeyError != null,
                         supportingText = {
-                            Text(uiState.dnsttPublicKeyError ?: if (isMasterDnsProfile) "MasterDNS encryption key (32 hex characters)" else "Server's Noise protocol public key in hex format")
+                            Text(uiState.dnsttPublicKeyError ?: if (isMasterOrStormDnsProfile) "Encryption key (32 hex characters)" else "Server's Noise protocol public key in hex format (64 hex)")
                         },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
 
-                    if (isMasterDnsProfile) {
+                    if (isMasterOrStormDnsProfile) {
                         // MasterDNS Advanced Settings
                         Row(
                             modifier = Modifier

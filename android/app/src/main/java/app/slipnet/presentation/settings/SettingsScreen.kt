@@ -1732,43 +1732,11 @@ private fun RemoteDnsDialog(
 private fun EmergencySettingsSection(
     content: @Composable () -> Unit
 ) {
-    val masterDnsColor = Color(0xFF00E5FF)
-    Column {
-        Row(
-            modifier = Modifier.padding(start = 4.dp, bottom = 10.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                imageVector = Icons.Default.Shield,
-                contentDescription = null,
-                tint = masterDnsColor,
-                modifier = Modifier.size(18.dp)
-            )
-            Spacer(modifier = Modifier.width(6.dp))
-            Text(
-                text = "⚡ Emergency Intranet Bypass (حالت اضطراری اینترنت ملی)",
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.Bold,
-                color = masterDnsColor
-            )
-        }
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .border(1.5.dp, masterDnsColor, RoundedCornerShape(16.dp)),
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = Color(0xFF002230).copy(alpha = 0.6f)
-            ),
-            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-        ) {
-            Column(
-                modifier = Modifier.padding(vertical = 4.dp)
-            ) {
-                content()
-            }
-        }
-    }
+    SettingsSection(
+        title = "National Intranet Bypass",
+        subtitle = "حالت اضطراری اینترنت ملی",
+        content = content
+    )
 }
 
 @Composable
