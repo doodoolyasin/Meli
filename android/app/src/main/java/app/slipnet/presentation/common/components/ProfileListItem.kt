@@ -301,7 +301,9 @@ fun ProfileListItem(
                 // Detail line: tunnel type
                 val tunnelTypeLabel = when {
                     profile.tunnelType == TunnelType.MASTERDNS -> "MasterDNS"
+                    profile.tunnelType == TunnelType.MASTERDNS_SSH -> "MasterDNS + SSH"
                     profile.tunnelType == TunnelType.STORMDNS -> "StormDNS"
+                    profile.tunnelType == TunnelType.STORMDNS_SSH -> "StormDNS + SSH"
                     profile.name.contains("masterdns", ignoreCase = true) || profile.name.contains("meli", ignoreCase = true) -> "MasterDNS"
                     profile.name.contains("stormdns", ignoreCase = true) -> "StormDNS"
                     profile.domain.startsWith("goi.") || profile.domain.contains(".goi.") -> "MasterDNS"

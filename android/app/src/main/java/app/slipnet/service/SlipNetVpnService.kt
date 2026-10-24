@@ -41,6 +41,7 @@ import app.slipnet.tunnel.SlipstreamBridge
 import app.slipnet.tunnel.SlipstreamSocksBridge
 import app.slipnet.tunnel.Socks5ProxyBridge
 import app.slipnet.tunnel.VlessBridge
+import app.slipnet.tunnel.MasterDnsBridge
 import app.slipnet.tunnel.SnowflakeBridge
 import app.slipnet.tunnel.SshTunnelBridge
 import app.slipnet.tunnel.TorSocksBridge
@@ -546,7 +547,9 @@ class SlipNetVpnService : VpnService() {
                     TunnelType.VAYDNS_SSH -> connectVaydnsSsh(profile, dnsServer, remoteDns, remoteDnsFallback, globalResolverOverride)
                     TunnelType.SOCKS5 -> connectSocks5(profile, dnsServer, remoteDns)
                     TunnelType.VLESS -> connectVless(profile, dnsServer)
-                    TunnelType.MASTERDNS, TunnelType.STORMDNS, TunnelType.NOOSHDAROO, TunnelType.QWDTT -> connectDnstt(profile, dnsServer, remoteDns, remoteDnsFallback, globalResolverOverride)
+                    TunnelType.MASTERDNS, TunnelType.MASTERDNS_SSH,
+                    TunnelType.STORMDNS, TunnelType.STORMDNS_SSH -> connectMasterDns(profile, dnsServer, remoteDns, remoteDnsFallback, globalResolverOverride)
+                    TunnelType.NOOSHDAROO, TunnelType.QWDTT -> connectDnstt(profile, dnsServer, remoteDns, remoteDnsFallback, globalResolverOverride)
                     TunnelType.PINGTUNNEL, TunnelType.BALE, TunnelType.SPOOF_TUNNEL, TunnelType.GOLDEN_GRE, TunnelType.PAQET -> connectSocks5(profile, dnsServer, remoteDns)
                 }
 
@@ -1260,7 +1263,12 @@ class SlipNetVpnService : VpnService() {
             }
             TunnelType.DOH -> DohBridge.stop()
             TunnelType.SOCKS5, TunnelType.BALE, TunnelType.PINGTUNNEL, TunnelType.SPOOF_TUNNEL, TunnelType.GOLDEN_GRE, TunnelType.PAQET -> Socks5ProxyBridge.stopAll()
-            TunnelType.MASTERDNS, TunnelType.STORMDNS, TunnelType.NOOSHDAROO, TunnelType.QWDTT -> {
+            TunnelType.MASTERDNS, TunnelType.MASTERDNS_SSH,
+            TunnelType.STORMDNS, TunnelType.STORMDNS_SSH -> {
+                MasterDnsBridge.stopClient()
+                SshTunnelBridge.stop()
+            }
+            TunnelType.NOOSHDAROO, TunnelType.QWDTT -> {
                 DnsttSocksBridge.stop()
                 DnsttBridge.stopClient()
             }
@@ -2728,6 +2736,150 @@ class SlipNetVpnService : VpnService() {
 
         delay(500)
         Log.d(TAG, "VayDNS+SSH tunnel started")
+        finishConnection()
+    }
+
+    /**
+     * Connect using MasterDNS / StormDNS tunnel type.
+     * Supports both Direct SOCKS5 and MasterDNS + SSH.
+     *
+     * In Direct mode, MasterDNS's native SOCKS5 listener serves hev-socks5-tunnel.
+     * In SSH mode, SSH tunnels through MasterDNS's SOCKS5 listener to the SSH server.
+     */
+    private suspend fun connectMasterDns(
+        profile: app.slipnet.domain.model.ServerProfile,
+        dnsServer: String,
+        remoteDns: String,
+        remoteDnsFallback: String,
+        globalResolverOverride: List<app.slipnet.domain.model.DnsResolver>? = null
+    ) {
+        val proxyPort = preferencesDataStore.proxyListenPort.first()
+        val proxyHost = preferencesDataStore.proxyListenAddress.first()
+        val masterDnsPort = proxyPort + 1
+
+        if (!isProxyOnly) {
+            vpnInterface = establishVpnInterface(dnsServer)
+            if (vpnInterface == null) {
+                connectionManager.onVpnError("Failed to establish VPN interface")
+                stopForeground(STOP_FOREGROUND_REMOVE)
+                stopSelf()
+                return
+            }
+            delay(200)
+        }
+
+        val proxyResult = vpnRepository.startMasterDnsProxy(
+            profile,
+            portOverride = masterDnsPort,
+            hostOverride = "127.0.0.1",
+            resolverOverride = globalResolverOverride
+        )
+        if (proxyResult.isFailure) {
+            connectionManager.onVpnError(proxyResult.exceptionOrNull()?.message ?: "Failed to start MasterDNS proxy")
+            vpnInterface?.close()
+            vpnInterface = null
+            stopForeground(STOP_FOREGROUND_REMOVE)
+            stopSelf()
+            return
+        }
+
+        val actualPort = MasterDnsBridge.getClientPort()
+        if (!waitForProxyReady(actualPort, maxAttempts = 20, delayMs = 100)) {
+            handleProxyStartupFailure(actualPort)
+            MasterDnsBridge.stopClient()
+            vpnInterface?.close()
+            vpnInterface = null
+            return
+        }
+
+        val useSsh = profile.tunnelType == TunnelType.MASTERDNS_SSH || profile.tunnelType == TunnelType.STORMDNS_SSH || profile.sshUsername.isNotBlank()
+        if (useSsh) {
+            configureSshBridge()
+            val targetHost = if (profile.sshHost.isBlank() || profile.sshHost == "127.0.0.1") "16.171.152.115" else profile.sshHost
+            var sshResult: Result<Unit> = Result.failure(RuntimeException("SSH not attempted"))
+            for (attempt in 1..SSH_OVER_TUNNEL_RETRIES) {
+                sshResult = withContext(Dispatchers.IO) {
+                    Log.i(TAG, "Starting SSH tunnel through MasterDNS SOCKS5 ($targetHost:${profile.sshPort} via 127.0.0.1:$actualPort) attempt $attempt/$SSH_OVER_TUNNEL_RETRIES")
+                    SshTunnelBridge.startOverSocks5Proxy(
+                        sshHost = targetHost,
+                        sshPort = profile.sshPort,
+                        sshUsername = profile.sshUsername,
+                        sshPassword = profile.sshPassword,
+                        proxyHost = "127.0.0.1",
+                        proxyPort = actualPort,
+                        socksUsername = null,
+                        socksPassword = null,
+                        listenPort = proxyPort,
+                        listenHost = proxyHost,
+                        blockDirectDns = true,
+                        sshAuthType = profile.sshAuthType,
+                        sshPrivateKey = profile.sshPrivateKey,
+                        sshKeyPassphrase = profile.sshKeyPassphrase,
+                        remoteDnsHost = remoteDns,
+                        remoteDnsFallback = remoteDnsFallback
+                    )
+                }
+                if (sshResult.isSuccess) break
+                if (attempt < SSH_OVER_TUNNEL_RETRIES) {
+                    Log.w(TAG, "SSH over MasterDNS attempt $attempt failed: ${sshResult.exceptionOrNull()?.message}, retrying...")
+                    delay(1000L * attempt)
+                }
+            }
+            if (sshResult.isFailure) {
+                connectionManager.onVpnError(sshResult.exceptionOrNull()?.message ?: "Failed to start SSH tunnel over MasterDNS")
+                MasterDnsBridge.stopClient()
+                vpnInterface?.close()
+                vpnInterface = null
+                stopForeground(STOP_FOREGROUND_REMOVE)
+                stopSelf()
+                return
+            }
+
+            if (!waitForProxyReady(proxyPort, maxAttempts = 30, delayMs = 100)) {
+                Log.e(TAG, "SSH SOCKS5 proxy failed to become ready on port $proxyPort")
+                connectionManager.onVpnError("SSH tunnel failed to start over MasterDNS")
+                SshTunnelBridge.stop()
+                MasterDnsBridge.stopClient()
+                vpnInterface?.close()
+                vpnInterface = null
+                stopForeground(STOP_FOREGROUND_REMOVE)
+                stopSelf()
+                return
+            }
+        }
+
+        if (isProxyOnly) {
+            vpnRepository.setProxyConnected(profile)
+            Log.i(TAG, "Proxy-only mode: MasterDNS SOCKS5 proxy ready on port ${if (useSsh) proxyPort else actualPort}")
+            finishConnection()
+            return
+        }
+
+        val socksPort = if (useSsh) proxyPort else actualPort
+        val vpnFd = vpnInterface?.fd ?: -1
+        if (vpnFd != -1) {
+            val hevResult = vpnRepository.startHevTunnel(
+                vpnFd = vpnFd,
+                socks5Port = socksPort,
+                socks5Host = "127.0.0.1",
+                remoteDnsHost = remoteDns,
+                remoteDnsFallback = remoteDnsFallback,
+                isDnsTunnel = true
+            )
+            if (hevResult.isFailure) {
+                connectionManager.onVpnError("Failed to start VPN tunnel: ${hevResult.exceptionOrNull()?.message}")
+                if (useSsh) SshTunnelBridge.stop()
+                MasterDnsBridge.stopClient()
+                vpnInterface?.close()
+                vpnInterface = null
+                stopForeground(STOP_FOREGROUND_REMOVE)
+                stopSelf()
+                return
+            }
+        }
+
+        delay(500)
+        Log.d(TAG, "MasterDNS tunnel started successfully")
         finishConnection()
     }
 
@@ -4838,7 +4990,13 @@ class SlipNetVpnService : VpnService() {
                 Log.d(TAG, "Stopping SOCKS5-compatible bridge")
                 Socks5ProxyBridge.stopAll()
             }
-            TunnelType.MASTERDNS, TunnelType.STORMDNS, TunnelType.NOOSHDAROO, TunnelType.QWDTT -> {
+            TunnelType.MASTERDNS, TunnelType.MASTERDNS_SSH,
+            TunnelType.STORMDNS, TunnelType.STORMDNS_SSH -> {
+                Log.d(TAG, "Stopping MasterDNS / StormDNS bridge")
+                MasterDnsBridge.stopClient()
+                SshTunnelBridge.stop()
+            }
+            TunnelType.NOOSHDAROO, TunnelType.QWDTT -> {
                 Log.d(TAG, "Stopping DNS-based bridge")
                 DnsttSocksBridge.stop()
                 DnsttBridge.stopClient()

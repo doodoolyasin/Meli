@@ -29,6 +29,7 @@ import app.slipnet.tunnel.Socks5ProxyBridge
 import app.slipnet.tunnel.SshTunnelBridge
 import app.slipnet.tunnel.TorSocksBridge
 import app.slipnet.tunnel.VlessBridge
+import app.slipnet.tunnel.MasterDnsBridge
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -514,6 +515,55 @@ class VpnRepositoryImpl @Inject constructor(
             val error = result.exceptionOrNull()?.message ?: "Failed to start VayDNS proxy"
             connectedProfile = null
             Log.e(TAG, "Failed to start VayDNS proxy: $error")
+            Result.failure(Exception(error))
+        }
+    }
+
+    /**
+     * Start the Go-based MasterDNS / StormDNS SOCKS5 proxy.
+     */
+    suspend fun startMasterDnsProxy(
+        profile: ServerProfile,
+        portOverride: Int? = null,
+        hostOverride: String? = null,
+        resolverOverride: List<DnsResolver>? = null
+    ): Result<Unit> = withContext(Dispatchers.IO) {
+        connectedProfile = profile
+
+        val poolResult = applyDnsPoolIfEnabled(profile, resolverOverride)
+        if (poolResult.isFailure) {
+            val msg = poolResult.exceptionOrNull()?.message ?: "DNS pool scan failed"
+            Log.e(TAG, "Pool scan failed: $msg")
+            connectedProfile = null
+            return@withContext Result.failure(Exception(msg))
+        }
+        val effectiveOverride = poolResult.getOrNull() ?: resolverOverride
+        val dnsServer = formatDnsServerAddress(profile, effectiveOverride)
+
+        val proxyPort = portOverride ?: preferencesDataStore.proxyListenPort.first()
+        val proxyHost = hostOverride ?: preferencesDataStore.proxyListenAddress.first()
+
+        val key = profile.dnsttPublicKey.trim().ifEmpty { "5d790e75a6262fe95f70979c7bddd360" }
+        val domain = profile.domain.trim().ifEmpty { "goi.dhafhdtjdti.site" }
+
+        val result = MasterDnsBridge.startClient(
+            context = context,
+            domainsCsv = domain,
+            encryptionKey = key,
+            encryptionMethod = 1L,
+            resolversCsv = dnsServer,
+            listenPort = proxyPort,
+            listenHost = proxyHost
+        )
+
+        if (result.isSuccess) {
+            Log.i(TAG, "MasterDNS / StormDNS SOCKS5 proxy started successfully on $proxyPort")
+            currentTunnelType = profile.tunnelType
+            Result.success(Unit)
+        } else {
+            val error = result.exceptionOrNull()?.message ?: "Failed to start MasterDNS proxy"
+            connectedProfile = null
+            Log.e(TAG, "Failed to start MasterDNS proxy: $error")
             Result.failure(Exception(error))
         }
     }
@@ -1043,7 +1093,11 @@ class VpnRepositoryImpl @Inject constructor(
                 Log.d(TAG, "Stopping SOCKS5-compatible proxy bridge")
                 Socks5ProxyBridge.stop()
             }
-            TunnelType.MASTERDNS, TunnelType.STORMDNS, TunnelType.NOOSHDAROO, TunnelType.QWDTT -> {
+            TunnelType.MASTERDNS, TunnelType.STORMDNS -> {
+                Log.d(TAG, "Stopping MasterDNS / StormDNS proxy bridge")
+                MasterDnsBridge.stopClient()
+            }
+            TunnelType.NOOSHDAROO, TunnelType.QWDTT -> {
                 Log.d(TAG, "Stopping DNS-based proxy bridge")
                 DnsttBridge.stopClient()
                 DnsDoHProxy.stop()

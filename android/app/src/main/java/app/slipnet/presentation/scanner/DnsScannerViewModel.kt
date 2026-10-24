@@ -45,10 +45,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeoutOrNull
 import javax.inject.Inject
@@ -292,28 +290,11 @@ private fun tryExpandSubnet(
     }
 }
 
-enum class ScanMode(val displayName: String) {
-    ADVANCED("Advanced"),
-    SIMPLE("Simple"),
-    PRISM("Prism"),
-    E2E("E2E"),
-    MASTERDNS("MasterDNS"),
-    CLEAN_IP("Clean IP"),
-    DOH_DOT("DoH/DoT"),
-    POISON_DETECTOR("Anti-Poison");
-
-    companion object {
-        fun fromName(value: String?): ScanMode = when (value) {
-            "SIMPLE" -> SIMPLE
-            "PRISM" -> PRISM
-            "E2E" -> E2E
-            "MASTERDNS" -> MASTERDNS
-            "CLEAN_IP" -> CLEAN_IP
-            "DOH_DOT" -> DOH_DOT
-            "POISON_DETECTOR" -> POISON_DETECTOR
-            else -> ADVANCED
-        }
-    }
+enum class ScanMode {
+    ADVANCED,
+    SIMPLE,
+    PRISM,
+    E2E
 }
 
 /**
@@ -1528,101 +1509,7 @@ class DnsScannerViewModel @Inject constructor(
     fun setScanMode(mode: ScanMode) {
         val state = _uiState.value
         if (state.scannerState.isScanning || state.e2eScannerState.isRunning || state.simpleModeE2eState.isRunning) return
-        val updatedList = if (mode == ScanMode.CLEAN_IP && state.resolverList.isEmpty()) {
-            listOf(
-                "104.16.132.229", "104.16.133.229", "172.64.155.209", "162.159.153.4",
-                "104.21.48.1", "188.114.97.3", "188.114.96.3", "197.234.240.1", "198.41.214.162"
-            )
-        } else if (mode == ScanMode.DOH_DOT && state.resolverList.isEmpty()) {
-            listOf(
-                "1.1.1.1", "1.0.0.1", "8.8.8.8", "8.8.4.4", "9.9.9.9", "149.112.112.112",
-                "94.140.14.14", "94.140.15.15", "185.228.168.9", "76.76.2.0"
-            )
-        } else state.resolverList
-        _uiState.value = state.copy(scanMode = mode, resolverList = updatedList)
-    }
-
-    private fun launchCustomScan(
-        hosts: List<String>,
-        mode: ScanMode,
-        testDomain: String,
-        timeout: Long,
-        concurrency: Int,
-        port: Int = 53
-    ) {
-        scanJob = ScanStateHolder.scanScope.launch {
-            val workingResults = java.util.concurrent.CopyOnWriteArrayList<ResolverScanResult>()
-            val scannedCount = AtomicInteger(0)
-            val workingCount = AtomicInteger(0)
-            val timeoutCount = AtomicInteger(0)
-            val errorCount = AtomicInteger(0)
-            val uiUpdateCounter = AtomicInteger(0)
-            var lastEmitTimeMs = 0L
-
-            fun emitState(scanning: Boolean, force: Boolean = false) {
-                val actuallyScanning = scanning && scanJob?.isActive == true
-                if (!force) {
-                    val now = System.currentTimeMillis()
-                    if (now - lastEmitTimeMs < 500L) return
-                    lastEmitTimeMs = now
-                }
-                val currentResults = workingResults.toList()
-                _uiState.update { s ->
-                    s.copy(scannerState = ScannerState(
-                        isScanning = actuallyScanning,
-                        totalCount = hosts.size,
-                        scannedCount = scannedCount.get(),
-                        workingCount = workingCount.get(),
-                        timeoutCount = timeoutCount.get(),
-                        errorCount = errorCount.get(),
-                        results = currentResults
-                    ))
-                }
-                ScanStateHolder.update { it.copy(
-                    isScanning = actuallyScanning,
-                    scannedCount = scannedCount.get(),
-                    totalCount = hosts.size,
-                    workingCount = workingCount.get(),
-                    results = currentResults
-                ) }
-            }
-
-            val semaphore = Semaphore(concurrency)
-            coroutineScope {
-                for (host in hosts) {
-                    if (!isActive) break
-                    launch {
-                        semaphore.acquire()
-                        try {
-                            if (!isActive) return@launch
-                            val result = when (mode) {
-                                ScanMode.MASTERDNS -> scannerRepository.scanMasterDns(host, port, testDomain, timeout)
-                                ScanMode.CLEAN_IP -> scannerRepository.scanCleanIp(host, if (port == 53) 443 else port, timeout)
-                                ScanMode.DOH_DOT -> scannerRepository.scanDohDot(host, if (port == 53) 853 else port, timeout)
-                                ScanMode.POISON_DETECTOR -> scannerRepository.scanPoisonDetector(host, port, testDomain, timeout)
-                                else -> scannerRepository.scanResolver(host, port, testDomain, timeout)
-                            }
-                            scannedCount.incrementAndGet()
-                            if (result.status == ResolverStatus.WORKING) {
-                                workingCount.incrementAndGet()
-                                workingResults.add(result)
-                            } else if (result.status == ResolverStatus.TIMEOUT) {
-                                timeoutCount.incrementAndGet()
-                            } else {
-                                errorCount.incrementAndGet()
-                            }
-                            if (uiUpdateCounter.incrementAndGet() % 10 == 0 || result.status == ResolverStatus.WORKING) {
-                                emitState(true)
-                            }
-                        } finally {
-                            semaphore.release()
-                        }
-                    }
-                }
-            }
-            emitState(false, force = true)
-            releaseWakeLock()
-        }
+        _uiState.value = state.copy(scanMode = mode)
     }
 
     fun loadCustomRangeList() {
@@ -1882,14 +1769,6 @@ class DnsScannerViewModel @Inject constructor(
                     prefilter = state.prismPrefilter
                 )
             }
-            ScanMode.MASTERDNS, ScanMode.CLEAN_IP, ScanMode.DOH_DOT, ScanMode.POISON_DETECTOR -> launchCustomScan(
-                hosts = resolvers,
-                mode = state.scanMode,
-                testDomain = state.effectiveTestDomain,
-                timeout = timeout,
-                concurrency = concurrency,
-                port = scanPort
-            )
             ScanMode.ADVANCED -> launchScan(
                 hosts = resolvers,
                 allHosts = resolvers,

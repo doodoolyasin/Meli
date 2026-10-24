@@ -129,9 +129,7 @@ data class ResolverScanResult(
      * Whether the TCP probe succeeded. Only populated when the scanner ran in BOTH mode.
      * Null for single-transport scans.
      */
-    val tcpWorking: Boolean? = null,
-    val scannerNote: String? = null,
-    val isPoisonFree: Boolean? = null
+    val tcpWorking: Boolean? = null
 )
 
 /**

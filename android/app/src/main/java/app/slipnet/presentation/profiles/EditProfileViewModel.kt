@@ -238,7 +238,7 @@ data class EditProfileUiState(
     val wsPaddingEnabled: Boolean = false,
 ) {
     val useSsh: Boolean
-        get() = tunnelType == TunnelType.SSH || tunnelType == TunnelType.DNSTT_SSH || tunnelType == TunnelType.SLIPSTREAM_SSH || tunnelType == TunnelType.NAIVE_SSH || tunnelType == TunnelType.NOIZDNS_SSH || tunnelType == TunnelType.VAYDNS_SSH
+        get() = tunnelType == TunnelType.SSH || tunnelType == TunnelType.DNSTT_SSH || tunnelType == TunnelType.SLIPSTREAM_SSH || tunnelType == TunnelType.NAIVE_SSH || tunnelType == TunnelType.NOIZDNS_SSH || tunnelType == TunnelType.VAYDNS_SSH || tunnelType == TunnelType.MASTERDNS_SSH || tunnelType == TunnelType.STORMDNS_SSH
 
     val isDnsttBased: Boolean
         get() = tunnelType == TunnelType.DNSTT || tunnelType == TunnelType.DNSTT_SSH
@@ -286,10 +286,10 @@ data class EditProfileUiState(
         get() = tunnelType == TunnelType.BALE
 
     val isMasterDns: Boolean
-        get() = tunnelType == TunnelType.MASTERDNS
+        get() = tunnelType == TunnelType.MASTERDNS || tunnelType == TunnelType.MASTERDNS_SSH
 
     val isStormDns: Boolean
-        get() = tunnelType == TunnelType.STORMDNS
+        get() = tunnelType == TunnelType.STORMDNS || tunnelType == TunnelType.STORMDNS_SSH
 
     val isPingTunnel: Boolean
         get() = tunnelType == TunnelType.PINGTUNNEL
@@ -609,11 +609,15 @@ class EditProfileViewModel @Inject constructor(
             useSsh && (currentType == TunnelType.SLIPSTREAM || currentType == TunnelType.SLIPSTREAM_SSH) -> TunnelType.SLIPSTREAM_SSH
             useSsh && (currentType == TunnelType.NAIVE || currentType == TunnelType.NAIVE_SSH) -> TunnelType.NAIVE_SSH
             useSsh && (currentType == TunnelType.VAYDNS || currentType == TunnelType.VAYDNS_SSH) -> TunnelType.VAYDNS_SSH
+            useSsh && (currentType == TunnelType.MASTERDNS || currentType == TunnelType.MASTERDNS_SSH) -> TunnelType.MASTERDNS_SSH
+            useSsh && (currentType == TunnelType.STORMDNS || currentType == TunnelType.STORMDNS_SSH) -> TunnelType.STORMDNS_SSH
             !useSsh && (currentType == TunnelType.DNSTT || currentType == TunnelType.DNSTT_SSH) -> TunnelType.DNSTT
             !useSsh && (currentType == TunnelType.NOIZDNS || currentType == TunnelType.NOIZDNS_SSH) -> TunnelType.NOIZDNS
             !useSsh && (currentType == TunnelType.SLIPSTREAM || currentType == TunnelType.SLIPSTREAM_SSH) -> TunnelType.SLIPSTREAM
             !useSsh && (currentType == TunnelType.NAIVE || currentType == TunnelType.NAIVE_SSH) -> TunnelType.NAIVE
             !useSsh && (currentType == TunnelType.VAYDNS || currentType == TunnelType.VAYDNS_SSH) -> TunnelType.VAYDNS
+            !useSsh && (currentType == TunnelType.MASTERDNS || currentType == TunnelType.MASTERDNS_SSH) -> TunnelType.MASTERDNS
+            !useSsh && (currentType == TunnelType.STORMDNS || currentType == TunnelType.STORMDNS_SSH) -> TunnelType.STORMDNS
             else -> currentType
         }
         _uiState.value = _uiState.value.copy(
@@ -627,7 +631,7 @@ class EditProfileViewModel @Inject constructor(
     fun updateDnsttPublicKey(publicKey: String) {
         // Validate in real-time but only show error if user has typed something
         val error = if (publicKey.isNotBlank()) {
-            validateDnsttPublicKey(publicKey)
+            validateDnsttPublicKey(publicKey, _uiState.value.tunnelType)
         } else {
             null
         }
@@ -1478,9 +1482,9 @@ class EditProfileViewModel @Inject constructor(
             }
         }
 
-        // DNSTT/NoizDNS-specific validation
+        // DNSTT/NoizDNS/MasterDNS-specific validation
         if (state.isDnsttOrNoizOrVaydnsBased) {
-            val publicKeyError = validateDnsttPublicKey(state.dnsttPublicKey)
+            val publicKeyError = validateDnsttPublicKey(state.dnsttPublicKey, state.tunnelType)
             if (publicKeyError != null) {
                 _uiState.value = _uiState.value.copy(dnsttPublicKeyError = publicKeyError)
                 hasError = true
@@ -1544,8 +1548,8 @@ class EditProfileViewModel @Inject constructor(
             }
         }
 
-        // SSH validation (SSH-only, DNSTT+SSH, NoizDNS+SSH, Slipstream+SSH, and NAIVE_SSH tunnel types)
-        if (state.tunnelType == TunnelType.SSH || state.tunnelType == TunnelType.DNSTT_SSH || state.tunnelType == TunnelType.NOIZDNS_SSH || state.tunnelType == TunnelType.SLIPSTREAM_SSH || state.tunnelType == TunnelType.NAIVE_SSH) {
+        // SSH validation
+        if (state.useSsh) {
             if (state.sshUsername.isBlank()) {
                 _uiState.value = _uiState.value.copy(sshUsernameError = "SSH username is required")
                 hasError = true
@@ -1566,8 +1570,8 @@ class EditProfileViewModel @Inject constructor(
             }
         }
 
-        // SSH port validation (SSH-only, DNSTT+SSH, NoizDNS+SSH, Slipstream+SSH, and NAIVE_SSH)
-        if (state.tunnelType == TunnelType.SSH || state.tunnelType == TunnelType.DNSTT_SSH || state.tunnelType == TunnelType.NOIZDNS_SSH || state.tunnelType == TunnelType.SLIPSTREAM_SSH || state.tunnelType == TunnelType.NAIVE_SSH) {
+        // SSH port validation
+        if (state.useSsh) {
             val sshPort = state.sshPort.toIntOrNull()
             if (sshPort == null || sshPort !in 1..65535) {
                 _uiState.value = _uiState.value.copy(sshPortError = "Port must be between 1 and 65535")
@@ -1798,20 +1802,29 @@ class EditProfileViewModel @Inject constructor(
     }
 
     /**
-     * Validates DNSTT public key format.
-     * Noise protocol uses Curve25519 keys which are 32 bytes (64 hex characters).
+     * Validates DNSTT / MasterDNS public / encryption key format.
+     * Curve25519 (DNSTT) uses 32 bytes (64 hex characters).
+     * MasterDNS / StormDNS uses symmetric 16 bytes (32 hex characters).
      * @return error message if invalid, null if valid
      */
-    private fun validateDnsttPublicKey(publicKey: String): String? {
+    private fun validateDnsttPublicKey(publicKey: String, tunnelType: TunnelType): String? {
         val trimmed = publicKey.trim()
 
         if (trimmed.isBlank()) {
             return "Encryption / Public key is required"
         }
 
-        // Accept 16 bytes (32 hex) for MasterDNS and 32 bytes (64 hex) for DNSTT Curve25519
-        if (trimmed.length != 32 && trimmed.length != 64) {
-            return "Key must be 32 hex characters (MasterDNS) or 64 hex characters (DNSTT), got ${trimmed.length}"
+        val isMasterOrStorm = tunnelType == TunnelType.MASTERDNS || tunnelType == TunnelType.MASTERDNS_SSH ||
+                              tunnelType == TunnelType.STORMDNS || tunnelType == TunnelType.STORMDNS_SSH
+
+        if (isMasterOrStorm) {
+            if (trimmed.length != 32) {
+                return "MasterDNS key must be 32 hex characters (16 bytes), got ${trimmed.length}"
+            }
+        } else {
+            if (trimmed.length != 64) {
+                return "DNSTT key must be 64 hex characters (32 bytes), got ${trimmed.length}"
+            }
         }
 
         // Check if all characters are valid hex

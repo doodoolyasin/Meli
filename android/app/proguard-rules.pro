@@ -66,6 +66,16 @@
 -keep class com.jcraft.jsch.** { *; }
 -dontwarn com.jcraft.jsch.**
 
+# Gomobile libraries
+-keep class stormdns.** { *; }
+-dontwarn stormdns.**
+-keep class dnstt.** { *; }
+-dontwarn dnstt.**
+-keep class vaydns.** { *; }
+-dontwarn vaydns.**
+-keep class noizdns.** { *; }
+-dontwarn noizdns.**
+
 # Compose
 -dontwarn androidx.compose.**
 
