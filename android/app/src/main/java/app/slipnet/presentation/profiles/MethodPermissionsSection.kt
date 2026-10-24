@@ -76,7 +76,7 @@ fun MethodPermissionsSection(
     val vpnOk = remember { mutableStateOf(VpnService.prepare(context) == null) }
     val notifOk = remember { mutableStateOf(hasNotificationPermission(context)) }
     val batteryOk = remember { mutableStateOf(isBatteryExempt(context)) }
-    val showGuide = remember { mutableStateOf(true) }
+    val showGuide = remember { mutableStateOf(false) }
 
     fun refreshAll() {
         vpnOk.value = VpnService.prepare(context) == null

@@ -2784,7 +2784,7 @@ class SlipNetVpnService : VpnService() {
         }
 
         val actualPort = MasterDnsBridge.getClientPort()
-        if (!waitForProxyReady(actualPort, maxAttempts = 20, delayMs = 100)) {
+        if (!waitForProxyReady(actualPort, maxAttempts = 120, delayMs = 100)) {
             handleProxyStartupFailure(actualPort)
             MasterDnsBridge.stopClient()
             vpnInterface?.close()

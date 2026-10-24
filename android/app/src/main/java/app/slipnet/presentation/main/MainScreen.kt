@@ -852,10 +852,17 @@ fun MainScreen(
                         modifier = Modifier.padding(start = 24.dp, top = 20.dp, bottom = 8.dp)
                     )
                     @OptIn(ExperimentalLayoutApi::class)
+                    // Category 1: DNS Tunnel Protocols
+                    Text(
+                        text = "DNS Tunnel Protocols",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                    )
                     FlowRow(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 12.dp, vertical = 4.dp),
+                            .padding(horizontal = 12.dp, vertical = 2.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                         maxItemsInEachRow = 3
@@ -909,6 +916,53 @@ fun MainScreen(
                         )
                         AddMenuGridItem(
                             modifier = tileMod,
+                            icon = Icons.Default.Dns,
+                            title = "StormDNS",
+                            onClick = {
+                                showAddMenu = false
+                                onNavigateToAddProfile(TunnelType.STORMDNS.value)
+                            }
+                        )
+                        AddMenuGridItem(
+                            modifier = tileMod,
+                            icon = Icons.Default.Dns,
+                            title = "Nooshdaroo",
+                            onClick = {
+                                showAddMenu = false
+                                onNavigateToAddProfile(TunnelType.NOOSHDAROO.value)
+                            }
+                        )
+                        AddMenuGridItem(
+                            modifier = tileMod,
+                            icon = Icons.Default.Air,
+                            title = "qWDTT",
+                            onClick = {
+                                showAddMenu = false
+                                onNavigateToAddProfile(TunnelType.QWDTT.value)
+                            }
+                        )
+                    }
+
+                    HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp))
+
+                    // Category 2: Standard / Normal Protocols
+                    Text(
+                        text = "Standard Protocols",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                    )
+                    FlowRow(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 2.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        maxItemsInEachRow = 3
+                    ) {
+                        val tileMod = Modifier.weight(1f)
+                        AddMenuGridItem(
+                            modifier = tileMod,
                             icon = Icons.Default.Lock,
                             title = "SSH",
                             onClick = {
@@ -918,11 +972,11 @@ fun MainScreen(
                         )
                         AddMenuGridItem(
                             modifier = tileMod,
-                            icon = Icons.Default.Language,
-                            title = "DOH",
+                            icon = VlessIcon,
+                            title = "VLESS",
                             onClick = {
                                 showAddMenu = false
-                                onNavigateToAddProfile("doh")
+                                onNavigateToAddProfile("vless")
                             }
                         )
                         AddMenuGridItem(
@@ -936,11 +990,11 @@ fun MainScreen(
                         )
                         AddMenuGridItem(
                             modifier = tileMod,
-                            icon = VlessIcon,
-                            title = "VLESS",
+                            icon = Icons.Default.Language,
+                            title = "DOH",
                             onClick = {
                                 showAddMenu = false
-                                onNavigateToAddProfile("vless")
+                                onNavigateToAddProfile("doh")
                             }
                         )
                         if (BuildConfig.INCLUDE_NAIVE) {
@@ -965,24 +1019,26 @@ fun MainScreen(
                                 }
                             )
                         }
-                        AddMenuGridItem(
-                            modifier = tileMod,
-                            icon = Icons.Default.Dns,
-                            title = "StormDNS",
-                            onClick = {
-                                showAddMenu = false
-                                onNavigateToAddProfile(TunnelType.STORMDNS.value)
-                            }
-                        )
-                        AddMenuGridItem(
-                            modifier = tileMod,
-                            icon = Icons.Default.NetworkPing,
-                            title = "PingTunnel (root)",
-                            onClick = {
-                                showAddMenu = false
-                                onNavigateToAddProfile(TunnelType.PINGTUNNEL.value)
-                            }
-                        )
+                    }
+
+                    HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp))
+
+                    // Category 3: Specialty & Intranet Bypass
+                    Text(
+                        text = "Specialty & Emergency Intranet",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                    )
+                    FlowRow(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 2.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        maxItemsInEachRow = 3
+                    ) {
+                        val tileMod = Modifier.weight(1f)
                         AddMenuGridItem(
                             modifier = tileMod,
                             icon = Icons.Default.Language,
@@ -994,11 +1050,11 @@ fun MainScreen(
                         )
                         AddMenuGridItem(
                             modifier = tileMod,
-                            icon = Icons.Default.Dns,
-                            title = "Nooshdaroo",
+                            icon = Icons.Default.NetworkPing,
+                            title = "PingTunnel (root)",
                             onClick = {
                                 showAddMenu = false
-                                onNavigateToAddProfile(TunnelType.NOOSHDAROO.value)
+                                onNavigateToAddProfile(TunnelType.PINGTUNNEL.value)
                             }
                         )
                         AddMenuGridItem(
@@ -1017,15 +1073,6 @@ fun MainScreen(
                             onClick = {
                                 showAddMenu = false
                                 onNavigateToAddProfile(TunnelType.GOLDEN_GRE.value)
-                            }
-                        )
-                        AddMenuGridItem(
-                            modifier = tileMod,
-                            icon = Icons.Default.Air,
-                            title = "qWDTT",
-                            onClick = {
-                                showAddMenu = false
-                                onNavigateToAddProfile(TunnelType.QWDTT.value)
                             }
                         )
                         AddMenuGridItem(

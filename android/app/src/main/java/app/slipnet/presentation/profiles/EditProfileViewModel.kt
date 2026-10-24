@@ -196,6 +196,10 @@ data class EditProfileUiState(
     val vaydnsMaxNumLabels: String = "0",
     val vaydnsClientIdSize: String = "0",
     val vaydnsAdvancedExpanded: Boolean = false,
+    val masterDnsAdvancedExpanded: Boolean = false,
+    val masterDnsUploadMtu: String = "134",
+    val masterDnsDownloadMtu: String = "4000",
+    val masterDnsCompression: String = "LZ4",
     // SSH transport mode (mutually exclusive)
     val sshTransport: SshTransport = SshTransport.DIRECT,
     // Shared TLS SNI (used by Direct+TLS, HTTP Proxy+TLS, and WebSocket wss://)
@@ -579,6 +583,22 @@ class EditProfileViewModel @Inject constructor(
 
     fun toggleVaydnsAdvanced() {
         _uiState.value = _uiState.value.copy(vaydnsAdvancedExpanded = !_uiState.value.vaydnsAdvancedExpanded)
+    }
+
+    fun toggleMasterDnsAdvanced() {
+        _uiState.value = _uiState.value.copy(masterDnsAdvancedExpanded = !_uiState.value.masterDnsAdvancedExpanded)
+    }
+
+    fun updateMasterDnsUploadMtu(mtu: String) {
+        _uiState.value = _uiState.value.copy(masterDnsUploadMtu = mtu)
+    }
+
+    fun updateMasterDnsDownloadMtu(mtu: String) {
+        _uiState.value = _uiState.value.copy(masterDnsDownloadMtu = mtu)
+    }
+
+    fun updateMasterDnsCompression(comp: String) {
+        _uiState.value = _uiState.value.copy(masterDnsCompression = comp)
     }
 
     fun updateKeepAliveInterval(interval: String) {

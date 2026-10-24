@@ -1688,6 +1688,63 @@ fun EditProfileScreen(
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
+
+                    if (isMasterDnsProfile) {
+                        // MasterDNS Advanced Settings
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable { viewModel.toggleMasterDnsAdvanced() }
+                                .padding(vertical = 12.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Advanced Settings",
+                                style = MaterialTheme.typography.titleMedium
+                            )
+                            Icon(
+                                Icons.Default.KeyboardArrowRight,
+                                contentDescription = if (uiState.masterDnsAdvancedExpanded) "Collapse" else "Expand",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.rotate(if (uiState.masterDnsAdvancedExpanded) 90f else 0f)
+                            )
+                        }
+
+                        AnimatedVisibility(visible = uiState.masterDnsAdvancedExpanded) {
+                            Column(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Text(
+                                    text = "Fine-tune MasterDNS MTU and packet options for maximum stability under censorship.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                OutlinedTextField(
+                                    value = uiState.masterDnsUploadMtu,
+                                    onValueChange = { viewModel.updateMasterDnsUploadMtu(it.filter { c -> c.isDigit() }.take(4)) },
+                                    label = { Text("Upload MTU") },
+                                    placeholder = { Text("134") },
+                                    supportingText = { Text("Client upload fragment size (default: 134)") },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                    singleLine = true
+                                )
+                                OutlinedTextField(
+                                    value = uiState.masterDnsDownloadMtu,
+                                    onValueChange = { viewModel.updateMasterDnsDownloadMtu(it.filter { c -> c.isDigit() }.take(5)) },
+                                    label = { Text("Download MTU") },
+                                    placeholder = { Text("4000") },
+                                    supportingText = { Text("Server download response size (default: 4000)") },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                    singleLine = true
+                                )
+                            }
+                        }
+                    }
                 }
 
                 // DNS Transport selector (DNSTT-based profiles only)
