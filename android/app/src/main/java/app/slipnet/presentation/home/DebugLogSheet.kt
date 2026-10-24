@@ -17,6 +17,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.DeleteSweep
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -114,7 +115,7 @@ fun DebugLogSheet(onDismiss: () -> Unit) {
                             appendLine("Time: ${java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.US).format(java.util.Date())}")
                             appendLine("Active Resolvers (${activeResolvers.size}):")
                             activeResolvers.forEach { r ->
-                                appendLine(" - ${r.address} | Latency: ${r.latencyMs}ms | Loss: ${(r.lossRate * 100).toInt()}% | Status: ${r.status}")
+                                appendLine(" - $r")
                             }
                             appendLine("\n--- RECENT PACKET TELEMETRY (${packetLogs.size}) ---")
                             packetLogs.takeLast(50).forEach { p ->
@@ -122,7 +123,7 @@ fun DebugLogSheet(onDismiss: () -> Unit) {
                             }
                             appendLine("\n--- SYSTEM LOGS (${lines.size}) ---")
                             lines.takeLast(100).forEach { l ->
-                                appendLine("[${l.level}] ${l.tag}: ${l.message}")
+                                appendLine("[${l.level}] ${l.raw}")
                             }
                             appendLine("=== END OF REPORT ===")
                         }
