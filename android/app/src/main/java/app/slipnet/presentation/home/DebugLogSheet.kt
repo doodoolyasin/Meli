@@ -109,6 +109,32 @@ fun DebugLogSheet(onDismiss: () -> Unit) {
                         modifier = Modifier.weight(1f)
                     )
                     IconButton(onClick = {
+                        val report = buildString {
+                            appendLine("=== SLIPNET / MASTERDNS FULL DIAGNOSTIC REPORT ===")
+                            appendLine("Time: ${java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.US).format(java.util.Date())}")
+                            appendLine("Active Resolvers (${activeResolvers.size}):")
+                            activeResolvers.forEach { r ->
+                                appendLine(" - ${r.address} | Latency: ${r.latencyMs}ms | Loss: ${(r.lossRate * 100).toInt()}% | Status: ${r.status}")
+                            }
+                            appendLine("\n--- RECENT PACKET TELEMETRY (${packetLogs.size}) ---")
+                            packetLogs.takeLast(50).forEach { p ->
+                                appendLine("[${p.timestamp}] [${p.direction}] ${p.protocol} -> ${p.target} (${p.size}B) status=${p.status} latency=${p.latencyMs}ms")
+                            }
+                            appendLine("\n--- SYSTEM LOGS (${lines.size}) ---")
+                            lines.takeLast(100).forEach { l ->
+                                appendLine("[${l.level}] ${l.tag}: ${l.message}")
+                            }
+                            appendLine("=== END OF REPORT ===")
+                        }
+                        clipboardManager.setText(AnnotatedString(report))
+                    }) {
+                        Icon(
+                            Icons.Default.Share,
+                            contentDescription = "Export Full Report",
+                            tint = Color(0xFF00E5FF)
+                        )
+                    }
+                    IconButton(onClick = {
                         val text = if (selectedTab == 1) {
                             packetLogs.joinToString("\n") { "${it.timestamp} [${it.direction}] ${it.protocol} -> ${it.target} (${it.size}b) status=${it.status} ${it.latencyMs}ms" }
                         } else {
