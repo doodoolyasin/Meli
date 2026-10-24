@@ -43,7 +43,13 @@ class ConfigExporter @Inject constructor() {
         const val MODE_SOCKS5 = "socks5"
         const val MODE_VAYDNS = "vaydns"
         const val MODE_VAYDNS_SSH = "vaydns_ssh"
-        const val MODE_VLESS = "vless"
+        private const val MODE_VLESS = "vless"
+        private const val MODE_MASTERDNS = "masterdns"
+        private const val MODE_MASTERDNS_SSH = "masterdns_ssh"
+        private const val MODE_STORMDNS = "stormdns"
+        private const val MODE_STORMDNS_SSH = "stormdns_ssh"
+        private const val MODE_NOOSHDAROO = "nooshdaroo"
+        private const val MODE_QWDTT = "qwdtt"
         private const val FIELD_DELIMITER = "|"
         private const val RESOLVER_DELIMITER = ","
         private const val RESOLVER_PART_DELIMITER = ":"
@@ -166,6 +172,12 @@ class ConfigExporter @Inject constructor() {
             TunnelType.VAYDNS -> MODE_VAYDNS
             TunnelType.VAYDNS_SSH -> MODE_VAYDNS_SSH
             TunnelType.VLESS -> MODE_VLESS
+            TunnelType.MASTERDNS -> MODE_MASTERDNS
+            TunnelType.MASTERDNS_SSH -> MODE_MASTERDNS_SSH
+            TunnelType.STORMDNS -> MODE_STORMDNS
+            TunnelType.STORMDNS_SSH -> MODE_STORMDNS_SSH
+            TunnelType.NOOSHDAROO -> MODE_NOOSHDAROO
+            TunnelType.QWDTT -> MODE_QWDTT
             else -> profile.tunnelType.value
         }
 
@@ -195,7 +207,7 @@ class ConfigExporter @Inject constructor() {
             sanitize(profile.dnsttPublicKey),
             sanitize(profile.socksUsername ?: ""),
             sanitize(profile.socksPassword ?: ""),
-            if (profile.tunnelType == TunnelType.SSH || profile.tunnelType == TunnelType.DNSTT_SSH || profile.tunnelType == TunnelType.SLIPSTREAM_SSH || profile.tunnelType == TunnelType.NAIVE_SSH || profile.tunnelType == TunnelType.VAYDNS_SSH) "1" else "0",
+            if (profile.tunnelType == TunnelType.SSH || profile.tunnelType == TunnelType.DNSTT_SSH || profile.tunnelType == TunnelType.SLIPSTREAM_SSH || profile.tunnelType == TunnelType.NAIVE_SSH || profile.tunnelType == TunnelType.VAYDNS_SSH || profile.tunnelType == TunnelType.MASTERDNS_SSH || profile.tunnelType == TunnelType.STORMDNS_SSH) "1" else "0",
             sanitize(profile.sshUsername),
             sanitize(profile.sshPassword),
             profile.sshPort.toString(),

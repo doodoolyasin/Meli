@@ -112,6 +112,12 @@ class ConfigImporter @Inject constructor() {
         private const val MODE_VAYDNS = "vaydns"
         private const val MODE_VAYDNS_SSH = "vaydns_ssh"
         private const val MODE_VLESS = "vless"
+        private const val MODE_MASTERDNS = "masterdns"
+        private const val MODE_MASTERDNS_SSH = "masterdns_ssh"
+        private const val MODE_STORMDNS = "stormdns"
+        private const val MODE_STORMDNS_SSH = "stormdns_ssh"
+        private const val MODE_NOOSHDAROO = "nooshdaroo"
+        private const val MODE_QWDTT = "qwdtt"
         private const val FIELD_DELIMITER = "|"
         private const val RESOLVER_DELIMITER = ","
         private const val RESOLVER_PART_DELIMITER = ":"
@@ -179,6 +185,17 @@ class ConfigImporter @Inject constructor() {
             // Handle standard vless:// URIs
             if (trimmedLine.startsWith(VLESS_SCHEME, ignoreCase = true)) {
                 val result = parseVlessUri(trimmedLine, index + 1)
+                when (result) {
+                    is ProfileParseResult.Success -> profiles.add(result.profile)
+                    is ProfileParseResult.Warning -> warnings.add(result.message)
+                    is ProfileParseResult.Error -> warnings.add(result.message)
+                }
+                continue
+            }
+
+            // Handle standard masterdns:// or stormdns:// URIs
+            if (trimmedLine.startsWith("masterdns://", ignoreCase = true) || trimmedLine.startsWith("stormdns://", ignoreCase = true)) {
+                val result = parseMasterDnsUri(trimmedLine, index + 1)
                 when (result) {
                     is ProfileParseResult.Success -> profiles.add(result.profile)
                     is ProfileParseResult.Warning -> warnings.add(result.message)
@@ -402,6 +419,12 @@ class ConfigImporter @Inject constructor() {
             MODE_VAYDNS -> TunnelType.VAYDNS
             MODE_VAYDNS_SSH -> TunnelType.VAYDNS_SSH
             MODE_VLESS -> TunnelType.VLESS
+            MODE_MASTERDNS -> TunnelType.MASTERDNS
+            MODE_MASTERDNS_SSH -> TunnelType.MASTERDNS_SSH
+            MODE_STORMDNS -> TunnelType.STORMDNS
+            MODE_STORMDNS_SSH -> TunnelType.STORMDNS_SSH
+            MODE_NOOSHDAROO -> TunnelType.NOOSHDAROO
+            MODE_QWDTT -> TunnelType.QWDTT
 
             else -> {
                 return ProfileParseResult.Warning("Line $lineNum: Unsupported tunnel type '$tunnelTypeStr', skipping")
@@ -489,6 +512,12 @@ class ConfigImporter @Inject constructor() {
             MODE_VAYDNS -> TunnelType.VAYDNS
             MODE_VAYDNS_SSH -> TunnelType.VAYDNS_SSH
             MODE_VLESS -> TunnelType.VLESS
+            MODE_MASTERDNS -> TunnelType.MASTERDNS
+            MODE_MASTERDNS_SSH -> TunnelType.MASTERDNS_SSH
+            MODE_STORMDNS -> TunnelType.STORMDNS
+            MODE_STORMDNS_SSH -> TunnelType.STORMDNS_SSH
+            MODE_NOOSHDAROO -> TunnelType.NOOSHDAROO
+            MODE_QWDTT -> TunnelType.QWDTT
 
             else -> {
                 return ProfileParseResult.Warning("Line $lineNum: Unsupported tunnel type '$tunnelTypeStr', skipping")
@@ -581,6 +610,12 @@ class ConfigImporter @Inject constructor() {
             MODE_VAYDNS -> TunnelType.VAYDNS
             MODE_VAYDNS_SSH -> TunnelType.VAYDNS_SSH
             MODE_VLESS -> TunnelType.VLESS
+            MODE_MASTERDNS -> TunnelType.MASTERDNS
+            MODE_MASTERDNS_SSH -> TunnelType.MASTERDNS_SSH
+            MODE_STORMDNS -> TunnelType.STORMDNS
+            MODE_STORMDNS_SSH -> TunnelType.STORMDNS_SSH
+            MODE_NOOSHDAROO -> TunnelType.NOOSHDAROO
+            MODE_QWDTT -> TunnelType.QWDTT
 
             else -> {
                 return ProfileParseResult.Warning("Line $lineNum: Unsupported tunnel type '$tunnelTypeStr', skipping")
@@ -676,6 +711,12 @@ class ConfigImporter @Inject constructor() {
             MODE_VAYDNS -> TunnelType.VAYDNS
             MODE_VAYDNS_SSH -> TunnelType.VAYDNS_SSH
             MODE_VLESS -> TunnelType.VLESS
+            MODE_MASTERDNS -> TunnelType.MASTERDNS
+            MODE_MASTERDNS_SSH -> TunnelType.MASTERDNS_SSH
+            MODE_STORMDNS -> TunnelType.STORMDNS
+            MODE_STORMDNS_SSH -> TunnelType.STORMDNS_SSH
+            MODE_NOOSHDAROO -> TunnelType.NOOSHDAROO
+            MODE_QWDTT -> TunnelType.QWDTT
 
             else -> {
                 return ProfileParseResult.Warning("Line $lineNum: Unsupported tunnel type '$tunnelTypeStr', skipping")
@@ -783,6 +824,12 @@ class ConfigImporter @Inject constructor() {
             MODE_VAYDNS -> TunnelType.VAYDNS
             MODE_VAYDNS_SSH -> TunnelType.VAYDNS_SSH
             MODE_VLESS -> TunnelType.VLESS
+            MODE_MASTERDNS -> TunnelType.MASTERDNS
+            MODE_MASTERDNS_SSH -> TunnelType.MASTERDNS_SSH
+            MODE_STORMDNS -> TunnelType.STORMDNS
+            MODE_STORMDNS_SSH -> TunnelType.STORMDNS_SSH
+            MODE_NOOSHDAROO -> TunnelType.NOOSHDAROO
+            MODE_QWDTT -> TunnelType.QWDTT
 
             else -> {
                 return ProfileParseResult.Warning("Line $lineNum: Unsupported tunnel type '$tunnelTypeStr', skipping")
@@ -890,6 +937,12 @@ class ConfigImporter @Inject constructor() {
             MODE_VAYDNS -> TunnelType.VAYDNS
             MODE_VAYDNS_SSH -> TunnelType.VAYDNS_SSH
             MODE_VLESS -> TunnelType.VLESS
+            MODE_MASTERDNS -> TunnelType.MASTERDNS
+            MODE_MASTERDNS_SSH -> TunnelType.MASTERDNS_SSH
+            MODE_STORMDNS -> TunnelType.STORMDNS
+            MODE_STORMDNS_SSH -> TunnelType.STORMDNS_SSH
+            MODE_NOOSHDAROO -> TunnelType.NOOSHDAROO
+            MODE_QWDTT -> TunnelType.QWDTT
 
             else -> {
                 return ProfileParseResult.Warning("Line $lineNum: Unsupported tunnel type '$tunnelTypeStr', skipping")
@@ -993,6 +1046,12 @@ class ConfigImporter @Inject constructor() {
             MODE_VAYDNS -> TunnelType.VAYDNS
             MODE_VAYDNS_SSH -> TunnelType.VAYDNS_SSH
             MODE_VLESS -> TunnelType.VLESS
+            MODE_MASTERDNS -> TunnelType.MASTERDNS
+            MODE_MASTERDNS_SSH -> TunnelType.MASTERDNS_SSH
+            MODE_STORMDNS -> TunnelType.STORMDNS
+            MODE_STORMDNS_SSH -> TunnelType.STORMDNS_SSH
+            MODE_NOOSHDAROO -> TunnelType.NOOSHDAROO
+            MODE_QWDTT -> TunnelType.QWDTT
 
             else -> {
                 return ProfileParseResult.Warning("Line $lineNum: Unsupported tunnel type '$tunnelTypeStr', skipping")
@@ -1107,6 +1166,12 @@ class ConfigImporter @Inject constructor() {
             MODE_VAYDNS -> TunnelType.VAYDNS
             MODE_VAYDNS_SSH -> TunnelType.VAYDNS_SSH
             MODE_VLESS -> TunnelType.VLESS
+            MODE_MASTERDNS -> TunnelType.MASTERDNS
+            MODE_MASTERDNS_SSH -> TunnelType.MASTERDNS_SSH
+            MODE_STORMDNS -> TunnelType.STORMDNS
+            MODE_STORMDNS_SSH -> TunnelType.STORMDNS_SSH
+            MODE_NOOSHDAROO -> TunnelType.NOOSHDAROO
+            MODE_QWDTT -> TunnelType.QWDTT
 
             else -> {
                 return ProfileParseResult.Warning("Line $lineNum: Unsupported tunnel type '$tunnelTypeStr', skipping")
@@ -1141,7 +1206,7 @@ class ConfigImporter @Inject constructor() {
         }
 
         val resolvers = parseResolvers(resolversStr)
-        val isDnsttBased = tunnelType == TunnelType.DNSTT || tunnelType == TunnelType.DNSTT_SSH || tunnelType == TunnelType.NOIZDNS || tunnelType == TunnelType.NOIZDNS_SSH
+        val isDnsttBased = tunnelType == TunnelType.DNSTT || tunnelType == TunnelType.DNSTT_SSH || tunnelType == TunnelType.NOIZDNS || tunnelType == TunnelType.NOIZDNS_SSH || tunnelType == TunnelType.VAYDNS || tunnelType == TunnelType.VAYDNS_SSH || tunnelType == TunnelType.MASTERDNS || tunnelType == TunnelType.MASTERDNS_SSH || tunnelType == TunnelType.STORMDNS || tunnelType == TunnelType.STORMDNS_SSH || tunnelType == TunnelType.NOOSHDAROO || tunnelType == TunnelType.QWDTT
         val skipResolvers = tunnelType == TunnelType.SSH || tunnelType == TunnelType.DOH ||
                 tunnelType == TunnelType.SNOWFLAKE || tunnelType == TunnelType.SOCKS5 ||
                 tunnelType == TunnelType.VLESS ||
@@ -1243,6 +1308,12 @@ class ConfigImporter @Inject constructor() {
             MODE_VAYDNS -> TunnelType.VAYDNS
             MODE_VAYDNS_SSH -> TunnelType.VAYDNS_SSH
             MODE_VLESS -> TunnelType.VLESS
+            MODE_MASTERDNS -> TunnelType.MASTERDNS
+            MODE_MASTERDNS_SSH -> TunnelType.MASTERDNS_SSH
+            MODE_STORMDNS -> TunnelType.STORMDNS
+            MODE_STORMDNS_SSH -> TunnelType.STORMDNS_SSH
+            MODE_NOOSHDAROO -> TunnelType.NOOSHDAROO
+            MODE_QWDTT -> TunnelType.QWDTT
 
             else -> {
                 return ProfileParseResult.Warning("Line $lineNum: Unsupported tunnel type '$tunnelTypeStr', skipping")
@@ -1284,7 +1355,7 @@ class ConfigImporter @Inject constructor() {
         }
 
         val resolvers = parseResolvers(resolversStr)
-        val isDnsttBased = tunnelType == TunnelType.DNSTT || tunnelType == TunnelType.DNSTT_SSH || tunnelType == TunnelType.NOIZDNS || tunnelType == TunnelType.NOIZDNS_SSH
+        val isDnsttBased = tunnelType == TunnelType.DNSTT || tunnelType == TunnelType.DNSTT_SSH || tunnelType == TunnelType.NOIZDNS || tunnelType == TunnelType.NOIZDNS_SSH || tunnelType == TunnelType.VAYDNS || tunnelType == TunnelType.VAYDNS_SSH || tunnelType == TunnelType.MASTERDNS || tunnelType == TunnelType.MASTERDNS_SSH || tunnelType == TunnelType.STORMDNS || tunnelType == TunnelType.STORMDNS_SSH || tunnelType == TunnelType.NOOSHDAROO || tunnelType == TunnelType.QWDTT
         val skipResolvers = tunnelType == TunnelType.SSH || tunnelType == TunnelType.DOH ||
                 tunnelType == TunnelType.SNOWFLAKE || tunnelType == TunnelType.SOCKS5 ||
                 tunnelType == TunnelType.VLESS ||
@@ -1381,6 +1452,12 @@ class ConfigImporter @Inject constructor() {
             MODE_VAYDNS -> TunnelType.VAYDNS
             MODE_VAYDNS_SSH -> TunnelType.VAYDNS_SSH
             MODE_VLESS -> TunnelType.VLESS
+            MODE_MASTERDNS -> TunnelType.MASTERDNS
+            MODE_MASTERDNS_SSH -> TunnelType.MASTERDNS_SSH
+            MODE_STORMDNS -> TunnelType.STORMDNS
+            MODE_STORMDNS_SSH -> TunnelType.STORMDNS_SSH
+            MODE_NOOSHDAROO -> TunnelType.NOOSHDAROO
+            MODE_QWDTT -> TunnelType.QWDTT
 
             else -> {
                 return ProfileParseResult.Warning("Line $lineNum: Unsupported tunnel type '$tunnelTypeStr', skipping")
@@ -1427,7 +1504,7 @@ class ConfigImporter @Inject constructor() {
         }
 
         val resolvers = parseResolvers(resolversStr)
-        val isDnsttBased = tunnelType == TunnelType.DNSTT || tunnelType == TunnelType.DNSTT_SSH || tunnelType == TunnelType.NOIZDNS || tunnelType == TunnelType.NOIZDNS_SSH
+        val isDnsttBased = tunnelType == TunnelType.DNSTT || tunnelType == TunnelType.DNSTT_SSH || tunnelType == TunnelType.NOIZDNS || tunnelType == TunnelType.NOIZDNS_SSH || tunnelType == TunnelType.VAYDNS || tunnelType == TunnelType.VAYDNS_SSH || tunnelType == TunnelType.MASTERDNS || tunnelType == TunnelType.MASTERDNS_SSH || tunnelType == TunnelType.STORMDNS || tunnelType == TunnelType.STORMDNS_SSH || tunnelType == TunnelType.NOOSHDAROO || tunnelType == TunnelType.QWDTT
         val skipResolvers = tunnelType == TunnelType.SSH || tunnelType == TunnelType.DOH ||
                 tunnelType == TunnelType.SNOWFLAKE || tunnelType == TunnelType.SOCKS5 ||
                 tunnelType == TunnelType.VLESS ||
@@ -1526,6 +1603,12 @@ class ConfigImporter @Inject constructor() {
             MODE_VAYDNS -> TunnelType.VAYDNS
             MODE_VAYDNS_SSH -> TunnelType.VAYDNS_SSH
             MODE_VLESS -> TunnelType.VLESS
+            MODE_MASTERDNS -> TunnelType.MASTERDNS
+            MODE_MASTERDNS_SSH -> TunnelType.MASTERDNS_SSH
+            MODE_STORMDNS -> TunnelType.STORMDNS
+            MODE_STORMDNS_SSH -> TunnelType.STORMDNS_SSH
+            MODE_NOOSHDAROO -> TunnelType.NOOSHDAROO
+            MODE_QWDTT -> TunnelType.QWDTT
 
             else -> {
                 return ProfileParseResult.Warning("Line $lineNum: Unsupported tunnel type '$tunnelTypeStr', skipping")
@@ -1573,7 +1656,7 @@ class ConfigImporter @Inject constructor() {
         }
 
         val resolvers = parseResolvers(resolversStr)
-        val isDnsttBased = tunnelType == TunnelType.DNSTT || tunnelType == TunnelType.DNSTT_SSH || tunnelType == TunnelType.NOIZDNS || tunnelType == TunnelType.NOIZDNS_SSH
+        val isDnsttBased = tunnelType == TunnelType.DNSTT || tunnelType == TunnelType.DNSTT_SSH || tunnelType == TunnelType.NOIZDNS || tunnelType == TunnelType.NOIZDNS_SSH || tunnelType == TunnelType.VAYDNS || tunnelType == TunnelType.VAYDNS_SSH || tunnelType == TunnelType.MASTERDNS || tunnelType == TunnelType.MASTERDNS_SSH || tunnelType == TunnelType.STORMDNS || tunnelType == TunnelType.STORMDNS_SSH || tunnelType == TunnelType.NOOSHDAROO || tunnelType == TunnelType.QWDTT
         val skipResolvers = tunnelType == TunnelType.SSH || tunnelType == TunnelType.DOH ||
                 tunnelType == TunnelType.SNOWFLAKE || tunnelType == TunnelType.SOCKS5 ||
                 tunnelType == TunnelType.VLESS ||
@@ -1672,6 +1755,12 @@ class ConfigImporter @Inject constructor() {
             MODE_VAYDNS -> TunnelType.VAYDNS
             MODE_VAYDNS_SSH -> TunnelType.VAYDNS_SSH
             MODE_VLESS -> TunnelType.VLESS
+            MODE_MASTERDNS -> TunnelType.MASTERDNS
+            MODE_MASTERDNS_SSH -> TunnelType.MASTERDNS_SSH
+            MODE_STORMDNS -> TunnelType.STORMDNS
+            MODE_STORMDNS_SSH -> TunnelType.STORMDNS_SSH
+            MODE_NOOSHDAROO -> TunnelType.NOOSHDAROO
+            MODE_QWDTT -> TunnelType.QWDTT
 
             else -> {
                 return ProfileParseResult.Warning("Line $lineNum: Unsupported tunnel type '$tunnelTypeStr', skipping")
@@ -1725,7 +1814,7 @@ class ConfigImporter @Inject constructor() {
         }
 
         val resolvers = parseResolvers(resolversStr)
-        val isDnsttBased = tunnelType == TunnelType.DNSTT || tunnelType == TunnelType.DNSTT_SSH || tunnelType == TunnelType.NOIZDNS || tunnelType == TunnelType.NOIZDNS_SSH
+        val isDnsttBased = tunnelType == TunnelType.DNSTT || tunnelType == TunnelType.DNSTT_SSH || tunnelType == TunnelType.NOIZDNS || tunnelType == TunnelType.NOIZDNS_SSH || tunnelType == TunnelType.VAYDNS || tunnelType == TunnelType.VAYDNS_SSH || tunnelType == TunnelType.MASTERDNS || tunnelType == TunnelType.MASTERDNS_SSH || tunnelType == TunnelType.STORMDNS || tunnelType == TunnelType.STORMDNS_SSH || tunnelType == TunnelType.NOOSHDAROO || tunnelType == TunnelType.QWDTT
         val skipResolvers = tunnelType == TunnelType.SSH || tunnelType == TunnelType.DOH ||
                 tunnelType == TunnelType.SNOWFLAKE || tunnelType == TunnelType.SOCKS5 ||
                 tunnelType == TunnelType.NAIVE_SSH || tunnelType == TunnelType.NAIVE ||
@@ -1835,6 +1924,12 @@ class ConfigImporter @Inject constructor() {
             MODE_VAYDNS -> TunnelType.VAYDNS
             MODE_VAYDNS_SSH -> TunnelType.VAYDNS_SSH
             MODE_VLESS -> TunnelType.VLESS
+            MODE_MASTERDNS -> TunnelType.MASTERDNS
+            MODE_MASTERDNS_SSH -> TunnelType.MASTERDNS_SSH
+            MODE_STORMDNS -> TunnelType.STORMDNS
+            MODE_STORMDNS_SSH -> TunnelType.STORMDNS_SSH
+            MODE_NOOSHDAROO -> TunnelType.NOOSHDAROO
+            MODE_QWDTT -> TunnelType.QWDTT
 
             else -> {
                 return ProfileParseResult.Warning("Line $lineNum: Unsupported tunnel type '$tunnelTypeStr', skipping")
@@ -1889,7 +1984,7 @@ class ConfigImporter @Inject constructor() {
         }
 
         val resolvers = parseResolvers(resolversStr)
-        val isDnsttBased = tunnelType == TunnelType.DNSTT || tunnelType == TunnelType.DNSTT_SSH || tunnelType == TunnelType.NOIZDNS || tunnelType == TunnelType.NOIZDNS_SSH
+        val isDnsttBased = tunnelType == TunnelType.DNSTT || tunnelType == TunnelType.DNSTT_SSH || tunnelType == TunnelType.NOIZDNS || tunnelType == TunnelType.NOIZDNS_SSH || tunnelType == TunnelType.VAYDNS || tunnelType == TunnelType.VAYDNS_SSH || tunnelType == TunnelType.MASTERDNS || tunnelType == TunnelType.MASTERDNS_SSH || tunnelType == TunnelType.STORMDNS || tunnelType == TunnelType.STORMDNS_SSH || tunnelType == TunnelType.NOOSHDAROO || tunnelType == TunnelType.QWDTT
         val skipResolvers = tunnelType == TunnelType.SSH || tunnelType == TunnelType.DOH ||
                 tunnelType == TunnelType.SNOWFLAKE || tunnelType == TunnelType.SOCKS5 ||
                 tunnelType == TunnelType.NAIVE_SSH || tunnelType == TunnelType.NAIVE ||
@@ -2201,6 +2296,32 @@ class ConfigImporter @Inject constructor() {
      *
      * Fragment after # is the profile name.
      */
+    private fun parseMasterDnsUri(uriString: String, lineNum: Int): ProfileParseResult {
+        return try {
+            val uri = android.net.Uri.parse(uriString)
+            val scheme = uri.scheme?.lowercase() ?: "masterdns"
+            val isStorm = scheme == "stormdns"
+            val tunnelType = if (isStorm) TunnelType.STORMDNS else TunnelType.MASTERDNS
+            val domain = uri.host ?: ""
+            val key = uri.userInfo ?: ""
+            val name = uri.fragment?.takeIf { it.isNotBlank() } ?: if (isStorm) "StormDNS" else "MasterDNS"
+            val resolversQuery = uri.getQueryParameter("resolvers") ?: "8.8.8.8:53"
+            val resolvers = parseResolvers(resolversQuery)
+
+            ProfileParseResult.Success(
+                ServerProfile(
+                    name = name,
+                    domain = domain,
+                    tunnelType = tunnelType,
+                    dnsttPublicKey = key,
+                    resolvers = resolvers
+                )
+            )
+        } catch (e: Exception) {
+            ProfileParseResult.Error("Line $lineNum: Failed to parse MasterDNS URI: ${e.message}")
+        }
+    }
+
     private fun parseVlessUri(uri: String, lineNum: Int): ProfileParseResult {
         try {
             // Strip scheme
