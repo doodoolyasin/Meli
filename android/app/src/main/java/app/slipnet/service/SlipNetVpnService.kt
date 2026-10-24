@@ -550,7 +550,8 @@ class SlipNetVpnService : VpnService() {
                     TunnelType.MASTERDNS, TunnelType.MASTERDNS_SSH,
                     TunnelType.STORMDNS, TunnelType.STORMDNS_SSH -> connectMasterDns(profile, dnsServer, remoteDns, remoteDnsFallback, globalResolverOverride)
                     TunnelType.NOOSHDAROO, TunnelType.QWDTT -> connectDnstt(profile, dnsServer, remoteDns, remoteDnsFallback, globalResolverOverride)
-                    TunnelType.PINGTUNNEL, TunnelType.BALE, TunnelType.SPOOF_TUNNEL, TunnelType.GOLDEN_GRE, TunnelType.PAQET -> connectSocks5(profile, dnsServer, remoteDns)
+                    TunnelType.BALE -> connectBale(profile, dnsServer, remoteDns)
+                    TunnelType.PINGTUNNEL, TunnelType.SPOOF_TUNNEL, TunnelType.GOLDEN_GRE, TunnelType.PAQET -> connectSocks5(profile, dnsServer, remoteDns)
                 }
 
             } catch (e: kotlinx.coroutines.CancellationException) {
@@ -2746,6 +2747,45 @@ class SlipNetVpnService : VpnService() {
      * In Direct mode, MasterDNS's native SOCKS5 listener serves hev-socks5-tunnel.
      * In SSH mode, SSH tunnels through MasterDNS's SOCKS5 listener to the SSH server.
      */
+    private suspend fun connectBale(profile: app.slipnet.domain.model.ServerProfile, dnsServer: String, remoteDns: String) {
+        vpnRepository.setCurrentTunnelType(TunnelType.BALE)
+        val port = 10885
+        val res = app.slipnet.tunnel.BaleTunnelBridge.startClient(
+            this,
+            roomOrLink = profile.domain,
+            companionHost = profile.sshHost,
+            companionPort = profile.sshPort,
+            listenPort = port
+        )
+        if (res.isFailure) {
+            connectionManager.onVpnError(res.exceptionOrNull()?.message ?: "Failed to start Bale tunnel")
+            stopForeground(STOP_FOREGROUND_REMOVE)
+            stopSelf()
+            return
+        }
+        if (!waitForProxyReady(port, maxAttempts = 30, delayMs = 150)) {
+            connectionManager.onVpnError("Bale bridge not listening")
+            app.slipnet.tunnel.BaleTunnelBridge.stopClient()
+            stopForeground(STOP_FOREGROUND_REMOVE)
+            stopSelf()
+            return
+        }
+        if (!isProxyOnly) {
+            vpnInterface = establishVpnInterface(dnsServer)
+            if (vpnInterface == null) {
+                connectionManager.onVpnError("Failed to establish VPN interface")
+                app.slipnet.tunnel.BaleTunnelBridge.stopClient()
+                stopForeground(STOP_FOREGROUND_REMOVE)
+                stopSelf()
+                return
+            }
+            delay(200)
+            vpnRepository.startTun2Socks(socksPort = port)
+        }
+        vpnRepository.setProxyConnected(profile)
+        finishConnection()
+    }
+
     private suspend fun connectMasterDns(
         profile: app.slipnet.domain.model.ServerProfile,
         dnsServer: String,

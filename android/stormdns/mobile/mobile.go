@@ -75,6 +75,10 @@ func NewClient(
 	fmt.Fprintf(&sb, "DATA_ENCRYPTION_METHOD = %d\n", encryptionMethod)
 	fmt.Fprintf(&sb, "ENCRYPTION_KEY = %q\n", encryptionKey)
 	fmt.Fprintf(&sb, "PROTOCOL_TYPE = \"SOCKS5\"\n")
+	fmt.Fprintf(&sb, "MIN_UPLOAD_MTU = 20\n")
+	fmt.Fprintf(&sb, "MIN_DOWNLOAD_MTU = 50\n")
+	fmt.Fprintf(&sb, "MTU_TEST_RETRIES_RESOLVERS = 5\n")
+	fmt.Fprintf(&sb, "STARTUP_MODE = \"resolvers\"\n")
 	if strings.TrimSpace(logLevel) != "" {
 		fmt.Fprintf(&sb, "LOG_LEVEL = %q\n", logLevel)
 	}

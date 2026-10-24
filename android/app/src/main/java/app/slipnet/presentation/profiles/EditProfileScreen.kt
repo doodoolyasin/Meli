@@ -3763,7 +3763,7 @@ private fun MultiResolverSettings(
                 )
                 IconButton(
                     onClick = { onSpreadCountChange(rrSpreadCount + 1) },
-                    enabled = rrSpreadCount < 5
+                    enabled = rrSpreadCount < 10
                 ) {
                     Icon(Icons.Default.Add, contentDescription = "Increase")
                 }

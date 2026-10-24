@@ -221,7 +221,7 @@ data class EditProfileUiState(
     // Multi-resolver mode
     val resolverMode: ResolverMode = ResolverMode.ROUND_ROBIN,
     // Round-robin spread count (how many resolvers to send to in fast mode)
-    val rrSpreadCount: Int = 3,
+    val rrSpreadCount: Int = 5,
     // VLESS fields
     val vlessUuid: String = "",
     val vlessUuidError: String? = null,
