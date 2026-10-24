@@ -941,6 +941,24 @@ fun MainScreen(
                                 onNavigateToAddProfile(TunnelType.QWDTT.value)
                             }
                         )
+                        AddMenuGridItem(
+                            modifier = tileMod,
+                            icon = Icons.Default.Cyclone,
+                            title = "CottenDNS",
+                            onClick = {
+                                showAddMenu = false
+                                onNavigateToAddProfile(TunnelType.STORMDNS.value)
+                            }
+                        )
+                        AddMenuGridItem(
+                            modifier = tileMod,
+                            icon = Icons.Default.FlashOn,
+                            title = "Soar",
+                            onClick = {
+                                showAddMenu = false
+                                onNavigateToAddProfile(TunnelType.MASTERDNS.value)
+                            }
+                        )
                     }
 
                     HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp))

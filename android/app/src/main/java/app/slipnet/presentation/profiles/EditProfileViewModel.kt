@@ -199,6 +199,8 @@ data class EditProfileUiState(
     val masterDnsAdvancedExpanded: Boolean = false,
     val masterDnsUploadMtu: String = "134",
     val masterDnsDownloadMtu: String = "4000",
+    val masterDnsParallelism: String = "4",
+    val masterDnsDuplication: String = "3",
     val masterDnsCompression: String = "LZ4",
     // SSH transport mode (mutually exclusive)
     val sshTransport: SshTransport = SshTransport.DIRECT,
@@ -242,7 +244,12 @@ data class EditProfileUiState(
     val wsPaddingEnabled: Boolean = false,
 ) {
     val useSsh: Boolean
-        get() = tunnelType == TunnelType.SSH || tunnelType == TunnelType.DNSTT_SSH || tunnelType == TunnelType.SLIPSTREAM_SSH || tunnelType == TunnelType.NAIVE_SSH || tunnelType == TunnelType.NOIZDNS_SSH || tunnelType == TunnelType.VAYDNS_SSH || tunnelType == TunnelType.MASTERDNS_SSH || tunnelType == TunnelType.STORMDNS_SSH
+        get() = tunnelType == TunnelType.SSH || tunnelType == TunnelType.DNSTT_SSH ||
+                tunnelType == TunnelType.SLIPSTREAM_SSH || tunnelType == TunnelType.NAIVE_SSH ||
+                tunnelType == TunnelType.NOIZDNS_SSH || tunnelType == TunnelType.VAYDNS_SSH ||
+                tunnelType == TunnelType.MASTERDNS_SSH || tunnelType == TunnelType.STORMDNS_SSH ||
+                tunnelType == TunnelType.NOOSHDAROO || tunnelType == TunnelType.QWDTT ||
+                sshUsername.isNotBlank()
 
     val isDnsttBased: Boolean
         get() = tunnelType == TunnelType.DNSTT || tunnelType == TunnelType.DNSTT_SSH
@@ -315,7 +322,12 @@ data class EditProfileUiState(
         get() = tunnelType == TunnelType.PAQET
 
     val showConnectionMethod: Boolean
-        get() = !isSshOnly && !isDoh && !isSnowflake && !isSocks5 && !isVless
+        get() = !isSshOnly && !isDoh && !isSnowflake && !isSocks5 && !isVless &&
+                tunnelType != TunnelType.PINGTUNNEL &&
+                tunnelType != TunnelType.BALE &&
+                tunnelType != TunnelType.SPOOF_TUNNEL &&
+                tunnelType != TunnelType.GOLDEN_GRE &&
+                tunnelType != TunnelType.PAQET
 }
 
 @HiltViewModel
@@ -619,6 +631,14 @@ class EditProfileViewModel @Inject constructor(
         _uiState.value = _uiState.value.copy(masterDnsDownloadMtu = mtu)
     }
 
+    fun updateMasterDnsParallelism(count: String) {
+        _uiState.value = _uiState.value.copy(masterDnsParallelism = count)
+    }
+
+    fun updateMasterDnsDuplication(count: String) {
+        _uiState.value = _uiState.value.copy(masterDnsDuplication = count)
+    }
+
     fun updateMasterDnsCompression(comp: String) {
         _uiState.value = _uiState.value.copy(masterDnsCompression = comp)
     }
@@ -653,6 +673,8 @@ class EditProfileViewModel @Inject constructor(
             useSsh && (currentType == TunnelType.VAYDNS || currentType == TunnelType.VAYDNS_SSH) -> TunnelType.VAYDNS_SSH
             useSsh && (currentType == TunnelType.MASTERDNS || currentType == TunnelType.MASTERDNS_SSH) -> TunnelType.MASTERDNS_SSH
             useSsh && (currentType == TunnelType.STORMDNS || currentType == TunnelType.STORMDNS_SSH) -> TunnelType.STORMDNS_SSH
+            useSsh && currentType == TunnelType.NOOSHDAROO -> TunnelType.DNSTT_SSH
+            useSsh && currentType == TunnelType.QWDTT -> TunnelType.DNSTT_SSH
             !useSsh && (currentType == TunnelType.DNSTT || currentType == TunnelType.DNSTT_SSH) -> TunnelType.DNSTT
             !useSsh && (currentType == TunnelType.NOIZDNS || currentType == TunnelType.NOIZDNS_SSH) -> TunnelType.NOIZDNS
             !useSsh && (currentType == TunnelType.SLIPSTREAM || currentType == TunnelType.SLIPSTREAM_SSH) -> TunnelType.SLIPSTREAM

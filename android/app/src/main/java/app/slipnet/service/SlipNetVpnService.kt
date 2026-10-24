@@ -2757,17 +2757,6 @@ class SlipNetVpnService : VpnService() {
         val proxyHost = preferencesDataStore.proxyListenAddress.first()
         val masterDnsPort = proxyPort + 1
 
-        if (!isProxyOnly) {
-            vpnInterface = establishVpnInterface(dnsServer)
-            if (vpnInterface == null) {
-                connectionManager.onVpnError("Failed to establish VPN interface")
-                stopForeground(STOP_FOREGROUND_REMOVE)
-                stopSelf()
-                return
-            }
-            delay(200)
-        }
-
         val proxyResult = vpnRepository.startMasterDnsProxy(
             profile,
             portOverride = masterDnsPort,
@@ -2776,8 +2765,6 @@ class SlipNetVpnService : VpnService() {
         )
         if (proxyResult.isFailure) {
             connectionManager.onVpnError(proxyResult.exceptionOrNull()?.message ?: "Failed to start MasterDNS proxy")
-            vpnInterface?.close()
-            vpnInterface = null
             stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf()
             return
@@ -2789,11 +2776,21 @@ class SlipNetVpnService : VpnService() {
             Log.e(TAG, "MasterDNS failed to become ready on port $actualPort: $lastErr")
             connectionManager.onVpnError("MasterDNS startup failed: $lastErr")
             MasterDnsBridge.stopClient()
-            vpnInterface?.close()
-            vpnInterface = null
             stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf()
             return
+        }
+
+        if (!isProxyOnly) {
+            vpnInterface = establishVpnInterface(dnsServer)
+            if (vpnInterface == null) {
+                connectionManager.onVpnError("Failed to establish VPN interface")
+                MasterDnsBridge.stopClient()
+                stopForeground(STOP_FOREGROUND_REMOVE)
+                stopSelf()
+                return
+            }
+            delay(200)
         }
 
         val useSsh = profile.tunnelType == TunnelType.MASTERDNS_SSH || profile.tunnelType == TunnelType.STORMDNS_SSH || profile.sshUsername.isNotBlank()

@@ -1248,7 +1248,11 @@ fun EditProfileScreen(
                 // Permissions + exact setup guide (all methods).
                 // Lets the user grant every required Android permission for the
                 // selected method right here, then connect from the profile list.
+                // Permissions section (collapsible)
                 MethodPermissionsSection(tunnelType = uiState.tunnelType)
+
+                // Exact setup steps & guide for this method
+                SetupGuide(tunnelType = uiState.tunnelType)
 
                 // Health Check Section: "باز هست یا نه" (No-connect reachability probe)
                 HealthCheckSection(
@@ -1738,6 +1742,26 @@ fun EditProfileScreen(
                                     label = { Text("Download MTU") },
                                     placeholder = { Text("4000") },
                                     supportingText = { Text("Server download response size (default: 4000)") },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                    singleLine = true
+                                )
+                                OutlinedTextField(
+                                    value = uiState.masterDnsParallelism,
+                                    onValueChange = { viewModel.updateMasterDnsParallelism(it.filter { c -> c.isDigit() }.take(2)) },
+                                    label = { Text("Workers Parallelism") },
+                                    placeholder = { Text("4") },
+                                    supportingText = { Text("Parallel RX/TX worker count (default: 4)") },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                    singleLine = true
+                                )
+                                OutlinedTextField(
+                                    value = uiState.masterDnsDuplication,
+                                    onValueChange = { viewModel.updateMasterDnsDuplication(it.filter { c -> c.isDigit() }.take(2)) },
+                                    label = { Text("Packet Duplication Count") },
+                                    placeholder = { Text("3") },
+                                    supportingText = { Text("Anti-packet-loss duplicate query count (default: 3)") },
                                     modifier = Modifier.fillMaxWidth(),
                                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                     singleLine = true
@@ -3274,7 +3298,7 @@ fun EditProfileScreen(
                     onClick = {
                         val intent = android.content.Intent(
                             android.content.Intent.ACTION_VIEW,
-                            android.net.Uri.parse("https://github.com/anonvector/slipgate")
+                            android.net.Uri.parse("https://github.com/doodoolyasin/Meli")
                         )
                         context.startActivity(intent)
                     },
