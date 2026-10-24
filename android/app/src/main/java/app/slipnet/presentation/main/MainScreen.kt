@@ -943,7 +943,7 @@ fun MainScreen(
                         )
                         AddMenuGridItem(
                             modifier = tileMod,
-                            icon = Icons.Default.Cyclone,
+                            icon = Icons.Default.Dns,
                             title = "CottenDNS",
                             onClick = {
                                 showAddMenu = false
@@ -952,7 +952,7 @@ fun MainScreen(
                         )
                         AddMenuGridItem(
                             modifier = tileMod,
-                            icon = Icons.Default.FlashOn,
+                            icon = Icons.Default.Air,
                             title = "Soar",
                             onClick = {
                                 showAddMenu = false
