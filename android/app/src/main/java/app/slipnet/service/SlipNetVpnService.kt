@@ -2784,11 +2784,39 @@ class SlipNetVpnService : VpnService() {
         }
 
         val actualPort = MasterDnsBridge.getClientPort()
-        if (!waitForProxyReady(actualPort, maxAttempts = 120, delayMs = 100)) {
-            handleProxyStartupFailure(actualPort)
+        var proxyReady = false
+        for (attempt in 1..150) { // 30 seconds (150 * 200ms)
+            if (isPortListening(actualPort)) {
+                proxyReady = true
+                Log.i(TAG, "MasterDNS SOCKS5 proxy ready on port $actualPort after $attempt attempts (${attempt * 200}ms)")
+                break
+            }
+            val err = MasterDnsBridge.lastError()
+            if (err.isNotBlank()) {
+                Log.e(TAG, "MasterDNS engine failed: $err")
+                connectionManager.onVpnError("MasterDNS failed: $err")
+                MasterDnsBridge.stopClient()
+                vpnInterface?.close()
+                vpnInterface = null
+                stopForeground(STOP_FOREGROUND_REMOVE)
+                stopSelf()
+                return
+            }
+            if (attempt % 5 == 0) {
+                Log.d(TAG, "Waiting for MasterDNS proxy (attempt $attempt/150, sessionReady=${MasterDnsBridge.isSessionReady()})")
+            }
+            delay(200)
+        }
+
+        if (!proxyReady) {
+            val lastErr = MasterDnsBridge.lastError().ifBlank { "Port not listening after 30s" }
+            Log.e(TAG, "MasterDNS failed to become ready on port $actualPort: $lastErr")
+            connectionManager.onVpnError("MasterDNS startup failed: $lastErr")
             MasterDnsBridge.stopClient()
             vpnInterface?.close()
             vpnInterface = null
+            stopForeground(STOP_FOREGROUND_REMOVE)
+            stopSelf()
             return
         }
 
@@ -5092,7 +5120,13 @@ class SlipNetVpnService : VpnService() {
                 currentTunnelType == TunnelType.NAIVE ||
                 currentTunnelType == TunnelType.SNOWFLAKE ||
                 currentTunnelType == TunnelType.SOCKS5 ||
-                currentTunnelType == TunnelType.VLESS
+                currentTunnelType == TunnelType.VLESS ||
+                currentTunnelType == TunnelType.MASTERDNS ||
+                currentTunnelType == TunnelType.MASTERDNS_SSH ||
+                currentTunnelType == TunnelType.STORMDNS ||
+                currentTunnelType == TunnelType.STORMDNS_SSH ||
+                currentTunnelType == TunnelType.NOOSHDAROO ||
+                currentTunnelType == TunnelType.QWDTT
 
         val splitEnabled = preferencesDataStore.splitTunnelingEnabled.first()
         val splitMode = preferencesDataStore.splitTunnelingMode.first()
