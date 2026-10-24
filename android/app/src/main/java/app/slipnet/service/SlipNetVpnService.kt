@@ -2856,26 +2856,16 @@ class SlipNetVpnService : VpnService() {
         }
 
         val socksPort = if (useSsh) proxyPort else actualPort
-        val vpnFd = vpnInterface?.fd ?: -1
-        if (vpnFd != -1) {
-            val hevResult = vpnRepository.startHevTunnel(
-                vpnFd = vpnFd,
-                socks5Port = socksPort,
-                socks5Host = "127.0.0.1",
-                remoteDnsHost = remoteDns,
-                remoteDnsFallback = remoteDnsFallback,
-                isDnsTunnel = true
-            )
-            if (hevResult.isFailure) {
-                connectionManager.onVpnError("Failed to start VPN tunnel: ${hevResult.exceptionOrNull()?.message}")
-                if (useSsh) SshTunnelBridge.stop()
-                MasterDnsBridge.stopClient()
-                vpnInterface?.close()
-                vpnInterface = null
-                stopForeground(STOP_FOREGROUND_REMOVE)
-                stopSelf()
-                return
-            }
+        val tun2socksResult = vpnRepository.startTun2Socks(profile, vpnInterface!!, socksPortOverride = socksPort)
+        if (tun2socksResult.isFailure) {
+            connectionManager.onVpnError(tun2socksResult.exceptionOrNull()?.message ?: "Failed to start tunnel")
+            if (useSsh) SshTunnelBridge.stop()
+            MasterDnsBridge.stopClient()
+            vpnInterface?.close()
+            vpnInterface = null
+            stopForeground(STOP_FOREGROUND_REMOVE)
+            stopSelf()
+            return
         }
 
         delay(500)
