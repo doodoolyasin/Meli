@@ -251,6 +251,7 @@ data class EditProfileUiState(
                 tunnelType == TunnelType.MASTERDNS_SSH || tunnelType == TunnelType.STORMDNS_SSH ||
                 tunnelType == TunnelType.NOOSHDAROO_SSH || tunnelType == TunnelType.QWDTT_SSH ||
                 tunnelType == TunnelType.COTTENDNS_SSH || tunnelType == TunnelType.SOAR_SSH ||
+                tunnelType == TunnelType.MELI_SSH ||
                 sshUsername.isNotBlank()
 
     val isDnsttBased: Boolean
@@ -267,7 +268,7 @@ data class EditProfileUiState(
 
     val isDnsttOrNoizOrVaydnsBased: Boolean
         get() = isDnsttBased || isNoizdnsBased || isVaydnsBased || isMasterDns || isStormDns ||
-                isCottenDns || isSoar || isNooshdaroo || isQwdtt
+                isCottenDns || isSoar || isMeli || isNooshdaroo || isQwdtt
 
     val isSlipstreamBased: Boolean
         get() = tunnelType == TunnelType.SLIPSTREAM || tunnelType == TunnelType.SLIPSTREAM_SSH
@@ -304,6 +305,9 @@ data class EditProfileUiState(
 
     val isStormDns: Boolean
         get() = tunnelType == TunnelType.STORMDNS || tunnelType == TunnelType.STORMDNS_SSH
+
+    val isMeli: Boolean
+        get() = tunnelType == TunnelType.MELI || tunnelType == TunnelType.MELI_SSH
 
     val isCottenDns: Boolean
         get() = tunnelType == TunnelType.COTTENDNS || tunnelType == TunnelType.COTTENDNS_SSH
@@ -351,7 +355,8 @@ class EditProfileViewModel @Inject constructor(
 
     private val profileId: Long? = savedStateHandle.get<Long>("profileId")
     private val rawTunnelTypeArg: String? = savedStateHandle.get<String>("tunnelType")
-    private val isMasterDnsInitial: Boolean = rawTunnelTypeArg == "meli" || rawTunnelTypeArg == TunnelType.MASTERDNS.value
+    private val isMeliInitial: Boolean = rawTunnelTypeArg == "meli" || rawTunnelTypeArg == TunnelType.MELI.value
+    private val isMasterDnsInitial: Boolean = rawTunnelTypeArg == TunnelType.MASTERDNS.value
     private val isStormDnsInitial: Boolean = rawTunnelTypeArg == TunnelType.STORMDNS.value
     private val isCottenDnsInitial: Boolean = rawTunnelTypeArg == TunnelType.COTTENDNS.value
     private val isSoarInitial: Boolean = rawTunnelTypeArg == TunnelType.SOAR.value
@@ -363,6 +368,7 @@ class EditProfileViewModel @Inject constructor(
     private val isSlipstreamInitial: Boolean = rawTunnelTypeArg == TunnelType.SLIPSTREAM.value
 
     private val initialTunnelType: TunnelType = when {
+        isMeliInitial -> TunnelType.MELI
         isMasterDnsInitial -> TunnelType.MASTERDNS
         isStormDnsInitial -> TunnelType.STORMDNS
         isCottenDnsInitial -> TunnelType.COTTENDNS
@@ -381,6 +387,7 @@ class EditProfileViewModel @Inject constructor(
             profileId = profileId,
             tunnelType = initialTunnelType,
             name = when {
+                isMeliInitial -> "Meli Protocol (Custom)"
                 isMasterDnsInitial -> "MasterDNS Tunnel"
                 isStormDnsInitial -> "StormDNS Tunnel"
                 isCottenDnsInitial -> "CottenDNS Tunnel"
@@ -394,6 +401,7 @@ class EditProfileViewModel @Inject constructor(
                 else -> ""
             },
             domain = when {
+                isMeliInitial -> "goi.dhafhdtjdti.site"
                 isMasterDnsInitial -> "goi.dhafhdtjdti.site"
                 isStormDnsInitial -> "storm.dhafhdtjdti.site"
                 isCottenDnsInitial -> "cotten.dhafhdtjdti.site"
@@ -407,7 +415,7 @@ class EditProfileViewModel @Inject constructor(
                 else -> ""
             },
             dnsttPublicKey = when {
-                isMasterDnsInitial -> "5d790e75a6262fe95f70979c7bddd360"
+                isMeliInitial || isMasterDnsInitial -> "5d790e75a6262fe95f70979c7bddd360"
                 isStormDnsInitial -> "4e9b81f3c2a05d76189e4f2038b7d15a"
                 isCottenDnsInitial -> "02da35feff3a87e8e2e07965a3b5f35c"
                 isSoarInitial -> "ffefd358f4061799fb8b9b978dc1652de9d3d2ffbe0049adf996090adb612d9e"
@@ -419,10 +427,11 @@ class EditProfileViewModel @Inject constructor(
                 else -> ""
             },
             resolvers = when {
-                isMasterDnsInitial || isStormDnsInitial || isCottenDnsInitial || isSoarInitial -> "8.8.8.8:53, 1.1.1.1:53"
+                isMeliInitial || isMasterDnsInitial || isStormDnsInitial || isCottenDnsInitial || isSoarInitial -> "8.8.8.8:53, 1.1.1.1:53"
                 else -> ""
             },
-            authoritativeMode = isMasterDnsInitial || isStormDnsInitial || isCottenDnsInitial || isSoarInitial,
+            authoritativeMode = isMeliInitial || isMasterDnsInitial || isStormDnsInitial || isCottenDnsInitial || isSoarInitial,
+            tunnelEncryptionMethod = if (isMeliInitial) 2 else 1,
             sshHost = "16.171.152.115",
             sshPort = "22",
             sshUsername = "yasin",
@@ -735,6 +744,7 @@ class EditProfileViewModel @Inject constructor(
             useSsh && (currentType == TunnelType.QWDTT || currentType == TunnelType.QWDTT_SSH) -> TunnelType.QWDTT_SSH
             useSsh && (currentType == TunnelType.COTTENDNS || currentType == TunnelType.COTTENDNS_SSH) -> TunnelType.COTTENDNS_SSH
             useSsh && (currentType == TunnelType.SOAR || currentType == TunnelType.SOAR_SSH) -> TunnelType.SOAR_SSH
+            useSsh && (currentType == TunnelType.MELI || currentType == TunnelType.MELI_SSH) -> TunnelType.MELI_SSH
             !useSsh && (currentType == TunnelType.DNSTT || currentType == TunnelType.DNSTT_SSH) -> TunnelType.DNSTT
             !useSsh && (currentType == TunnelType.NOIZDNS || currentType == TunnelType.NOIZDNS_SSH) -> TunnelType.NOIZDNS
             !useSsh && (currentType == TunnelType.SLIPSTREAM || currentType == TunnelType.SLIPSTREAM_SSH) -> TunnelType.SLIPSTREAM
@@ -746,6 +756,7 @@ class EditProfileViewModel @Inject constructor(
             !useSsh && (currentType == TunnelType.QWDTT || currentType == TunnelType.QWDTT_SSH) -> TunnelType.QWDTT
             !useSsh && (currentType == TunnelType.COTTENDNS || currentType == TunnelType.COTTENDNS_SSH) -> TunnelType.COTTENDNS
             !useSsh && (currentType == TunnelType.SOAR || currentType == TunnelType.SOAR_SSH) -> TunnelType.SOAR
+            !useSsh && (currentType == TunnelType.MELI || currentType == TunnelType.MELI_SSH) -> TunnelType.MELI
             else -> currentType
         }
         _uiState.value = _uiState.value.copy(
@@ -1945,7 +1956,8 @@ class EditProfileViewModel @Inject constructor(
 
         val is32HexKey = tunnelType == TunnelType.MASTERDNS || tunnelType == TunnelType.MASTERDNS_SSH ||
                          tunnelType == TunnelType.STORMDNS || tunnelType == TunnelType.STORMDNS_SSH ||
-                         tunnelType == TunnelType.COTTENDNS || tunnelType == TunnelType.COTTENDNS_SSH
+                         tunnelType == TunnelType.COTTENDNS || tunnelType == TunnelType.COTTENDNS_SSH ||
+                         tunnelType == TunnelType.MELI || tunnelType == TunnelType.MELI_SSH
 
         if (is32HexKey) {
             if (trimmed.length != 32) {

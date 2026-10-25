@@ -300,12 +300,19 @@ fun ProfileListItem(
 
                 // Detail line: tunnel type
                 val tunnelTypeLabel = when {
+                    profile.tunnelType == TunnelType.MELI -> "Meli Protocol"
+                    profile.tunnelType == TunnelType.MELI_SSH -> "Meli + SSH"
                     profile.tunnelType == TunnelType.MASTERDNS -> "MasterDNS"
                     profile.tunnelType == TunnelType.MASTERDNS_SSH -> "MasterDNS + SSH"
                     profile.tunnelType == TunnelType.STORMDNS -> "StormDNS"
                     profile.tunnelType == TunnelType.STORMDNS_SSH -> "StormDNS + SSH"
-                    profile.name.contains("masterdns", ignoreCase = true) || profile.name.contains("meli", ignoreCase = true) -> "MasterDNS"
-                    profile.name.contains("stormdns", ignoreCase = true) -> "StormDNS"
+                    profile.tunnelType == TunnelType.COTTENDNS -> "CottenDNS"
+                    profile.tunnelType == TunnelType.COTTENDNS_SSH -> "CottenDNS + SSH"
+                    profile.tunnelType == TunnelType.SOAR -> "Soar"
+                    profile.tunnelType == TunnelType.SOAR_SSH -> "Soar + SSH"
+                    profile.name.contains("meli", ignoreCase = true) -> if (profile.sshUsername.isNotBlank()) "Meli + SSH" else "Meli Protocol"
+                    profile.name.contains("masterdns", ignoreCase = true) -> if (profile.sshUsername.isNotBlank()) "MasterDNS + SSH" else "MasterDNS"
+                    profile.name.contains("stormdns", ignoreCase = true) -> if (profile.sshUsername.isNotBlank()) "StormDNS + SSH" else "StormDNS"
                     profile.domain.startsWith("goi.") || profile.domain.contains(".goi.") -> "MasterDNS"
                     profile.tunnelType == TunnelType.SNOWFLAKE -> EditProfileViewModel.detectBridgeType(profile.torBridgeLines).displayName
                     else -> profile.tunnelType.displayName

@@ -1674,9 +1674,9 @@ fun EditProfileScreen(
                     )
                 }
 
-                // DNSTT / MasterDNS / StormDNS / Nooshdaroo / qWDTT Key
-                if (uiState.isDnsttOrNoizOrVaydnsBased || uiState.isMasterDns || uiState.isStormDns) {
-                    val isMasterOrStormDnsProfile = uiState.isMasterDns || uiState.isStormDns || uiState.name.contains("meli", ignoreCase = true)
+                // DNSTT / MasterDNS / StormDNS / CottenDNS / Soar / Meli / Nooshdaroo / qWDTT Key
+                if (uiState.isDnsttOrNoizOrVaydnsBased || uiState.isMasterDns || uiState.isStormDns || uiState.isMeli || uiState.isCottenDns || uiState.isSoar) {
+                    val isMasterOrStormDnsProfile = uiState.isMasterDns || uiState.isStormDns || uiState.isMeli || uiState.isCottenDns || uiState.isSoar || uiState.name.contains("meli", ignoreCase = true)
                     OutlinedTextField(
                         value = uiState.dnsttPublicKey,
                         onValueChange = { viewModel.updateDnsttPublicKey(it) },
@@ -1719,16 +1719,44 @@ fun EditProfileScreen(
                                 verticalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 Text(
-                                    text = "Fine-tune MasterDNS MTU and packet options for maximum stability under censorship.",
+                                    text = "Fine-tune protocol MTU, encryption method, and packet options for maximum stability under censorship.",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
+
+                                Text(
+                                    text = "Encryption Method (روش رمزنگاری)",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    modifier = Modifier.padding(top = 4.dp)
+                                )
+                                FlowRow(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    val encMethods = listOf(
+                                        0 to "None (0)",
+                                        1 to "XOR (1)",
+                                        2 to "ChaCha20 (2) ★",
+                                        3 to "AES-128 (3)",
+                                        5 to "AES-256 (5)"
+                                    )
+                                    encMethods.forEach { (code, label) ->
+                                        val isSelected = uiState.tunnelEncryptionMethod == code
+                                        FilterChip(
+                                            selected = isSelected,
+                                            onClick = { viewModel.updateTunnelEncryptionMethod(code) },
+                                            label = { Text(label) }
+                                        )
+                                    }
+                                }
+
                                 OutlinedTextField(
                                     value = uiState.masterDnsUploadMtu,
                                     onValueChange = { viewModel.updateMasterDnsUploadMtu(it.filter { c -> c.isDigit() }.take(4)) },
                                     label = { Text("Upload MTU") },
                                     placeholder = { Text("134") },
-                                    supportingText = { Text("Client upload fragment size (default: 134)") },
+                                    supportingText = { Text("Client upload fragment size (default: 134, micro: 45)") },
                                     modifier = Modifier.fillMaxWidth(),
                                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                     singleLine = true
@@ -1738,7 +1766,7 @@ fun EditProfileScreen(
                                     onValueChange = { viewModel.updateMasterDnsDownloadMtu(it.filter { c -> c.isDigit() }.take(5)) },
                                     label = { Text("Download MTU") },
                                     placeholder = { Text("4000") },
-                                    supportingText = { Text("Server download response size (default: 4000)") },
+                                    supportingText = { Text("Server download response size (default: 4000, micro: 500)") },
                                     modifier = Modifier.fillMaxWidth(),
                                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                     singleLine = true
@@ -1769,7 +1797,7 @@ fun EditProfileScreen(
                 }
 
                 // DNS Transport selector (DNSTT-based profiles only; MasterDNS and StormDNS use raw UDP)
-                if (uiState.isDnsttOrNoizOrVaydnsBased && !uiState.isMasterDns && !uiState.isStormDns) {
+                if (uiState.isDnsttOrNoizOrVaydnsBased && !uiState.isMasterDns && !uiState.isStormDns && !uiState.isMeli && !uiState.isCottenDns && !uiState.isSoar) {
                     Text(
                         text = "DNS Transport",
                         style = MaterialTheme.typography.titleMedium,

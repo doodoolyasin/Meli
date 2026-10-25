@@ -218,11 +218,13 @@ enum class TunnelType(val value: String, val displayName: String) {
     COTTENDNS_SSH("cottendns_ssh", "CottenDNS + SSH"),
     SOAR("soar", "Soar"),
     SOAR_SSH("soar_ssh", "Soar + SSH"),
+    MELI("meli", "Meli (Custom Protocol)"),
+    MELI_SSH("meli_ssh", "Meli + SSH"),
     PAQET("paqet", "Paqet (Raw-TCP / KCP)");
 
     companion object {
         fun fromValue(value: String): TunnelType {
-            if (value.equals("meli", ignoreCase = true)) return MASTERDNS
+            if (value.equals("meli", ignoreCase = true)) return MELI
             return entries.find { it.value.equals(value, ignoreCase = true) } ?: DNSTT
         }
     }

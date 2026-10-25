@@ -550,7 +550,8 @@ class SlipNetVpnService : VpnService() {
                     TunnelType.MASTERDNS, TunnelType.MASTERDNS_SSH,
                     TunnelType.STORMDNS, TunnelType.STORMDNS_SSH,
                     TunnelType.COTTENDNS, TunnelType.COTTENDNS_SSH,
-                    TunnelType.SOAR, TunnelType.SOAR_SSH -> connectMasterDns(profile, dnsServer, remoteDns, remoteDnsFallback, globalResolverOverride)
+                    TunnelType.SOAR, TunnelType.SOAR_SSH,
+                    TunnelType.MELI, TunnelType.MELI_SSH -> connectMasterDns(profile, dnsServer, remoteDns, remoteDnsFallback, globalResolverOverride)
                     TunnelType.NOOSHDAROO, TunnelType.QWDTT -> connectDnstt(profile, dnsServer, remoteDns, remoteDnsFallback, globalResolverOverride)
                     TunnelType.NOOSHDAROO_SSH, TunnelType.QWDTT_SSH -> connectDnsttSsh(profile, dnsServer, remoteDns, remoteDnsFallback, globalResolverOverride)
                     TunnelType.BALE -> connectBale(profile, dnsServer, remoteDns)
@@ -1270,7 +1271,8 @@ class SlipNetVpnService : VpnService() {
             TunnelType.MASTERDNS, TunnelType.MASTERDNS_SSH,
             TunnelType.STORMDNS, TunnelType.STORMDNS_SSH,
             TunnelType.COTTENDNS, TunnelType.COTTENDNS_SSH,
-            TunnelType.SOAR, TunnelType.SOAR_SSH -> {
+            TunnelType.SOAR, TunnelType.SOAR_SSH,
+            TunnelType.MELI, TunnelType.MELI_SSH -> {
                 MasterDnsBridge.stopClient()
                 SshTunnelBridge.stop()
             }
@@ -2846,7 +2848,11 @@ class SlipNetVpnService : VpnService() {
             delay(200)
         }
 
-        val useSsh = profile.tunnelType == TunnelType.MASTERDNS_SSH || profile.tunnelType == TunnelType.STORMDNS_SSH || profile.sshUsername.isNotBlank()
+        val useSsh = profile.tunnelType in setOf(
+            TunnelType.MASTERDNS_SSH, TunnelType.STORMDNS_SSH,
+            TunnelType.COTTENDNS_SSH, TunnelType.SOAR_SSH,
+            TunnelType.MELI_SSH
+        ) || profile.sshUsername.isNotBlank()
         if (useSsh) {
             configureSshBridge()
             val targetHost = if (profile.sshHost.isBlank() || profile.sshHost == "127.0.0.1") "16.171.152.115" else profile.sshHost
@@ -5039,8 +5045,9 @@ class SlipNetVpnService : VpnService() {
             TunnelType.MASTERDNS, TunnelType.MASTERDNS_SSH,
             TunnelType.STORMDNS, TunnelType.STORMDNS_SSH,
             TunnelType.COTTENDNS, TunnelType.COTTENDNS_SSH,
-            TunnelType.SOAR, TunnelType.SOAR_SSH -> {
-                Log.d(TAG, "Stopping MasterDNS / StormDNS / Cotten / Soar bridge")
+            TunnelType.SOAR, TunnelType.SOAR_SSH,
+            TunnelType.MELI, TunnelType.MELI_SSH -> {
+                Log.d(TAG, "Stopping MasterDNS / StormDNS / Cotten / Soar / Meli bridge")
                 MasterDnsBridge.stopClient()
                 SshTunnelBridge.stop()
             }
@@ -5161,8 +5168,16 @@ class SlipNetVpnService : VpnService() {
                 currentTunnelType == TunnelType.MASTERDNS_SSH ||
                 currentTunnelType == TunnelType.STORMDNS ||
                 currentTunnelType == TunnelType.STORMDNS_SSH ||
+                currentTunnelType == TunnelType.COTTENDNS ||
+                currentTunnelType == TunnelType.COTTENDNS_SSH ||
+                currentTunnelType == TunnelType.SOAR ||
+                currentTunnelType == TunnelType.SOAR_SSH ||
+                currentTunnelType == TunnelType.MELI ||
+                currentTunnelType == TunnelType.MELI_SSH ||
                 currentTunnelType == TunnelType.NOOSHDAROO ||
-                currentTunnelType == TunnelType.QWDTT
+                currentTunnelType == TunnelType.NOOSHDAROO_SSH ||
+                currentTunnelType == TunnelType.QWDTT ||
+                currentTunnelType == TunnelType.QWDTT_SSH
 
         val splitEnabled = preferencesDataStore.splitTunnelingEnabled.first()
         val splitMode = preferencesDataStore.splitTunnelingMode.first()

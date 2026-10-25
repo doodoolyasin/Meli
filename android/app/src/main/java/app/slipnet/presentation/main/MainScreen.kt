@@ -870,8 +870,18 @@ fun MainScreen(
                         val tileMod = Modifier.weight(1f)
                         AddMenuGridItem(
                             modifier = tileMod,
+                            icon = Icons.Default.Security,
+                            title = "Meli Protocol",
+                            isMasterDnsTile = true,
+                            onClick = {
+                                showAddMenu = false
+                                onNavigateToAddProfile(TunnelType.MELI.value)
+                            }
+                        )
+                        AddMenuGridItem(
+                            modifier = tileMod,
                             icon = Icons.Default.Shield,
-                            title = "MasterDNS Tunnel",
+                            title = "MasterDNS",
                             isMasterDnsTile = true,
                             onClick = {
                                 showAddMenu = false
