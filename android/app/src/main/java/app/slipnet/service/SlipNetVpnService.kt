@@ -5148,6 +5148,8 @@ class SlipNetVpnService : VpnService() {
             .setMtu(mtu)
             .addAddress(VPN_ADDRESS, 32)
             .addDnsServer(dnsServer)
+            .addDnsServer("8.8.8.8")
+            .addDnsServer("1.1.1.1")
             .setBlocking(false)
 
         // DoH mode: only route DNS traffic through the VPN so local network
