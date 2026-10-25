@@ -8,7 +8,11 @@ import android.content.ContextWrapper
 import android.content.Intent
 import android.net.Uri
 import android.net.VpnService
+import android.os.Build
 import android.os.PowerManager
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -394,6 +398,7 @@ fun MainScreen(
 
     // Helper to request VPN permission and connect
     fun requestConnectOrToggle() {
+        performInjectorHaptic(context, 45L)
         when (uiState.connectionState) {
             is ConnectionState.Connected,
             is ConnectionState.Connecting,
@@ -602,6 +607,13 @@ fun MainScreen(
         // Auto-switch to chains tab when a chain is connected
         LaunchedEffect(uiState.connectedChainId) {
             if (uiState.connectedChainId != null && hasChains) selectedTab = 1
+        }
+
+        // Haptic feedback when tunnel connects successfully (HTTP Injector style)
+        LaunchedEffect(uiState.connectionState) {
+            if (uiState.connectionState is ConnectionState.Connected) {
+                performInjectorHaptic(context, 65L)
+            }
         }
 
         Box(
@@ -2585,6 +2597,26 @@ private fun shareApk(context: Context) {
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
             context.startActivity(Intent.createChooser(intent, "Share SlipNet"))
+        }
+    } catch (_: Exception) { }
+}
+
+private fun performInjectorHaptic(context: Context, durationMs: Long = 40L) {
+    try {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val vibratorManager = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager
+            vibratorManager?.defaultVibrator?.vibrate(
+                VibrationEffect.createOneShot(durationMs, VibrationEffect.DEFAULT_AMPLITUDE)
+            )
+        } else {
+            @Suppress("DEPRECATION")
+            val vibrator = context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                vibrator?.vibrate(VibrationEffect.createOneShot(durationMs, VibrationEffect.DEFAULT_AMPLITUDE))
+            } else {
+                @Suppress("DEPRECATION")
+                vibrator?.vibrate(durationMs)
+            }
         }
     } catch (_: Exception) { }
 }
