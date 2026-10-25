@@ -424,9 +424,9 @@ class EditProfileViewModel @Inject constructor(
             },
             dnsttPublicKey = when {
                 isMeliInitial || isMasterDnsInitial -> "5d790e75a6262fe95f70979c7bddd360"
-                isStormDnsInitial -> "4e9b81f3c2a05d76189e4f2038b7d15a"
-                isCottenDnsInitial -> "02da35feff3a87e8e2e07965a3b5f35c"
-                isSoarInitial -> "ffefd358f4061799fb8b9b978dc1652de9d3d2ffbe0049adf996090adb612d9e"
+                isStormDnsInitial -> "5d790e75a6262fe95f70979c7bddd360"
+                isCottenDnsInitial -> "5d790e75a6262fe95f70979c7bddd360"
+                isSoarInitial -> "ffef9358f4061799fb8b9b978dc1652de9d3d2ffbe0049adf996090adb612d9e"
                 isNooshdarooInitial -> "fd984706126bf236f62a65839cfff98f9177af6e89ca57d0cd74bc29ddfbce64"
                 isQwdttInitial -> "ac50759d4a8f5d9f3be7a0d242912c20c53b18481592fdbb8de6c63ab8763577"
                 isVaydnsInitial -> "278431382be3d3711377ed94bcc97c7b20181c2d276ae7a389a79e6b3c7abc23"

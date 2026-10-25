@@ -193,9 +193,18 @@ class ConfigImporter @Inject constructor() {
                 continue
             }
 
-            // Handle standard masterdns:// or stormdns:// URIs
-            if (trimmedLine.startsWith("masterdns://", ignoreCase = true) || trimmedLine.startsWith("stormdns://", ignoreCase = true)) {
-                val result = parseMasterDnsUri(trimmedLine, index + 1)
+            // Handle standard masterdns://, stormdns://, cottendns://, soar:// URIs
+            if (trimmedLine.startsWith("masterdns://", ignoreCase = true) ||
+                trimmedLine.startsWith("stormdns://", ignoreCase = true) ||
+                trimmedLine.startsWith("cottendns://", ignoreCase = true) ||
+                trimmedLine.startsWith("soar://", ignoreCase = true)) {
+                val schemeIdx = trimmedLine.indexOf("://")
+                val payload = if (schemeIdx >= 0) trimmedLine.substring(schemeIdx + 3) else ""
+                val result = if (payload.startsWith("ey") || payload.startsWith("{\"") || payload.startsWith("{%22")) {
+                    parseWhiteDnsUri(trimmedLine, index + 1)
+                } else {
+                    parseMasterDnsUri(trimmedLine, index + 1)
+                }
                 when (result) {
                     is ProfileParseResult.Success -> profiles.add(result.profile)
                     is ProfileParseResult.Warning -> warnings.add(result.message)
@@ -2296,6 +2305,72 @@ class ConfigImporter @Inject constructor() {
      *
      * Fragment after # is the profile name.
      */
+    private fun parseWhiteDnsUri(uriString: String, lineNum: Int): ProfileParseResult {
+        return try {
+            val schemeIdx = uriString.indexOf("://")
+            if (schemeIdx < 0) return ProfileParseResult.Error("Line $lineNum: Invalid URI scheme")
+            val scheme = uriString.substring(0, schemeIdx).lowercase()
+            val rawPayload = uriString.substring(schemeIdx + 3).trim()
+            val base64Part = if (rawPayload.contains("#")) rawPayload.substringBefore("#") else rawPayload
+            val paddedBase64 = base64Part + "=".repeat((4 - base64Part.length % 4) % 4)
+            val jsonStr = String(Base64.decode(paddedBase64, Base64.DEFAULT), Charsets.UTF_8)
+            val root = org.json.JSONObject(jsonStr)
+            val profileObj = root.optJSONObject("profile") ?: root
+            val name = profileObj.optString("name", scheme.uppercase())
+            val serverObj = profileObj.optJSONObject("server")
+            val domain = serverObj?.optString("domain") ?: ""
+            val encKey = serverObj?.optString("encryption_key", "")?.ifEmpty {
+                serverObj.optString("public_key", "")
+            } ?: ""
+            val encMethod = serverObj?.optInt("encryption_method", 1) ?: 1
+
+            // Handle Soar public key base64 to hex if needed
+            val formattedKey = if (scheme == "soar" && encKey.isNotEmpty() && encKey.length > 32 && !encKey.all { it in "0123456789abcdefABCDEF" }) {
+                try {
+                    val decodedBytes = Base64.decode(encKey, Base64.DEFAULT)
+                    decodedBytes.joinToString("") { "%02x".format(it) }
+                } catch (_: Exception) {
+                    encKey
+                }
+            } else {
+                encKey
+            }
+
+            val tunnelType = when (scheme) {
+                "soar" -> TunnelType.SOAR
+                "cottendns" -> TunnelType.COTTENDNS
+                "stormdns" -> TunnelType.STORMDNS
+                "masterdns" -> TunnelType.MASTERDNS
+                else -> TunnelType.MASTERDNS
+            }
+
+            val resolversArray = profileObj.optJSONArray("resolvers")
+            val resolversList = if (resolversArray != null && resolversArray.length() > 0) {
+                (0 until resolversArray.length()).map { idx ->
+                    val r = resolversArray.getString(idx)
+                    val host = if (r.contains(":")) r.substringBefore(":") else r
+                    val port = if (r.contains(":")) r.substringAfter(":").toIntOrNull() ?: 53 else 53
+                    DnsResolver(host = host, port = port)
+                }
+            } else {
+                listOf(DnsResolver(host = "8.8.8.8", port = 53))
+            }
+
+            ProfileParseResult.Success(
+                ServerProfile(
+                    name = name,
+                    domain = domain,
+                    tunnelType = tunnelType,
+                    dnsttPublicKey = formattedKey,
+                    tunnelEncryptionMethod = encMethod,
+                    resolvers = resolversList
+                )
+            )
+        } catch (e: Exception) {
+            ProfileParseResult.Error("Line $lineNum: Failed to parse WhiteDNS URI: ${e.message}")
+        }
+    }
+
     private fun parseMasterDnsUri(uriString: String, lineNum: Int): ProfileParseResult {
         return try {
             val uri = android.net.Uri.parse(uriString)
