@@ -68,6 +68,23 @@ func NewClient(
 		return nil, err
 	}
 
+	actualLogLevel := logLevel
+	tuningOpts := make(map[string]string)
+	if strings.Contains(logLevel, ";") {
+		parts := strings.Split(logLevel, ";")
+		actualLogLevel = strings.TrimSpace(parts[0])
+		for _, part := range parts[1:] {
+			part = strings.TrimSpace(part)
+			if idx := strings.Index(part, "="); idx > 0 {
+				k := strings.ToLower(strings.TrimSpace(part[:idx]))
+				v := strings.TrimSpace(part[idx+1:])
+				tuningOpts[k] = v
+			} else if part != "" {
+				tuningOpts[strings.ToLower(part)] = "true"
+			}
+		}
+	}
+
 	var sb strings.Builder
 	fmt.Fprintf(&sb, "DOMAINS = [%s]\n", quoteList(domains))
 	fmt.Fprintf(&sb, "LISTEN_IP = %q\n", listenIP)
@@ -75,12 +92,76 @@ func NewClient(
 	fmt.Fprintf(&sb, "DATA_ENCRYPTION_METHOD = %d\n", encryptionMethod)
 	fmt.Fprintf(&sb, "ENCRYPTION_KEY = %q\n", encryptionKey)
 	fmt.Fprintf(&sb, "PROTOCOL_TYPE = \"SOCKS5\"\n")
-	fmt.Fprintf(&sb, "MIN_UPLOAD_MTU = 20\n")
-	fmt.Fprintf(&sb, "MIN_DOWNLOAD_MTU = 50\n")
-	fmt.Fprintf(&sb, "MTU_TEST_RETRIES_RESOLVERS = 5\n")
 	fmt.Fprintf(&sb, "STARTUP_MODE = \"resolvers\"\n")
-	if strings.TrimSpace(logLevel) != "" {
-		fmt.Fprintf(&sb, "LOG_LEVEL = %q\n", logLevel)
+	fmt.Fprintf(&sb, "MTU_TEST_RETRIES_RESOLVERS = 5\n")
+	fmt.Fprintf(&sb, "RESOLVER_BALANCING_STRATEGY = 3\n")
+
+	// Dynamic Mode Selection (Adaptive / Micro-Slice / Turbo / Resilient)
+	mode := strings.ToLower(tuningOpts["mode"])
+	switch mode {
+	case "micro", "microslice":
+		// Micro-slice mode: tiny packets slip under DPI threshold, high resilience
+		fmt.Fprintf(&sb, "MIN_UPLOAD_MTU = 20\n")
+		fmt.Fprintf(&sb, "MAX_UPLOAD_MTU = 45\n")
+		fmt.Fprintf(&sb, "MIN_DOWNLOAD_MTU = 50\n")
+		fmt.Fprintf(&sb, "MAX_DOWNLOAD_MTU = 500\n")
+		fmt.Fprintf(&sb, "UPLOAD_PACKET_DUPLICATION_COUNT = 6\n")
+		fmt.Fprintf(&sb, "DOWNLOAD_PACKET_DUPLICATION_COUNT = 8\n")
+		fmt.Fprintf(&sb, "RX_TX_WORKERS = 6\n")
+		fmt.Fprintf(&sb, "TUNNEL_PROCESS_WORKERS = 6\n")
+		fmt.Fprintf(&sb, "PING_AGGRESSIVE_INTERVAL_SECONDS = 0.150\n")
+		fmt.Fprintf(&sb, "PING_COOLDOWN_INTERVAL_SECONDS = 1.0\n")
+	case "turbo", "fast":
+		// High-throughput mode: larger MTU for faster downloads when connection is healthy
+		fmt.Fprintf(&sb, "MIN_UPLOAD_MTU = 50\n")
+		fmt.Fprintf(&sb, "MAX_UPLOAD_MTU = 180\n")
+		fmt.Fprintf(&sb, "MIN_DOWNLOAD_MTU = 500\n")
+		fmt.Fprintf(&sb, "MAX_DOWNLOAD_MTU = 2500\n")
+		fmt.Fprintf(&sb, "UPLOAD_PACKET_DUPLICATION_COUNT = 2\n")
+		fmt.Fprintf(&sb, "DOWNLOAD_PACKET_DUPLICATION_COUNT = 4\n")
+		fmt.Fprintf(&sb, "RX_TX_WORKERS = 8\n")
+		fmt.Fprintf(&sb, "TUNNEL_PROCESS_WORKERS = 8\n")
+	case "resilient", "stealth":
+		// Stealth & loss-tolerant mode: Base-encoded to smooth entropy, moderate MTU
+		fmt.Fprintf(&sb, "MIN_UPLOAD_MTU = 20\n")
+		fmt.Fprintf(&sb, "MAX_UPLOAD_MTU = 80\n")
+		fmt.Fprintf(&sb, "MIN_DOWNLOAD_MTU = 50\n")
+		fmt.Fprintf(&sb, "MAX_DOWNLOAD_MTU = 1200\n")
+		fmt.Fprintf(&sb, "UPLOAD_PACKET_DUPLICATION_COUNT = 6\n")
+		fmt.Fprintf(&sb, "DOWNLOAD_PACKET_DUPLICATION_COUNT = 8\n")
+		fmt.Fprintf(&sb, "BASE_ENCODE_DATA = true\n")
+		fmt.Fprintf(&sb, "PING_AGGRESSIVE_INTERVAL_SECONDS = 0.200\n")
+		fmt.Fprintf(&sb, "PING_COOLDOWN_INTERVAL_SECONDS = 2.0\n")
+	default: // "auto" / "balanced"
+		fmt.Fprintf(&sb, "MIN_UPLOAD_MTU = 20\n")
+		fmt.Fprintf(&sb, "MAX_UPLOAD_MTU = 134\n")
+		fmt.Fprintf(&sb, "MIN_DOWNLOAD_MTU = 50\n")
+		fmt.Fprintf(&sb, "MAX_DOWNLOAD_MTU = 1500\n")
+		fmt.Fprintf(&sb, "UPLOAD_PACKET_DUPLICATION_COUNT = 3\n")
+		fmt.Fprintf(&sb, "DOWNLOAD_PACKET_DUPLICATION_COUNT = 7\n")
+		fmt.Fprintf(&sb, "RX_TX_WORKERS = 4\n")
+		fmt.Fprintf(&sb, "TUNNEL_PROCESS_WORKERS = 4\n")
+	}
+
+	// Custom Query Type (e.g. TXT, CNAME, SRV)
+	if qType := strings.ToUpper(strings.TrimSpace(tuningOpts["qtype"])); qType != "" {
+		fmt.Fprintf(&sb, "DNS_QUERY_TYPE = %q\n", qType)
+	}
+
+	// Custom Duplication Override
+	if dupStr := tuningOpts["dup"]; dupStr != "" {
+		fmt.Fprintf(&sb, "UPLOAD_PACKET_DUPLICATION_COUNT = %s\n", dupStr)
+	}
+
+	// Traffic Padding & Jitter Burst (Item 13)
+	if tuningOpts["padding"] == "true" || tuningOpts["jitter"] == "true" {
+		fmt.Fprintf(&sb, "PING_AGGRESSIVE_INTERVAL_SECONDS = 0.180\n")
+		fmt.Fprintf(&sb, "PING_COOLDOWN_INTERVAL_SECONDS = 1.5\n")
+		fmt.Fprintf(&sb, "PING_LAZY_INTERVAL_SECONDS = 0.600\n")
+	}
+
+	if strings.TrimSpace(actualLogLevel) != "" {
+		fmt.Fprintf(&sb, "LOG_LEVEL = %q\n", actualLogLevel)
 	}
 
 	cfgPath := filepath.Join(configDir, "client_config.toml")

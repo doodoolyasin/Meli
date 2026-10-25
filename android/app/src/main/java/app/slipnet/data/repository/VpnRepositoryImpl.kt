@@ -546,6 +546,23 @@ class VpnRepositoryImpl @Inject constructor(
         val key = profile.dnsttPublicKey.trim().ifEmpty { "5d790e75a6262fe95f70979c7bddd360" }
         val domain = profile.domain.trim().ifEmpty { "goi.dhafhdtjdti.site" }
 
+        val tuningDirective = buildList {
+            // Adaptive mode: micro-slice for strict DPI, turbo for high-speed, auto for balanced
+            if (profile.domain.contains("micro", ignoreCase = true) || (profile.dnsPayloadSize in 1..50)) {
+                add("mode=micro")
+            } else if (profile.domain.contains("turbo", ignoreCase = true)) {
+                add("mode=turbo")
+            } else {
+                add("mode=auto")
+            }
+            // Multi-resolver duplication
+            if (profile.rrSpreadCount > 3) {
+                add("dup=${profile.rrSpreadCount}")
+            }
+            // Active traffic padding and jitter burst (anti-DPI traffic flow analysis)
+            add("padding=true")
+        }.joinToString(";")
+
         val result = MasterDnsBridge.startClient(
             context = context,
             domainsCsv = domain,
@@ -553,7 +570,8 @@ class VpnRepositoryImpl @Inject constructor(
             encryptionMethod = 1L,
             resolversCsv = dnsServer,
             listenPort = proxyPort,
-            listenHost = proxyHost
+            listenHost = proxyHost,
+            logLevel = "INFO;$tuningDirective"
         )
 
         if (result.isSuccess) {
