@@ -273,7 +273,11 @@ fun EditProfileScreen(
                             }
                             Column {
                                 Text(
-                                    text = uiState.name,
+                                    text = if (uiState.useSsh && !uiState.name.contains("+ SSH", ignoreCase = true) && !uiState.name.endsWith("SSH", ignoreCase = true)) {
+                                        "${uiState.name} + SSH"
+                                    } else {
+                                        uiState.name
+                                    },
                                     style = MaterialTheme.typography.titleLarge,
                                     fontWeight = FontWeight.SemiBold
                                 )
@@ -1235,7 +1239,11 @@ fun EditProfileScreen(
             ) {
                 // Name
                 OutlinedTextField(
-                    value = uiState.name,
+                    value = if (uiState.useSsh && !uiState.name.contains("+ SSH", ignoreCase = true) && !uiState.name.endsWith("SSH", ignoreCase = true)) {
+                        "${uiState.name} + SSH"
+                    } else {
+                        uiState.name
+                    },
                     onValueChange = { viewModel.updateName(it) },
                     label = { Text("Profile Name") },
                     placeholder = { Text("My VPN Server") },

@@ -2417,8 +2417,13 @@ class SlipNetVpnService : VpnService() {
             return
         }
 
-        // Step 4: Switch tunnel type to DNSTT_SSH/NOIZDNS_SSH before starting SSH
-        val sshTunnelType = if (isNoizdns) TunnelType.NOIZDNS_SSH else TunnelType.DNSTT_SSH
+        // Step 4: Switch tunnel type to appropriate SSH variant before starting SSH
+        val sshTunnelType = when (profile.tunnelType) {
+            TunnelType.NOIZDNS, TunnelType.NOIZDNS_SSH -> TunnelType.NOIZDNS_SSH
+            TunnelType.NOOSHDAROO, TunnelType.NOOSHDAROO_SSH -> TunnelType.NOOSHDAROO_SSH
+            TunnelType.QWDTT, TunnelType.QWDTT_SSH -> TunnelType.QWDTT_SSH
+            else -> TunnelType.DNSTT_SSH
+        }
         vpnRepository.setCurrentTunnelType(sshTunnelType)
         currentTunnelType = sshTunnelType
 
@@ -2427,7 +2432,12 @@ class SlipNetVpnService : VpnService() {
         // DNS tunnels can drop the first connection (DPI, packet loss), so retry
         // up to 3 times before giving up.
         configureSshBridge()
-        val tunnelLabel = if (isNoizdns) "NoizDNS" else "DNSTT"
+        val tunnelLabel = when (profile.tunnelType) {
+            TunnelType.NOIZDNS, TunnelType.NOIZDNS_SSH -> "NoizDNS"
+            TunnelType.NOOSHDAROO, TunnelType.NOOSHDAROO_SSH -> "Nooshdaroo"
+            TunnelType.QWDTT, TunnelType.QWDTT_SSH -> "qWDTT"
+            else -> "DNSTT"
+        }
         var sshResult: Result<Unit> = Result.failure(RuntimeException("SSH not attempted"))
         for (attempt in 1..SSH_OVER_TUNNEL_RETRIES) {
             sshResult = withContext(Dispatchers.IO) {

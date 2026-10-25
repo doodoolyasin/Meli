@@ -264,7 +264,9 @@ data class EditProfileUiState(
         get() = tunnelType == TunnelType.VAYDNS || tunnelType == TunnelType.VAYDNS_SSH
 
     val isDnsttOrNoizBased: Boolean
-        get() = isDnsttBased || isNoizdnsBased
+        get() = isDnsttBased || isNoizdnsBased ||
+                tunnelType == TunnelType.NOOSHDAROO || tunnelType == TunnelType.NOOSHDAROO_SSH ||
+                tunnelType == TunnelType.QWDTT || tunnelType == TunnelType.QWDTT_SSH
 
     val isDnsttOrNoizOrVaydnsBased: Boolean
         get() = isDnsttBased || isNoizdnsBased || isVaydnsBased || isMasterDns || isStormDns ||
@@ -426,11 +428,9 @@ class EditProfileViewModel @Inject constructor(
                 isDnsttInitial -> "15bedeebebf104e83f1ed0a29b1d166fbee7e59a0e7892182dea8dd42f0fa80a"
                 else -> ""
             },
-            resolvers = when {
-                isMeliInitial || isMasterDnsInitial || isStormDnsInitial || isCottenDnsInitial || isSoarInitial -> "8.8.8.8:53, 1.1.1.1:53"
-                else -> ""
-            },
-            authoritativeMode = isMeliInitial || isMasterDnsInitial || isStormDnsInitial || isCottenDnsInitial || isSoarInitial,
+            resolvers = "8.8.8.8:53",
+            authoritativeMode = false,
+            dnsttAuthoritative = false,
             tunnelEncryptionMethod = if (isMeliInitial) 2 else 1,
             sshPort = "22",
             sshUsername = "yasin",
@@ -462,14 +462,15 @@ class EditProfileViewModel @Inject constructor(
             TunnelType.SLIPSTREAM, TunnelType.SLIPSTREAM_SSH,
             TunnelType.MASTERDNS, TunnelType.MASTERDNS_SSH,
             TunnelType.STORMDNS, TunnelType.STORMDNS_SSH,
-            TunnelType.NOOSHDAROO, TunnelType.QWDTT
+            TunnelType.COTTENDNS, TunnelType.COTTENDNS_SSH,
+            TunnelType.SOAR, TunnelType.SOAR_SSH,
+            TunnelType.MELI, TunnelType.MELI_SSH,
+            TunnelType.NOOSHDAROO, TunnelType.NOOSHDAROO_SSH,
+            TunnelType.QWDTT, TunnelType.QWDTT_SSH
         )
         if (!needsResolver) return
-        viewModelScope.launch {
-            val ip = withContext(Dispatchers.IO) { getSystemDnsServer() }
-            if (ip != null && _uiState.value.resolvers.isBlank()) {
-                _uiState.value = _uiState.value.copy(resolvers = "$ip:53")
-            }
+        if (_uiState.value.resolvers.isBlank()) {
+            _uiState.value = _uiState.value.copy(resolvers = "8.8.8.8:53")
         }
     }
 
@@ -758,8 +759,20 @@ class EditProfileViewModel @Inject constructor(
             !useSsh && (currentType == TunnelType.MELI || currentType == TunnelType.MELI_SSH) -> TunnelType.MELI
             else -> currentType
         }
+        val oldName = _uiState.value.name
+        val newName = when {
+            useSsh && !oldName.contains("+ SSH", ignoreCase = true) && !oldName.endsWith("SSH", ignoreCase = true) -> {
+                "$oldName + SSH".replace(" (DNS)", "").replace(" Tunnel", "")
+            }
+            !useSsh && oldName.contains("+ SSH", ignoreCase = true) -> {
+                oldName.replace("+ SSH", "").replace("  ", " ").trim()
+            }
+            else -> oldName
+        }
+
         _uiState.value = _uiState.value.copy(
             tunnelType = newType,
+            name = newName,
             sshUsernameError = null,
             sshPasswordError = null,
             sshPortError = null

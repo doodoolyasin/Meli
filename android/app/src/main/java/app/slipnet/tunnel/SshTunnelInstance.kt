@@ -673,7 +673,7 @@ class SshTunnelInstance(val instanceId: String = "default") {
             }
             newSession.setProxy(proxy)
             applySessionConfig(newSession)
-            newSession.connect(CONNECT_TIMEOUT_MS)
+            newSession.connect(TUNNEL_CONNECT_TIMEOUT_MS)
 
             if (!newSession.isConnected) {
                 return Result.failure(RuntimeException("SSH session failed to connect through $proxyLabel"))
