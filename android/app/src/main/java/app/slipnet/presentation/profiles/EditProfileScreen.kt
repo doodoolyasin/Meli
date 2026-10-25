@@ -1248,11 +1248,8 @@ fun EditProfileScreen(
                 // Permissions + exact setup guide (all methods).
                 // Lets the user grant every required Android permission for the
                 // selected method right here, then connect from the profile list.
-                // Permissions section (collapsible)
+                // Permissions section (collapsible) - includes exact setup steps
                 MethodPermissionsSection(tunnelType = uiState.tunnelType)
-
-                // Exact setup steps & guide for this method
-                SetupGuide(tunnelType = uiState.tunnelType)
 
                 // Health Check Section: "باز هست یا نه" (No-connect reachability probe)
                 HealthCheckSection(

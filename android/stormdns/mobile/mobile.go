@@ -97,67 +97,91 @@ func NewClient(
 	fmt.Fprintf(&sb, "RESOLVER_BALANCING_STRATEGY = 3\n")
 
 	// Dynamic Mode Selection (Adaptive / Micro-Slice / Turbo / Resilient)
+	dupCount := 3
+	rxTxWorkers := 4
+	tunnelWorkers := 4
+	minUploadMtu := 20
+	maxUploadMtu := 134
+	minDownloadMtu := 50
+	maxDownloadMtu := 1500
+	downloadDup := 7
+	baseEncode := false
+
+	pingAggressive := 0.0
+	pingCooldown := 0.0
+	pingLazy := 0.0
+
 	mode := strings.ToLower(tuningOpts["mode"])
 	switch mode {
 	case "micro", "microslice":
-		// Micro-slice mode: tiny packets slip under DPI threshold, high resilience
-		fmt.Fprintf(&sb, "MIN_UPLOAD_MTU = 20\n")
-		fmt.Fprintf(&sb, "MAX_UPLOAD_MTU = 45\n")
-		fmt.Fprintf(&sb, "MIN_DOWNLOAD_MTU = 50\n")
-		fmt.Fprintf(&sb, "MAX_DOWNLOAD_MTU = 500\n")
-		fmt.Fprintf(&sb, "UPLOAD_PACKET_DUPLICATION_COUNT = 6\n")
-		fmt.Fprintf(&sb, "DOWNLOAD_PACKET_DUPLICATION_COUNT = 8\n")
-		fmt.Fprintf(&sb, "RX_TX_WORKERS = 6\n")
-		fmt.Fprintf(&sb, "TUNNEL_PROCESS_WORKERS = 6\n")
-		fmt.Fprintf(&sb, "PING_AGGRESSIVE_INTERVAL_SECONDS = 0.150\n")
-		fmt.Fprintf(&sb, "PING_COOLDOWN_INTERVAL_SECONDS = 1.0\n")
+		minUploadMtu = 20
+		maxUploadMtu = 45
+		minDownloadMtu = 50
+		maxDownloadMtu = 500
+		dupCount = 6
+		downloadDup = 8
+		rxTxWorkers = 6
+		tunnelWorkers = 6
+		pingAggressive = 0.150
+		pingCooldown = 1.0
 	case "turbo", "fast":
-		// High-throughput mode: larger MTU for faster downloads when connection is healthy
-		fmt.Fprintf(&sb, "MIN_UPLOAD_MTU = 50\n")
-		fmt.Fprintf(&sb, "MAX_UPLOAD_MTU = 180\n")
-		fmt.Fprintf(&sb, "MIN_DOWNLOAD_MTU = 500\n")
-		fmt.Fprintf(&sb, "MAX_DOWNLOAD_MTU = 2500\n")
-		fmt.Fprintf(&sb, "UPLOAD_PACKET_DUPLICATION_COUNT = 2\n")
-		fmt.Fprintf(&sb, "DOWNLOAD_PACKET_DUPLICATION_COUNT = 4\n")
-		fmt.Fprintf(&sb, "RX_TX_WORKERS = 8\n")
-		fmt.Fprintf(&sb, "TUNNEL_PROCESS_WORKERS = 8\n")
+		minUploadMtu = 50
+		maxUploadMtu = 180
+		minDownloadMtu = 500
+		maxDownloadMtu = 2500
+		dupCount = 2
+		downloadDup = 4
+		rxTxWorkers = 8
+		tunnelWorkers = 8
 	case "resilient", "stealth":
-		// Stealth & loss-tolerant mode: Base-encoded to smooth entropy, moderate MTU
-		fmt.Fprintf(&sb, "MIN_UPLOAD_MTU = 20\n")
-		fmt.Fprintf(&sb, "MAX_UPLOAD_MTU = 80\n")
-		fmt.Fprintf(&sb, "MIN_DOWNLOAD_MTU = 50\n")
-		fmt.Fprintf(&sb, "MAX_DOWNLOAD_MTU = 1200\n")
-		fmt.Fprintf(&sb, "UPLOAD_PACKET_DUPLICATION_COUNT = 6\n")
-		fmt.Fprintf(&sb, "DOWNLOAD_PACKET_DUPLICATION_COUNT = 8\n")
+		minUploadMtu = 20
+		maxUploadMtu = 80
+		minDownloadMtu = 50
+		maxDownloadMtu = 1200
+		dupCount = 6
+		downloadDup = 8
+		baseEncode = true
+		pingAggressive = 0.200
+		pingCooldown = 2.0
+	}
+
+	if dupStr := tuningOpts["dup"]; dupStr != "" {
+		if d, err := strconv.Atoi(dupStr); err == nil && d > 0 {
+			dupCount = d
+		}
+	}
+
+	if tuningOpts["padding"] == "true" || tuningOpts["jitter"] == "true" {
+		pingAggressive = 0.180
+		pingCooldown = 1.5
+		pingLazy = 0.600
+	}
+
+	fmt.Fprintf(&sb, "MIN_UPLOAD_MTU = %d\n", minUploadMtu)
+	fmt.Fprintf(&sb, "MAX_UPLOAD_MTU = %d\n", maxUploadMtu)
+	fmt.Fprintf(&sb, "MIN_DOWNLOAD_MTU = %d\n", minDownloadMtu)
+	fmt.Fprintf(&sb, "MAX_DOWNLOAD_MTU = %d\n", maxDownloadMtu)
+	fmt.Fprintf(&sb, "UPLOAD_PACKET_DUPLICATION_COUNT = %d\n", dupCount)
+	fmt.Fprintf(&sb, "DOWNLOAD_PACKET_DUPLICATION_COUNT = %d\n", downloadDup)
+	fmt.Fprintf(&sb, "RX_TX_WORKERS = %d\n", rxTxWorkers)
+	fmt.Fprintf(&sb, "TUNNEL_PROCESS_WORKERS = %d\n", tunnelWorkers)
+
+	if baseEncode {
 		fmt.Fprintf(&sb, "BASE_ENCODE_DATA = true\n")
-		fmt.Fprintf(&sb, "PING_AGGRESSIVE_INTERVAL_SECONDS = 0.200\n")
-		fmt.Fprintf(&sb, "PING_COOLDOWN_INTERVAL_SECONDS = 2.0\n")
-	default: // "auto" / "balanced"
-		fmt.Fprintf(&sb, "MIN_UPLOAD_MTU = 20\n")
-		fmt.Fprintf(&sb, "MAX_UPLOAD_MTU = 134\n")
-		fmt.Fprintf(&sb, "MIN_DOWNLOAD_MTU = 50\n")
-		fmt.Fprintf(&sb, "MAX_DOWNLOAD_MTU = 1500\n")
-		fmt.Fprintf(&sb, "UPLOAD_PACKET_DUPLICATION_COUNT = 3\n")
-		fmt.Fprintf(&sb, "DOWNLOAD_PACKET_DUPLICATION_COUNT = 7\n")
-		fmt.Fprintf(&sb, "RX_TX_WORKERS = 4\n")
-		fmt.Fprintf(&sb, "TUNNEL_PROCESS_WORKERS = 4\n")
+	}
+	if pingAggressive > 0 {
+		fmt.Fprintf(&sb, "PING_AGGRESSIVE_INTERVAL_SECONDS = %.3f\n", pingAggressive)
+	}
+	if pingCooldown > 0 {
+		fmt.Fprintf(&sb, "PING_COOLDOWN_INTERVAL_SECONDS = %.1f\n", pingCooldown)
+	}
+	if pingLazy > 0 {
+		fmt.Fprintf(&sb, "PING_LAZY_INTERVAL_SECONDS = %.3f\n", pingLazy)
 	}
 
 	// Custom Query Type (e.g. TXT, CNAME, SRV)
 	if qType := strings.ToUpper(strings.TrimSpace(tuningOpts["qtype"])); qType != "" {
 		fmt.Fprintf(&sb, "DNS_QUERY_TYPE = %q\n", qType)
-	}
-
-	// Custom Duplication Override
-	if dupStr := tuningOpts["dup"]; dupStr != "" {
-		fmt.Fprintf(&sb, "UPLOAD_PACKET_DUPLICATION_COUNT = %s\n", dupStr)
-	}
-
-	// Traffic Padding & Jitter Burst (Item 13)
-	if tuningOpts["padding"] == "true" || tuningOpts["jitter"] == "true" {
-		fmt.Fprintf(&sb, "PING_AGGRESSIVE_INTERVAL_SECONDS = 0.180\n")
-		fmt.Fprintf(&sb, "PING_COOLDOWN_INTERVAL_SECONDS = 1.5\n")
-		fmt.Fprintf(&sb, "PING_LAZY_INTERVAL_SECONDS = 0.600\n")
 	}
 
 	if strings.TrimSpace(actualLogLevel) != "" {

@@ -85,20 +85,22 @@ object HealthCheckEngine {
             }
 
             else -> {
-                // DNS Tunnels: MasterDNS, StormDNS, DNSTT, NoizDNS, Slipstream, VayDNS
+                // DNS Tunnels: MasterDNS, StormDNS, DNSTT, NoizDNS, Slipstream, VayDNS, Cotten, Soar, Noosh, qWDTT
                 // 1. UDP 53 to resolvers
                 val resolvers = profile.resolvers.ifEmpty { listOf(app.slipnet.domain.model.DnsResolver("8.8.8.8", 53)) }
                 val firstResolver = resolvers.first()
                 checks.add(probeDnsUdp53(firstResolver.host, firstResolver.port, profile.domain))
 
-                // 2. DNS Delegation check
+                // 2. DNS Delegation check via the selected working resolver (not hardcoded to blocked 8.8.8.8)
                 if (profile.domain.isNotEmpty()) {
-                    checks.add(probeDnsDelegation(profile.domain))
+                    checks.add(probeDnsDelegation(profile.domain, firstResolver.host, firstResolver.port))
                 }
 
-                // 3. Direct server TCP port (if specified)
-                if (profile.sshPort > 0 && profile.domain.isNotEmpty()) {
-                    checks.add(probeTcp("Server Fallback Port (${profile.domain}:${profile.sshPort})", "پورت ثانویه سرور", profile.domain, profile.sshPort))
+                // 3. Direct server SSH TCP port (check sshHost IP directly)
+                val targetHost = profile.sshHost.ifEmpty { "16.171.152.115" }
+                val targetPort = if (profile.sshPort > 0) profile.sshPort else 22
+                if (targetHost.isNotEmpty()) {
+                    checks.add(probeTcp("SSH Server Port ($targetHost:$targetPort)", "ارتباط پورت SSH سرور", targetHost, targetPort))
                 }
             }
         }
@@ -257,7 +259,7 @@ object HealthCheckEngine {
         }
     }
 
-    private fun probeDnsDelegation(domain: String): CheckItem {
+    private fun probeDnsDelegation(domain: String, resolverHost: String = "8.8.8.8", resolverPort: Int = 53): CheckItem {
         val t0 = System.currentTimeMillis()
         val nameEn = "NS Delegation ($domain)"
         val nameFa = "تفویض اختیارات NS دامنه"
@@ -265,8 +267,8 @@ object HealthCheckEngine {
             DatagramSocket().use { socket ->
                 socket.soTimeout = 2500
                 val q = buildDnsQuery(domain, qtype = 2 /* NS */)
-                val addr = InetAddress.getByName("8.8.8.8")
-                val sendPkt = DatagramPacket(q, q.size, addr, 53)
+                val addr = InetAddress.getByName(resolverHost)
+                val sendPkt = DatagramPacket(q, q.size, addr, resolverPort)
                 socket.send(sendPkt)
 
                 val resp = ByteArray(512)

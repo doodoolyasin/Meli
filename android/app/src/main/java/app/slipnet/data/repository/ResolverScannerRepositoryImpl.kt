@@ -1052,6 +1052,13 @@ class ResolverScannerRepositoryImpl @Inject constructor(
                 testResolverDnsttIsolated(resolverHost, resolverPort, profile, testUrl, timeoutMs, onPhaseUpdate, noizMode = true, fullVerification = fullVerification)
             TunnelType.VAYDNS, TunnelType.VAYDNS_SSH ->
                 testResolverVaydnsIsolated(resolverHost, resolverPort, profile, testUrl, timeoutMs, onPhaseUpdate, fullVerification = fullVerification)
+            TunnelType.NOOSHDAROO, TunnelType.NOOSHDAROO_SSH,
+            TunnelType.QWDTT, TunnelType.QWDTT_SSH,
+            TunnelType.COTTENDNS, TunnelType.COTTENDNS_SSH,
+            TunnelType.SOAR, TunnelType.SOAR_SSH,
+            TunnelType.MASTERDNS, TunnelType.MASTERDNS_SSH,
+            TunnelType.STORMDNS, TunnelType.STORMDNS_SSH ->
+                testResolverDnsttIsolated(resolverHost, resolverPort, profile, testUrl, timeoutMs, onPhaseUpdate, fullVerification = fullVerification)
             else ->
                 E2eTestResult(errorMessage = "Unsupported tunnel type: ${profile.tunnelType.displayName}")
         }
@@ -1140,7 +1147,12 @@ class ResolverScannerRepositoryImpl @Inject constructor(
                 }
 
                 // Phase 2b: Warm up tunnel (Noise/KCP/smux handshake)
-                val isSshVariant = profile.tunnelType == TunnelType.DNSTT_SSH || profile.tunnelType == TunnelType.NOIZDNS_SSH
+                val isSshVariant = profile.tunnelType in setOf(
+                    TunnelType.DNSTT_SSH, TunnelType.NOIZDNS_SSH, TunnelType.VAYDNS_SSH,
+                    TunnelType.SLIPSTREAM_SSH, TunnelType.MASTERDNS_SSH, TunnelType.STORMDNS_SSH,
+                    TunnelType.NOOSHDAROO_SSH, TunnelType.QWDTT_SSH, TunnelType.COTTENDNS_SSH,
+                    TunnelType.SOAR_SSH, TunnelType.SSH
+                ) || profile.sshUsername.isNotBlank()
                 onPhaseUpdate(if (isSshVariant) "SSH tunnel handshake..." else "Tunnel handshake...")
                 remaining = timeoutMs - (SystemClock.elapsedRealtime() - totalStart)
                 if (remaining <= 0) {

@@ -947,7 +947,7 @@ fun MainScreen(
                             title = "CottenDNS",
                             onClick = {
                                 showAddMenu = false
-                                onNavigateToAddProfile(TunnelType.STORMDNS.value)
+                                onNavigateToAddProfile(TunnelType.COTTENDNS.value)
                             }
                         )
                         AddMenuGridItem(
@@ -956,7 +956,7 @@ fun MainScreen(
                             title = "Soar",
                             onClick = {
                                 showAddMenu = false
-                                onNavigateToAddProfile(TunnelType.MASTERDNS.value)
+                                onNavigateToAddProfile(TunnelType.SOAR.value)
                             }
                         )
                     }

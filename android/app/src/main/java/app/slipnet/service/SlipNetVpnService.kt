@@ -548,8 +548,11 @@ class SlipNetVpnService : VpnService() {
                     TunnelType.SOCKS5 -> connectSocks5(profile, dnsServer, remoteDns)
                     TunnelType.VLESS -> connectVless(profile, dnsServer)
                     TunnelType.MASTERDNS, TunnelType.MASTERDNS_SSH,
-                    TunnelType.STORMDNS, TunnelType.STORMDNS_SSH -> connectMasterDns(profile, dnsServer, remoteDns, remoteDnsFallback, globalResolverOverride)
+                    TunnelType.STORMDNS, TunnelType.STORMDNS_SSH,
+                    TunnelType.COTTENDNS, TunnelType.COTTENDNS_SSH,
+                    TunnelType.SOAR, TunnelType.SOAR_SSH -> connectMasterDns(profile, dnsServer, remoteDns, remoteDnsFallback, globalResolverOverride)
                     TunnelType.NOOSHDAROO, TunnelType.QWDTT -> connectDnstt(profile, dnsServer, remoteDns, remoteDnsFallback, globalResolverOverride)
+                    TunnelType.NOOSHDAROO_SSH, TunnelType.QWDTT_SSH -> connectDnsttSsh(profile, dnsServer, remoteDns, remoteDnsFallback, globalResolverOverride)
                     TunnelType.BALE -> connectBale(profile, dnsServer, remoteDns)
                     TunnelType.PINGTUNNEL, TunnelType.SPOOF_TUNNEL, TunnelType.GOLDEN_GRE, TunnelType.PAQET -> connectSocks5(profile, dnsServer, remoteDns)
                 }
@@ -1265,7 +1268,9 @@ class SlipNetVpnService : VpnService() {
             TunnelType.DOH -> DohBridge.stop()
             TunnelType.SOCKS5, TunnelType.BALE, TunnelType.PINGTUNNEL, TunnelType.SPOOF_TUNNEL, TunnelType.GOLDEN_GRE, TunnelType.PAQET -> Socks5ProxyBridge.stopAll()
             TunnelType.MASTERDNS, TunnelType.MASTERDNS_SSH,
-            TunnelType.STORMDNS, TunnelType.STORMDNS_SSH -> {
+            TunnelType.STORMDNS, TunnelType.STORMDNS_SSH,
+            TunnelType.COTTENDNS, TunnelType.COTTENDNS_SSH,
+            TunnelType.SOAR, TunnelType.SOAR_SSH -> {
                 MasterDnsBridge.stopClient()
                 SshTunnelBridge.stop()
             }
@@ -1273,6 +1278,11 @@ class SlipNetVpnService : VpnService() {
                 app.slipnet.tunnel.BaleTunnelBridge.stopClient()
             }
             TunnelType.NOOSHDAROO, TunnelType.QWDTT -> {
+                DnsttSocksBridge.stop()
+                DnsttBridge.stopClient()
+            }
+            TunnelType.NOOSHDAROO_SSH, TunnelType.QWDTT_SSH -> {
+                SshTunnelBridge.stop()
                 DnsttSocksBridge.stop()
                 DnsttBridge.stopClient()
             }
@@ -5027,13 +5037,21 @@ class SlipNetVpnService : VpnService() {
                 Socks5ProxyBridge.stopAll()
             }
             TunnelType.MASTERDNS, TunnelType.MASTERDNS_SSH,
-            TunnelType.STORMDNS, TunnelType.STORMDNS_SSH -> {
-                Log.d(TAG, "Stopping MasterDNS / StormDNS bridge")
+            TunnelType.STORMDNS, TunnelType.STORMDNS_SSH,
+            TunnelType.COTTENDNS, TunnelType.COTTENDNS_SSH,
+            TunnelType.SOAR, TunnelType.SOAR_SSH -> {
+                Log.d(TAG, "Stopping MasterDNS / StormDNS / Cotten / Soar bridge")
                 MasterDnsBridge.stopClient()
                 SshTunnelBridge.stop()
             }
             TunnelType.NOOSHDAROO, TunnelType.QWDTT -> {
                 Log.d(TAG, "Stopping DNS-based bridge")
+                DnsttSocksBridge.stop()
+                DnsttBridge.stopClient()
+            }
+            TunnelType.NOOSHDAROO_SSH, TunnelType.QWDTT_SSH -> {
+                Log.d(TAG, "Stopping DNS-based + SSH bridge")
+                SshTunnelBridge.stop()
                 DnsttSocksBridge.stop()
                 DnsttBridge.stopClient()
             }
@@ -5446,10 +5464,11 @@ class SlipNetVpnService : VpnService() {
 
         disconnectJob = serviceScope.launch {
             Log.i(TAG, "Disconnecting VPN")
+            // Notify UI and connection state immediately so disconnect is instant (HTTP Injector style)
+            connectionManager.onVpnDisconnected()
             // Clear saved state so we don't auto-reconnect on restart
             clearConnectionState()
             cleanupConnection()
-            connectionManager.onVpnDisconnected()
             stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf()
         }

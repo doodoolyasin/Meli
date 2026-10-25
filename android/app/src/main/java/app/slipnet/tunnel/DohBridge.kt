@@ -152,6 +152,54 @@ val DOH_SERVERS = listOf(
         "ComSS", "https://dns.comss.one/dns-query",
         listOf("95.217.205.213")
     ),
+    DohServer(
+        "NextDNS", "https://dns.nextdns.io/dns-query",
+        listOf("45.90.28.0", "45.90.30.0")
+    ),
+    DohServer(
+        "Quad9 Uncensored", "https://dns10.quad9.net/dns-query",
+        listOf("9.9.9.10", "149.112.112.10")
+    ),
+    DohServer(
+        "DNSForge DE", "https://dnsforge.de/dns-query",
+        listOf("176.9.93.198", "176.9.1.117")
+    ),
+    DohServer(
+        "BlahDNS JP", "https://doh-jp.blahdns.com/dns-query",
+        listOf("139.162.112.130")
+    ),
+    DohServer(
+        "BlahDNS DE", "https://doh-de.blahdns.com/dns-query",
+        listOf("159.69.198.101")
+    ),
+    DohServer(
+        "BlahDNS FI", "https://doh-fi.blahdns.com/dns-query",
+        listOf("95.216.24.230")
+    ),
+    DohServer(
+        "LibreDNS", "https://doh.libredns.gr/dns-query",
+        listOf("116.202.176.26")
+    ),
+    DohServer(
+        "DNS Warden", "https://doh.dnswarden.com/uncensored",
+        listOf("185.162.24.168")
+    ),
+    DohServer(
+        "Wikimedia DNS", "https://wikimedia-dns.org/dns-query",
+        listOf("185.71.138.138")
+    ),
+    DohServer(
+        "G-Core Public DNS", "https://dns.gcore.com/dns-query",
+        listOf("95.85.95.85", "2.56.220.2")
+    ),
+    DohServer(
+        "AdGuard Family", "https://dns-family.adguard.com/dns-query",
+        listOf("94.140.14.15", "94.140.15.16")
+    ),
+    DohServer(
+        "FlashStart DNS", "https://doh.flashstart.com/dns-query",
+        listOf("185.236.104.104")
+    )
 )
 
 /**

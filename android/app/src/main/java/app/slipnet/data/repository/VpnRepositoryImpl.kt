@@ -567,7 +567,7 @@ class VpnRepositoryImpl @Inject constructor(
             context = context,
             domainsCsv = domain,
             encryptionKey = key,
-            encryptionMethod = 1L,
+            encryptionMethod = if (profile.tunnelEncryptionMethod in 0..5) profile.tunnelEncryptionMethod.toLong() else 1L,
             resolversCsv = dnsServer,
             listenPort = proxyPort,
             listenHost = proxyHost,

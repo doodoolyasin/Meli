@@ -208,10 +208,16 @@ enum class TunnelType(val value: String, val displayName: String) {
     STORMDNS_SSH("stormdns_ssh", "StormDNS + SSH"),
     PINGTUNNEL("pingtunnel", "PingTunnel (ICMP, root)"),
     BALE("bale", "Bale Meet (WebRTC)"),
-    NOOSHDAROO("nooshdaroo", "Nooshdaroo (DNS)"),
+    NOOSHDAROO("nooshdaroo", "Nooshdaroo"),
+    NOOSHDAROO_SSH("nooshdaroo_ssh", "Nooshdaroo + SSH"),
     SPOOF_TUNNEL("spoof_tunnel", "Spoof-Tunnel (TCP)"),
     GOLDEN_GRE("golden_gre", "Golden-GRE (Tunnel)"),
-    QWDTT("qwdtt", "qWDTT (QUIC-DNS)"),
+    QWDTT("qwdtt", "qWDTT"),
+    QWDTT_SSH("qwdtt_ssh", "qWDTT + SSH"),
+    COTTENDNS("cottendns", "CottenDNS"),
+    COTTENDNS_SSH("cottendns_ssh", "CottenDNS + SSH"),
+    SOAR("soar", "Soar"),
+    SOAR_SSH("soar_ssh", "Soar + SSH"),
     PAQET("paqet", "Paqet (Raw-TCP / KCP)");
 
     companion object {
