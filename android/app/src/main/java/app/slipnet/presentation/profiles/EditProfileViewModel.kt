@@ -1763,6 +1763,40 @@ class EditProfileViewModel @Inject constructor(
                 }
                 val keepAlive = state.keepAliveInterval.toIntOrNull() ?: 5000
 
+                val effectiveTunnelType = if (state.useSsh) {
+                    when (state.tunnelType) {
+                        TunnelType.DNSTT -> TunnelType.DNSTT_SSH
+                        TunnelType.NOIZDNS -> TunnelType.NOIZDNS_SSH
+                        TunnelType.SLIPSTREAM -> TunnelType.SLIPSTREAM_SSH
+                        TunnelType.VAYDNS -> TunnelType.VAYDNS_SSH
+                        TunnelType.MASTERDNS -> TunnelType.MASTERDNS_SSH
+                        TunnelType.STORMDNS -> TunnelType.STORMDNS_SSH
+                        TunnelType.NOOSHDAROO -> TunnelType.NOOSHDAROO_SSH
+                        TunnelType.QWDTT -> TunnelType.QWDTT_SSH
+                        TunnelType.COTTENDNS -> TunnelType.COTTENDNS_SSH
+                        TunnelType.SOAR -> TunnelType.SOAR_SSH
+                        TunnelType.MELI -> TunnelType.MELI_SSH
+                        TunnelType.NAIVE -> TunnelType.NAIVE_SSH
+                        else -> state.tunnelType
+                    }
+                } else {
+                    when (state.tunnelType) {
+                        TunnelType.DNSTT_SSH -> TunnelType.DNSTT
+                        TunnelType.NOIZDNS_SSH -> TunnelType.NOIZDNS
+                        TunnelType.SLIPSTREAM_SSH -> TunnelType.SLIPSTREAM
+                        TunnelType.VAYDNS_SSH -> TunnelType.VAYDNS
+                        TunnelType.MASTERDNS_SSH -> TunnelType.MASTERDNS
+                        TunnelType.STORMDNS_SSH -> TunnelType.STORMDNS
+                        TunnelType.NOOSHDAROO_SSH -> TunnelType.NOOSHDAROO
+                        TunnelType.QWDTT_SSH -> TunnelType.QWDTT
+                        TunnelType.COTTENDNS_SSH -> TunnelType.COTTENDNS
+                        TunnelType.SOAR_SSH -> TunnelType.SOAR
+                        TunnelType.MELI_SSH -> TunnelType.MELI
+                        TunnelType.NAIVE_SSH -> TunnelType.NAIVE
+                        else -> state.tunnelType
+                    }
+                }
+
                 val profile = ServerProfile(
                     id = state.profileId ?: 0,
                     name = state.name.trim(),
@@ -1774,7 +1808,7 @@ class EditProfileViewModel @Inject constructor(
                     gsoEnabled = state.gsoEnabled,
                     socksUsername = state.socksUsername.takeIf { it.isNotBlank() },
                     socksPassword = state.socksPassword.takeIf { it.isNotBlank() },
-                    tunnelType = state.tunnelType,
+                    tunnelType = effectiveTunnelType,
                     dnsttPublicKey = state.dnsttPublicKey.trim(),
                     sshUsername = if (state.useSsh) state.sshUsername.trim() else "",
                     sshPassword = if (state.useSsh && state.sshAuthType == SshAuthType.PASSWORD) state.sshPassword else "",

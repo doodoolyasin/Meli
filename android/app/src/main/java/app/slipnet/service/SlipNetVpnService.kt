@@ -532,10 +532,10 @@ class SlipNetVpnService : VpnService() {
                 // - Slipstream: Start proxy first (Rust uses protect_socket JNI callback)
                 // - DNSTT: Establish VPN first (uses addDisallowedApplication for socket protection)
                 when (currentTunnelType) {
-                    TunnelType.SLIPSTREAM -> connectSlipstream(profile, dnsServer, remoteDns, remoteDnsFallback, globalResolverOverride)
+                    TunnelType.SLIPSTREAM -> if (profile.sshUsername.isNotBlank()) connectSlipstreamSsh(profile, dnsServer, remoteDns, remoteDnsFallback, globalResolverOverride) else connectSlipstream(profile, dnsServer, remoteDns, remoteDnsFallback, globalResolverOverride)
                     TunnelType.SLIPSTREAM_SSH -> connectSlipstreamSsh(profile, dnsServer, remoteDns, remoteDnsFallback, globalResolverOverride)
-                    TunnelType.DNSTT -> connectDnstt(profile, dnsServer, remoteDns, remoteDnsFallback, globalResolverOverride)
-                    TunnelType.NOIZDNS -> connectDnstt(profile, dnsServer, remoteDns, remoteDnsFallback, globalResolverOverride)
+                    TunnelType.DNSTT -> if (profile.sshUsername.isNotBlank()) connectDnsttSsh(profile, dnsServer, remoteDns, remoteDnsFallback, globalResolverOverride) else connectDnstt(profile, dnsServer, remoteDns, remoteDnsFallback, globalResolverOverride)
+                    TunnelType.NOIZDNS -> if (profile.sshUsername.isNotBlank()) connectDnsttSsh(profile, dnsServer, remoteDns, remoteDnsFallback, globalResolverOverride) else connectDnstt(profile, dnsServer, remoteDns, remoteDnsFallback, globalResolverOverride)
                     TunnelType.SSH -> connectSsh(profile, dnsServer, remoteDns, remoteDnsFallback, globalDnsIp)
                     TunnelType.DNSTT_SSH -> connectDnsttSsh(profile, dnsServer, remoteDns, remoteDnsFallback, globalResolverOverride)
                     TunnelType.NOIZDNS_SSH -> connectDnsttSsh(profile, dnsServer, remoteDns, remoteDnsFallback, globalResolverOverride)
@@ -543,7 +543,7 @@ class SlipNetVpnService : VpnService() {
                     TunnelType.SNOWFLAKE -> connectSnowflake(profile, dnsServer)
                     TunnelType.NAIVE_SSH -> connectNaiveSsh(profile, dnsServer, remoteDns, remoteDnsFallback)
                     TunnelType.NAIVE -> connectNaive(profile, dnsServer, remoteDns, remoteDnsFallback)
-                    TunnelType.VAYDNS -> connectVaydns(profile, dnsServer, remoteDns, remoteDnsFallback, globalResolverOverride)
+                    TunnelType.VAYDNS -> if (profile.sshUsername.isNotBlank()) connectVaydnsSsh(profile, dnsServer, remoteDns, remoteDnsFallback, globalResolverOverride) else connectVaydns(profile, dnsServer, remoteDns, remoteDnsFallback, globalResolverOverride)
                     TunnelType.VAYDNS_SSH -> connectVaydnsSsh(profile, dnsServer, remoteDns, remoteDnsFallback, globalResolverOverride)
                     TunnelType.SOCKS5 -> connectSocks5(profile, dnsServer, remoteDns)
                     TunnelType.VLESS -> connectVless(profile, dnsServer)
@@ -552,7 +552,7 @@ class SlipNetVpnService : VpnService() {
                     TunnelType.COTTENDNS, TunnelType.COTTENDNS_SSH,
                     TunnelType.SOAR, TunnelType.SOAR_SSH,
                     TunnelType.MELI, TunnelType.MELI_SSH -> connectMasterDns(profile, dnsServer, remoteDns, remoteDnsFallback, globalResolverOverride)
-                    TunnelType.NOOSHDAROO, TunnelType.QWDTT -> connectDnstt(profile, dnsServer, remoteDns, remoteDnsFallback, globalResolverOverride)
+                    TunnelType.NOOSHDAROO, TunnelType.QWDTT -> if (profile.sshUsername.isNotBlank()) connectDnsttSsh(profile, dnsServer, remoteDns, remoteDnsFallback, globalResolverOverride) else connectDnstt(profile, dnsServer, remoteDns, remoteDnsFallback, globalResolverOverride)
                     TunnelType.NOOSHDAROO_SSH, TunnelType.QWDTT_SSH -> connectDnsttSsh(profile, dnsServer, remoteDns, remoteDnsFallback, globalResolverOverride)
                     TunnelType.BALE -> connectBale(profile, dnsServer, remoteDns)
                     TunnelType.PINGTUNNEL, TunnelType.SPOOF_TUNNEL, TunnelType.GOLDEN_GRE, TunnelType.PAQET -> connectSocks5(profile, dnsServer, remoteDns)
