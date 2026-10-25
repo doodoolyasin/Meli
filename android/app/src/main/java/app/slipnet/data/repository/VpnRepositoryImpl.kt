@@ -547,7 +547,7 @@ class VpnRepositoryImpl @Inject constructor(
         val domain = profile.domain.trim().ifEmpty { "goi.dhafhdtjdti.site" }
 
         val tuningDirective = buildList {
-            // Adaptive mode: micro-slice for strict DPI, turbo for high-speed, auto for balanced
+            // Adaptive mode
             if (profile.domain.contains("micro", ignoreCase = true) || (profile.dnsPayloadSize in 1..50)) {
                 add("mode=micro")
             } else if (profile.domain.contains("turbo", ignoreCase = true)) {
@@ -559,8 +559,11 @@ class VpnRepositoryImpl @Inject constructor(
             if (profile.rrSpreadCount > 3) {
                 add("dup=${profile.rrSpreadCount}")
             }
-            // Active traffic padding and jitter burst (anti-DPI traffic flow analysis)
-            add("padding=true")
+            // Explicit MTU boundaries matching working MasterDnsVPN config
+            add("min_up=38")
+            add("max_up=150")
+            add("min_down=100")
+            add("max_down=500")
         }.joinToString(";")
 
         val result = MasterDnsBridge.startClient(

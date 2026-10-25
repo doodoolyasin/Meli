@@ -197,8 +197,12 @@ data class EditProfileUiState(
     val vaydnsClientIdSize: String = "0",
     val vaydnsAdvancedExpanded: Boolean = false,
     val masterDnsAdvancedExpanded: Boolean = false,
-    val masterDnsUploadMtu: String = "134",
-    val masterDnsDownloadMtu: String = "4000",
+    val masterDnsMinUploadMtu: String = "38",
+    val masterDnsMaxUploadMtu: String = "150",
+    val masterDnsMinDownloadMtu: String = "100",
+    val masterDnsMaxDownloadMtu: String = "500",
+    val masterDnsUploadMtu: String = "150",
+    val masterDnsDownloadMtu: String = "500",
     val masterDnsParallelism: String = "4",
     val masterDnsDuplication: String = "3",
     val masterDnsCompression: String = "LZ4",
@@ -688,12 +692,28 @@ class EditProfileViewModel @Inject constructor(
         _uiState.value = _uiState.value.copy(masterDnsAdvancedExpanded = !_uiState.value.masterDnsAdvancedExpanded)
     }
 
+    fun updateMasterDnsMinUploadMtu(mtu: String) {
+        _uiState.value = _uiState.value.copy(masterDnsMinUploadMtu = mtu)
+    }
+
+    fun updateMasterDnsMaxUploadMtu(mtu: String) {
+        _uiState.value = _uiState.value.copy(masterDnsMaxUploadMtu = mtu)
+    }
+
+    fun updateMasterDnsMinDownloadMtu(mtu: String) {
+        _uiState.value = _uiState.value.copy(masterDnsMinDownloadMtu = mtu)
+    }
+
+    fun updateMasterDnsMaxDownloadMtu(mtu: String) {
+        _uiState.value = _uiState.value.copy(masterDnsMaxDownloadMtu = mtu)
+    }
+
     fun updateMasterDnsUploadMtu(mtu: String) {
-        _uiState.value = _uiState.value.copy(masterDnsUploadMtu = mtu)
+        _uiState.value = _uiState.value.copy(masterDnsUploadMtu = mtu, masterDnsMaxUploadMtu = mtu)
     }
 
     fun updateMasterDnsDownloadMtu(mtu: String) {
-        _uiState.value = _uiState.value.copy(masterDnsDownloadMtu = mtu)
+        _uiState.value = _uiState.value.copy(masterDnsDownloadMtu = mtu, masterDnsMaxDownloadMtu = mtu)
     }
 
     fun updateMasterDnsParallelism(count: String) {

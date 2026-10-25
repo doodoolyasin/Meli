@@ -1759,26 +1759,52 @@ fun EditProfileScreen(
                                     }
                                 }
 
-                                OutlinedTextField(
-                                    value = uiState.masterDnsUploadMtu,
-                                    onValueChange = { viewModel.updateMasterDnsUploadMtu(it.filter { c -> c.isDigit() }.take(4)) },
-                                    label = { Text("Upload MTU") },
-                                    placeholder = { Text("134") },
-                                    supportingText = { Text("Client upload fragment size (default: 134, micro: 45)") },
+                                Row(
                                     modifier = Modifier.fillMaxWidth(),
-                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                    singleLine = true
-                                )
-                                OutlinedTextField(
-                                    value = uiState.masterDnsDownloadMtu,
-                                    onValueChange = { viewModel.updateMasterDnsDownloadMtu(it.filter { c -> c.isDigit() }.take(5)) },
-                                    label = { Text("Download MTU") },
-                                    placeholder = { Text("4000") },
-                                    supportingText = { Text("Server download response size (default: 4000, micro: 500)") },
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    OutlinedTextField(
+                                        value = uiState.masterDnsMinUploadMtu,
+                                        onValueChange = { viewModel.updateMasterDnsMinUploadMtu(it.filter { c -> c.isDigit() }.take(4)) },
+                                        label = { Text("Min Upload MTU") },
+                                        placeholder = { Text("38") },
+                                        modifier = Modifier.weight(1f),
+                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                        singleLine = true
+                                    )
+                                    OutlinedTextField(
+                                        value = uiState.masterDnsMaxUploadMtu,
+                                        onValueChange = { viewModel.updateMasterDnsMaxUploadMtu(it.filter { c -> c.isDigit() }.take(4)) },
+                                        label = { Text("Max Upload MTU") },
+                                        placeholder = { Text("150") },
+                                        modifier = Modifier.weight(1f),
+                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                        singleLine = true
+                                    )
+                                }
+                                Row(
                                     modifier = Modifier.fillMaxWidth(),
-                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                    singleLine = true
-                                )
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    OutlinedTextField(
+                                        value = uiState.masterDnsMinDownloadMtu,
+                                        onValueChange = { viewModel.updateMasterDnsMinDownloadMtu(it.filter { c -> c.isDigit() }.take(5)) },
+                                        label = { Text("Min Download MTU") },
+                                        placeholder = { Text("100") },
+                                        modifier = Modifier.weight(1f),
+                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                        singleLine = true
+                                    )
+                                    OutlinedTextField(
+                                        value = uiState.masterDnsMaxDownloadMtu,
+                                        onValueChange = { viewModel.updateMasterDnsMaxDownloadMtu(it.filter { c -> c.isDigit() }.take(5)) },
+                                        label = { Text("Max Download MTU") },
+                                        placeholder = { Text("500") },
+                                        modifier = Modifier.weight(1f),
+                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                        singleLine = true
+                                    )
+                                }
                                 OutlinedTextField(
                                     value = uiState.masterDnsParallelism,
                                     onValueChange = { viewModel.updateMasterDnsParallelism(it.filter { c -> c.isDigit() }.take(2)) },
