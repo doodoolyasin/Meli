@@ -432,7 +432,6 @@ class EditProfileViewModel @Inject constructor(
             },
             authoritativeMode = isMeliInitial || isMasterDnsInitial || isStormDnsInitial || isCottenDnsInitial || isSoarInitial,
             tunnelEncryptionMethod = if (isMeliInitial) 2 else 1,
-            sshHost = "16.171.152.115",
             sshPort = "22",
             sshUsername = "yasin",
             sshPassword = "yasin"

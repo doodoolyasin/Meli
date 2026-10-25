@@ -870,7 +870,7 @@ fun MainScreen(
                         val tileMod = Modifier.weight(1f)
                         AddMenuGridItem(
                             modifier = tileMod,
-                            icon = Icons.Default.Security,
+                            icon = Icons.Default.Shield,
                             title = "Meli Protocol",
                             isMasterDnsTile = true,
                             onClick = {
