@@ -255,7 +255,9 @@ data class EditProfileUiState(
                 sshUsername.isNotBlank()
 
     val isDnsttBased: Boolean
-        get() = tunnelType == TunnelType.DNSTT || tunnelType == TunnelType.DNSTT_SSH
+        get() = tunnelType == TunnelType.DNSTT || tunnelType == TunnelType.DNSTT_SSH ||
+                tunnelType == TunnelType.NOOSHDAROO || tunnelType == TunnelType.NOOSHDAROO_SSH ||
+                tunnelType == TunnelType.QWDTT || tunnelType == TunnelType.QWDTT_SSH
 
     val isNoizdnsBased: Boolean
         get() = tunnelType == TunnelType.NOIZDNS || tunnelType == TunnelType.NOIZDNS_SSH
