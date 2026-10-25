@@ -431,7 +431,7 @@ class EditProfileViewModel @Inject constructor(
             resolvers = "8.8.8.8:53",
             authoritativeMode = false,
             dnsttAuthoritative = false,
-            tunnelEncryptionMethod = if (isMeliInitial) 2 else 1,
+            tunnelEncryptionMethod = 1,
             sshPort = "22",
             sshUsername = "yasin",
             sshPassword = "yasin"
