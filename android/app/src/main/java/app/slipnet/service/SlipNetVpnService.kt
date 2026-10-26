@@ -3033,10 +3033,12 @@ class SlipNetVpnService : VpnService() {
                         socksPassword = null,
                         listenPort = proxyPort,
                         listenHost = proxyHost,
-                        enableKeepAlive = true,
-                        keepAliveInterval = 10,
-                        connectTimeout = 60,
-                        authTimeout = 30
+                        blockDirectDns = true,
+                        sshAuthType = profile.sshAuthType,
+                        sshPrivateKey = profile.sshPrivateKey,
+                        sshKeyPassphrase = profile.sshKeyPassphrase,
+                        remoteDnsHost = remoteDns,
+                        remoteDnsFallback = remoteDnsFallback
                     )
                 }
                 if (sshResult.isSuccess) break
