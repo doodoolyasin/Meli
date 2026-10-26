@@ -473,32 +473,47 @@ class EditProfileViewModel @Inject constructor(
                 initialTunnelType == TunnelType.TROJAN ||
                 initialTunnelType == TunnelType.VMESS ||
                 initialTunnelType == TunnelType.HYSTERIA2 ||
-                initialTunnelType == TunnelType.TUIC -> "app.green-tool.ir"
+                initialTunnelType == TunnelType.TUIC ||
+                initialTunnelType == TunnelType.SNELL ||
+                initialTunnelType == TunnelType.VLESS_REALITY -> "app.green-tool.ir"
                 initialTunnelType == TunnelType.SOCKS5 ||
                 initialTunnelType == TunnelType.SHADOWSOCKS ||
+                initialTunnelType == TunnelType.SHADOWSOCKSR ||
+                initialTunnelType == TunnelType.WIREGUARD ||
+                initialTunnelType == TunnelType.OPENVPN ||
                 initialTunnelType == TunnelType.SSH -> "45.38.249.16"
                 else -> ""
             },
             cdnPort = when (initialTunnelType) {
                 TunnelType.SOCKS5 -> "1080"
-                TunnelType.SHADOWSOCKS -> "8388"
+                TunnelType.SHADOWSOCKS, TunnelType.SHADOWSOCKSR -> "8388"
                 TunnelType.TROJAN -> "4433"
                 TunnelType.VMESS -> "10086"
                 TunnelType.HYSTERIA2 -> "8443"
                 TunnelType.TUIC -> "8444"
+                TunnelType.WIREGUARD -> "51820"
+                TunnelType.OPENVPN -> "1194"
+                TunnelType.SNELL -> "13254"
+                TunnelType.VLESS_REALITY -> "443"
                 else -> "443"
             },
             socksUsername = if (initialTunnelType == TunnelType.SOCKS5) "yasin" else "",
             socksPassword = when (initialTunnelType) {
                 TunnelType.SOCKS5 -> "yasin"
-                TunnelType.SHADOWSOCKS, TunnelType.TROJAN, TunnelType.HYSTERIA2, TunnelType.TUIC -> "yasin_secret_password_2026"
+                TunnelType.SHADOWSOCKS, TunnelType.SHADOWSOCKSR, TunnelType.TROJAN, TunnelType.HYSTERIA2, TunnelType.TUIC, TunnelType.SNELL -> "yasin_secret_password_2026"
                 else -> ""
             },
-            vlessUuid = if (initialTunnelType == TunnelType.VMESS || initialTunnelType == TunnelType.TUIC) "1937e96d-b977-fb13-ebc2-05e43ac5d5da" else "",
+            vlessUuid = if (initialTunnelType in listOf(TunnelType.VMESS, TunnelType.TUIC, TunnelType.VLESS_REALITY)) "1937e96d-b977-fb13-ebc2-05e43ac5d5da" else "",
             vlessWsPath = if (initialTunnelType == TunnelType.VMESS) "/vmess" else "/",
-            vlessSni = if (initialTunnelType in listOf(TunnelType.TROJAN, TunnelType.VMESS, TunnelType.HYSTERIA2, TunnelType.TUIC)) "app.green-tool.ir" else "",
-            vlessTransport = if (initialTunnelType == TunnelType.SHADOWSOCKS) "aes-256-gcm" else "ws",
+            vlessSni = when (initialTunnelType) {
+                TunnelType.VLESS_REALITY -> "www.apple.com"
+                in listOf(TunnelType.TROJAN, TunnelType.VMESS, TunnelType.HYSTERIA2, TunnelType.TUIC) -> "app.green-tool.ir"
+                else -> ""
+            },
+            vlessTransport = if (initialTunnelType in listOf(TunnelType.SHADOWSOCKS, TunnelType.SHADOWSOCKSR)) "aes-256-gcm" else "ws",
+            sshPrivateKey = if (initialTunnelType == TunnelType.WIREGUARD) "SM3hvfbK1GECPqo3y5tLLhrMqyM/u4/uZ4tjI1seT0s=" else "",
             dnsttPublicKey = when {
+                initialTunnelType == TunnelType.WIREGUARD -> "wojxQsiNgLLmm8WowTn/hoqvQ/QMVW6D4QRC27NAxBY="
                 isMeliInitial -> "1937e96db977fb13ebc205e43ac5d5dad7ef61c8434cd7f08b8e166135595972"
                 isMasterDnsInitial -> "5d790e75a6262fe95f70979c7bddd360"
                 isStormDnsInitial -> "5d790e75a6262fe95f70979c7bddd360"
