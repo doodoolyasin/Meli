@@ -17,6 +17,7 @@ import app.slipnet.presentation.scanner.DnsScannerScreen
 import app.slipnet.presentation.scanner.ScanResultsScreen
 import app.slipnet.presentation.settings.AppSelectorScreen
 import app.slipnet.presentation.settings.SettingsScreen
+import app.slipnet.presentation.terminal.SshTerminalScreen
 
 @Composable
 fun NavGraph(
@@ -48,6 +49,9 @@ fun NavGraph(
                 },
                 onNavigateToEditChain = { chainId ->
                     navController.navigate(NavRoutes.EditChain.createRoute(chainId))
+                },
+                onNavigateToTerminal = {
+                    navController.navigate(NavRoutes.SshTerminal.route)
                 }
             )
         }
@@ -217,6 +221,12 @@ fun NavGraph(
                     handle["selected_resolvers_transport"] = transportHint
                     navController.popBackStack(profileRoute, inclusive = false)
                 }
+            )
+        }
+
+        composable(NavRoutes.SshTerminal.route) {
+            SshTerminalScreen(
+                onNavigateBack = { navController.popBackStack() }
             )
         }
     }

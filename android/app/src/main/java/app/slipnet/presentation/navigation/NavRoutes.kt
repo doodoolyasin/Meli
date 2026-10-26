@@ -30,4 +30,5 @@ sealed class NavRoutes(val route: String) {
             return if (params.isEmpty()) "scan_results" else "scan_results?${params.joinToString("&")}"
         }
     }
+    data object SshTerminal : NavRoutes("ssh_terminal")
 }

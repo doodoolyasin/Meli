@@ -179,6 +179,7 @@ fun MainScreen(
     onNavigateToSettings: () -> Unit,
     onNavigateToAddChain: () -> Unit = {},
     onNavigateToEditChain: (Long) -> Unit = {},
+    onNavigateToTerminal: () -> Unit = {},
     viewModel: MainViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -478,6 +479,13 @@ fun MainScreen(
                     IconButton(onClick = { showShareDialog = true }) {
                         Icon(Icons.Default.Share, contentDescription = "Share App")
                     }
+                    IconButton(onClick = onNavigateToTerminal) {
+                        Icon(
+                            Icons.Default.Code,
+                            contentDescription = "SSH Terminal (Termius)",
+                            tint = Color(0xFF00FF66)
+                        )
+                    }
                     IconButton(onClick = onNavigateToSettings) {
                         Icon(Icons.Default.Settings, contentDescription = "Settings")
                     }
@@ -530,6 +538,14 @@ fun MainScreen(
                                     }
                                 )
                             }
+                            DropdownMenuItem(
+                                text = { Text("SSH Terminal (Termius)") },
+                                leadingIcon = { Icon(Icons.Default.Code, contentDescription = null, tint = Color(0xFF00FF66)) },
+                                onClick = {
+                                    showOverflowMenu = false
+                                    onNavigateToTerminal()
+                                }
+                            )
                             DropdownMenuItem(
                                 text = { Text("Export All Profiles") },
                                 onClick = {
