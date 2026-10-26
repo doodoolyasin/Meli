@@ -2041,7 +2041,7 @@ fun EditProfileScreen(
                 }
 
                 // Smart One-Tap Network Benchmark & Auto-Tuner Card
-                if (uiState.isDnsttOrNoizOrVaydnsBased || uiState.isMasterDns || uiState.isStormDns) {
+                if (uiState.isDnsttOrNoizOrVaydnsBased || uiState.isMasterDns || uiState.isStormDns || uiState.isMeli) {
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -2095,7 +2095,7 @@ fun EditProfileScreen(
                                 } else {
                                     Icon(Icons.Default.Speed, contentDescription = null, modifier = Modifier.size(16.dp))
                                     Spacer(Modifier.width(8.dp))
-                                    Text("سنجش و اعمال بهترین تنظیمات اینترنت شما")
+                                    Text("سنجش و محاسبه بهترین تنظیمات اینترنت شما")
                                 }
                             }
                             uiState.autoTuneResult?.let { res ->
@@ -2105,6 +2105,17 @@ fun EditProfileScreen(
                                     style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
                                     color = MaterialTheme.colorScheme.primary
                                 )
+                                Spacer(Modifier.height(8.dp))
+                                Button(
+                                    onClick = { viewModel.save() },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary),
+                                    shape = RoundedCornerShape(8.dp)
+                                ) {
+                                    Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(Modifier.width(8.dp))
+                                    Text("ذخیره و اعمال قطعی تنظیمات بهینه")
+                                }
                             }
                         }
                     }

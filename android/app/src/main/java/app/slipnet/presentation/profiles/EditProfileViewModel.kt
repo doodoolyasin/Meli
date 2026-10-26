@@ -453,7 +453,7 @@ class EditProfileViewModel @Inject constructor(
                 else -> ""
             },
             dnsttPublicKey = when {
-                isMeliInitial -> "meli_secret_protocol_key_2026"
+                isMeliInitial -> "1937e96db977fb13ebc205e43ac5d5dad7ef61c8434cd7f08b8e166135595972"
                 isMasterDnsInitial -> "5d790e75a6262fe95f70979c7bddd360"
                 isStormDnsInitial -> "5d790e75a6262fe95f70979c7bddd360"
                 isCottenDnsInitial -> "5d790e75a6262fe95f70979c7bddd360"

@@ -661,6 +661,18 @@ async fn handle_socks5_client(
 
 // ─── Android JNI Interface ─────────────────────────────────────────────────────
 
+pub fn decode_key(s: &str) -> Vec<u8> {
+    let trimmed = s.trim();
+    if trimmed.len() == 64 && trimmed.chars().all(|c| c.is_ascii_hexdigit()) {
+        (0..trimmed.len())
+            .step_by(2)
+            .filter_map(|i| u8::from_str_radix(&trimmed[i..i + 2], 16).ok())
+            .collect()
+    } else {
+        trimmed.as_bytes().to_vec()
+    }
+}
+
 #[no_mangle]
 pub extern "system" fn Java_app_slipnet_tunnel_MeliBridge_nativeStartClient(
     mut env: jni::JNIEnv,
@@ -697,9 +709,9 @@ pub extern "system" fn Java_app_slipnet_tunnel_MeliBridge_nativeStartClient(
     };
 
     let raw_key = if key_str.is_empty() {
-        b"meli_secret_protocol_key_2026".to_vec()
+        decode_key("1937e96db977fb13ebc205e43ac5d5dad7ef61c8434cd7f08b8e166135595972")
     } else {
-        key_str.into_bytes()
+        decode_key(&key_str)
     };
 
     let (shutdown_tx, shutdown_rx) = mpsc::channel(1);
