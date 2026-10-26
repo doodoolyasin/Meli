@@ -481,7 +481,7 @@ fun MainScreen(
                     }
                     IconButton(onClick = onNavigateToTerminal) {
                         Icon(
-                            Icons.Default.Code,
+                            Icons.Default.Dns,
                             contentDescription = "SSH Terminal (Termius)",
                             tint = Color(0xFF00FF66)
                         )
@@ -540,7 +540,7 @@ fun MainScreen(
                             }
                             DropdownMenuItem(
                                 text = { Text("SSH Terminal (Termius)") },
-                                leadingIcon = { Icon(Icons.Default.Code, contentDescription = null, tint = Color(0xFF00FF66)) },
+                                leadingIcon = { Icon(Icons.Default.Dns, contentDescription = null, tint = Color(0xFF00FF66)) },
                                 onClick = {
                                     showOverflowMenu = false
                                     onNavigateToTerminal()
