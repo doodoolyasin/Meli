@@ -151,7 +151,7 @@ jobs:
         working-directory: android
         env:
           GRADLE_OPTS: "-Xmx5g -XX:+UseG1GC -XX:MaxMetaspaceSize=1g"
-        run: ./gradlew assembleFullRelease --no-daemon
+        run: ./gradlew assembleFullRelease --no-daemon --stacktrace
 
       - name: Build Lite Release APK
         working-directory: android

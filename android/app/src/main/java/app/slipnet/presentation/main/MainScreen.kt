@@ -1094,7 +1094,7 @@ fun MainScreen(
                                 onNavigateToAddProfile("doh")
                             }
                         )
-                        if (!isLiteVersion) {
+                        if (BuildConfig.INCLUDE_NAIVE) {
                             AddMenuGridItem(
                                 modifier = tileMod,
                                 icon = Icons.Default.Shield,
@@ -1105,7 +1105,7 @@ fun MainScreen(
                                 }
                             )
                         }
-                        if (!isLiteVersion) {
+                        if (BuildConfig.INCLUDE_TOR) {
                             AddMenuGridItem(
                                 modifier = tileMod,
                                 icon = Icons.Default.Shield,
