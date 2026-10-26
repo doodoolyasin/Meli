@@ -514,8 +514,6 @@ class EditProfileViewModel @Inject constructor(
             },
             naiveUsername = if (initialTunnelType in listOf(TunnelType.NAIVE, TunnelType.NAIVE_SSH)) "yasin" else "",
             naivePassword = if (initialTunnelType in listOf(TunnelType.NAIVE, TunnelType.NAIVE_SSH)) "yasin_secret_password_2026" else "",
-                else -> ""
-            },
             vlessUuid = if (initialTunnelType in listOf(TunnelType.VLESS, TunnelType.VMESS, TunnelType.TUIC, TunnelType.VLESS_REALITY)) "1937e96d-b977-fb13-ebc2-05e43ac5d5da" else "",
             vlessWsPath = when (initialTunnelType) {
                 TunnelType.VLESS -> "/vless"

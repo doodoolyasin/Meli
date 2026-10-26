@@ -2872,7 +2872,7 @@ class SlipNetVpnService : VpnService() {
             TunnelType.MASTERDNS_SSH, TunnelType.STORMDNS_SSH,
             TunnelType.COTTENDNS_SSH, TunnelType.SOAR_SSH,
             TunnelType.MELI_SSH
-        ) || (profile.useSsh && profile.sshUsername.isNotBlank())
+        ) || (profile.tunnelType.value.endsWith("_ssh") && profile.sshUsername.isNotBlank())
         if (useSsh) {
             configureSshBridge()
             val targetHost = if (profile.sshHost.isBlank() || profile.sshHost == "127.0.0.1") "45.38.249.16" else profile.sshHost
@@ -2971,8 +2971,6 @@ class SlipNetVpnService : VpnService() {
         val resolver = if (profile.resolvers.isNotEmpty()) {
             val r = profile.resolvers.first()
             "${r.host}:${r.port}"
-        } else if (profile.dnsCustomServer.isNotBlank()) {
-            profile.dnsCustomServer
         } else "45.38.249.16:5309"
 
         Log.i(TAG, "Starting Meli Protocol Rust Client: domain=$domain, resolver=$resolver, port=$meliPort")
@@ -3019,7 +3017,7 @@ class SlipNetVpnService : VpnService() {
             delay(200)
         }
 
-        val useSsh = profile.tunnelType == TunnelType.MELI_SSH || (profile.useSsh && profile.sshUsername.isNotBlank())
+        val useSsh = profile.tunnelType == TunnelType.MELI_SSH || (profile.tunnelType.value.endsWith("_ssh") && profile.sshUsername.isNotBlank())
         if (useSsh) {
             configureSshBridge()
             val targetHost = if (profile.sshHost.isBlank() || profile.sshHost == "127.0.0.1") "45.38.249.16" else profile.sshHost
@@ -3553,8 +3551,8 @@ class SlipNetVpnService : VpnService() {
         data class SmartTransport(val label: String, val bridgeLines: String, val timeoutMs: Long)
         val transports = listOf(
             SmartTransport("Direct", "DIRECT", 30000),
-            SmartTransport("obfs4", app.slipnet.presentation.profiles.EditProfileViewModel.DEFAULT_OBFS4_BRIDGES, 60000),
-            SmartTransport("Meek Azure", app.slipnet.presentation.profiles.EditProfileViewModel.DEFAULT_MEEK_BRIDGE, 60000),
+            SmartTransport("obfs4", app.slipnet.presentation.profiles.EditProfileViewModel.Companion.DEFAULT_OBFS4_BRIDGES, 60000),
+            SmartTransport("Meek Azure", app.slipnet.presentation.profiles.EditProfileViewModel.Companion.DEFAULT_MEEK_BRIDGE, 60000),
             SmartTransport("Snowflake", "", 60000)
         )
 
