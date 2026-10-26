@@ -226,7 +226,11 @@ enum class TunnelType(val value: String, val displayName: String) {
     HYSTERIA2("hysteria2", "Hysteria 2 (UDP/QUIC)"),
     TUIC("tuic", "TUIC v5 (QUIC 0-RTT)"),
     TROJAN("trojan", "Trojan (TLS Camouflage)"),
-    SHADOWSOCKS("shadowsocks", "Shadowsocks 2022");
+    SHADOWSOCKS("shadowsocks", "Shadowsocks 2022"),
+    VMESS("vmess", "VMess (V2Ray / iOS)"),
+    SNELL("snell", "Snell (Surge iOS)"),
+    SHADOWSOCKSR("ssr", "ShadowsocksR (iOS)"),
+    VLESS_REALITY("vless_reality", "VLESS-Reality (Vision)");
 
     companion object {
         fun fromValue(value: String): TunnelType {
@@ -237,6 +241,10 @@ enum class TunnelType(val value: String, val displayName: String) {
             if (value.equals("tuic", ignoreCase = true)) return TUIC
             if (value.equals("trojan", ignoreCase = true)) return TROJAN
             if (value.equals("shadowsocks", ignoreCase = true) || value.equals("ss", ignoreCase = true)) return SHADOWSOCKS
+            if (value.equals("vmess", ignoreCase = true)) return VMESS
+            if (value.equals("snell", ignoreCase = true)) return SNELL
+            if (value.equals("ssr", ignoreCase = true) || value.equals("shadowsocksr", ignoreCase = true)) return SHADOWSOCKSR
+            if (value.equals("vless_reality", ignoreCase = true) || value.equals("reality", ignoreCase = true)) return VLESS_REALITY
             return entries.find { it.value.equals(value, ignoreCase = true) } ?: DNSTT
         }
     }

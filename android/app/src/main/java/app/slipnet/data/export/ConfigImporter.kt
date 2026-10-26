@@ -202,6 +202,39 @@ class ConfigImporter @Inject constructor() {
                 continue
             }
 
+            // Handle VMess URIs
+            if (trimmedLine.startsWith("vmess://", ignoreCase = true)) {
+                val result = parseVmessUri(trimmedLine, index + 1)
+                when (result) {
+                    is ProfileParseResult.Success -> profiles.add(result.profile)
+                    is ProfileParseResult.Warning -> warnings.add(result.message)
+                    is ProfileParseResult.Error -> warnings.add(result.message)
+                }
+                continue
+            }
+
+            // Handle Snell URIs
+            if (trimmedLine.startsWith("snell://", ignoreCase = true)) {
+                val result = parseSnellUri(trimmedLine, index + 1)
+                when (result) {
+                    is ProfileParseResult.Success -> profiles.add(result.profile)
+                    is ProfileParseResult.Warning -> warnings.add(result.message)
+                    is ProfileParseResult.Error -> warnings.add(result.message)
+                }
+                continue
+            }
+
+            // Handle ShadowsocksR URIs
+            if (trimmedLine.startsWith("ssr://", ignoreCase = true)) {
+                val result = parseShadowsocksRUri(trimmedLine, index + 1)
+                when (result) {
+                    is ProfileParseResult.Success -> profiles.add(result.profile)
+                    is ProfileParseResult.Warning -> warnings.add(result.message)
+                    is ProfileParseResult.Error -> warnings.add(result.message)
+                }
+                continue
+            }
+
             // Handle Trojan URIs
             if (trimmedLine.startsWith("trojan://", ignoreCase = true)) {
                 val result = parseTrojanUri(trimmedLine, index + 1)
@@ -2549,18 +2582,15 @@ class ConfigImporter @Inject constructor() {
             val fragmentDelay = fragmentParts.getOrNull(0)?.toIntOrNull() ?: 300
             val fragmentStrategy = fragmentParts.getOrNull(1)?.takeIf { it in listOf("sni_split", "half", "multi", "micro", "fake", "disorder") } ?: "micro"
 
-            val normalizedTransport = when (transport) {
+            val normalizedTransport = when (transport.lowercase()) {
                 "ws", "websocket" -> "ws"
                 "tcp", "raw" -> "tcp"
-                else -> return ProfileParseResult.Warning("Line $lineNum: Only VLESS over WebSocket is supported — '$transport' transport is not available")
+                "grpc" -> "grpc"
+                "http", "h2" -> "http"
+                else -> transport.lowercase()
             }
 
-            // Only WebSocket transport is supported.
-            if (normalizedTransport != "ws") {
-                return ProfileParseResult.Warning("Line $lineNum: Only VLESS over WebSocket is supported — this config uses '$transport' transport")
-            }
-
-            val normalizedSecurity = when (security) {
+            val normalizedSecurity = when (security.lowercase()) {
                 "tls", "reality" -> "tls"
                 "none", "" -> "none"
                 else -> "tls"
@@ -3018,6 +3048,20 @@ class ConfigImporter @Inject constructor() {
                                 )
                             )
                         }
+                        "vmess" -> {
+                            val uuid = ob.optString("uuid", ob.optString("id", ""))
+                            val path = ob.optString("path", "/")
+                            profiles.add(
+                                ServerProfile(
+                                    name = tag,
+                                    domain = server,
+                                    cdnPort = port,
+                                    tunnelType = TunnelType.VMESS,
+                                    vlessUuid = uuid,
+                                    vlessWsPath = path
+                                )
+                            )
+                        }
                     }
                 }
             }
@@ -3029,6 +3073,94 @@ class ConfigImporter @Inject constructor() {
             }
         } catch (e: Exception) {
             ImportResult.Error("JSON parsing error: ${e.message}")
+        }
+    }
+
+    private fun parseVmessUri(uri: String, lineNum: Int): ProfileParseResult {
+        return try {
+            val b64 = uri.removePrefix("vmess://").removePrefix("VMESS://").trim()
+            val decoded = String(Base64.decode(b64, Base64.DEFAULT or Base64.URL_SAFE), Charsets.UTF_8)
+            val json = org.json.JSONObject(decoded)
+
+            val name = json.optString("ps", "VMess")
+            val server = json.optString("add", "")
+            val port = json.optInt("port", 443)
+            val uuid = json.optString("id", "")
+            val net = json.optString("net", "ws")
+            val host = json.optString("host", server)
+            val path = json.optString("path", "/")
+            val tls = json.optString("tls", "tls")
+            val sni = json.optString("sni", host)
+
+            if (server.isBlank() || uuid.isBlank()) {
+                return ProfileParseResult.Error("Line $lineNum: VMess config missing server or UUID")
+            }
+
+            val profile = ServerProfile(
+                name = name,
+                domain = host.ifBlank { server },
+                cdnIp = server,
+                cdnPort = port,
+                tunnelType = TunnelType.VMESS,
+                vlessUuid = uuid,
+                vlessSecurity = if (tls.equals("tls", ignoreCase = true)) "tls" else "none",
+                vlessTransport = net,
+                vlessWsPath = path,
+                vlessSni = sni
+            )
+            ProfileParseResult.Success(profile)
+        } catch (e: Exception) {
+            ProfileParseResult.Error("Line $lineNum: Invalid VMess URI: ${e.message}")
+        }
+    }
+
+    private fun parseSnellUri(uri: String, lineNum: Int): ProfileParseResult {
+        return try {
+            val without = uri.removePrefix("snell://").removePrefix("SNELL://")
+            val (mainPart, profileName) = if ('#' in without) {
+                val idx = without.indexOf('#')
+                without.substring(0, idx) to java.net.URLDecoder.decode(without.substring(idx + 1), "UTF-8")
+            } else {
+                without to "Snell"
+            }
+            val atIdx = mainPart.indexOf('@')
+            val psk = if (atIdx >= 0) mainPart.substring(0, atIdx) else ""
+            val rest = if (atIdx >= 0) mainPart.substring(atIdx + 1) else mainPart
+            val qIdx = rest.indexOf('?')
+            val hostPort = if (qIdx >= 0) rest.substring(0, qIdx) else rest
+            val parts = hostPort.split(':')
+            val host = parts[0]
+            val port = parts.getOrNull(1)?.toIntOrNull() ?: 13254
+
+            val profile = ServerProfile(
+                name = profileName,
+                domain = host,
+                cdnPort = port,
+                tunnelType = TunnelType.SNELL,
+                socksPassword = psk
+            )
+            ProfileParseResult.Success(profile)
+        } catch (e: Exception) {
+            ProfileParseResult.Error("Line $lineNum: Invalid Snell URI: ${e.message}")
+        }
+    }
+
+    private fun parseShadowsocksRUri(uri: String, lineNum: Int): ProfileParseResult {
+        return try {
+            val b64 = uri.removePrefix("ssr://").removePrefix("SSR://").trim()
+            val decoded = String(Base64.decode(b64, Base64.DEFAULT or Base64.URL_SAFE), Charsets.UTF_8)
+            val parts = decoded.split(':')
+            val host = parts.getOrElse(0) { "" }
+            val port = parts.getOrNull(1)?.toIntOrNull() ?: 8388
+            val profile = ServerProfile(
+                name = "SSR $host",
+                domain = host,
+                cdnPort = port,
+                tunnelType = TunnelType.SHADOWSOCKSR
+            )
+            ProfileParseResult.Success(profile)
+        } catch (e: Exception) {
+            ProfileParseResult.Error("Line $lineNum: Invalid SSR URI: ${e.message}")
         }
     }
 

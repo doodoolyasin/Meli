@@ -1019,7 +1019,7 @@ fun MainScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "Standard Protocols (12)",
+                            text = "Standard Protocols (16)",
                             style = MaterialTheme.typography.labelLarge,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.primary
@@ -1051,11 +1051,29 @@ fun MainScreen(
                         )
                         AddMenuGridItem(
                             modifier = tileMod,
-                            icon = VlessIcon,
+                            icon = Icons.Default.Shield,
                             title = "VLESS",
                             onClick = {
                                 showAddMenu = false
                                 onNavigateToAddProfile("vless")
+                            }
+                        )
+                        AddMenuGridItem(
+                            modifier = tileMod,
+                            icon = Icons.Default.Visibility,
+                            title = "VLESS-Reality",
+                            onClick = {
+                                showAddMenu = false
+                                onNavigateToAddProfile(TunnelType.VLESS_REALITY.value)
+                            }
+                        )
+                        AddMenuGridItem(
+                            modifier = tileMod,
+                            icon = Icons.Default.Dns,
+                            title = "VMess (iOS)",
+                            onClick = {
+                                showAddMenu = false
+                                onNavigateToAddProfile(TunnelType.VMESS.value)
                             }
                         )
                         AddMenuGridItem(
@@ -1076,7 +1094,7 @@ fun MainScreen(
                                 onNavigateToAddProfile("doh")
                             }
                         )
-                        if (BuildConfig.INCLUDE_NAIVE) {
+                        if (!isLiteVersion) {
                             AddMenuGridItem(
                                 modifier = tileMod,
                                 icon = Icons.Default.Shield,
@@ -1087,10 +1105,10 @@ fun MainScreen(
                                 }
                             )
                         }
-                        if (BuildConfig.INCLUDE_TOR) {
+                        if (!isLiteVersion) {
                             AddMenuGridItem(
                                 modifier = tileMod,
-                                icon = TorIcon,
+                                icon = Icons.Default.Shield,
                                 title = "Tor",
                                 onClick = {
                                     showAddMenu = false
@@ -1141,6 +1159,24 @@ fun MainScreen(
                             onClick = {
                                 showAddMenu = false
                                 onNavigateToAddProfile(TunnelType.SHADOWSOCKS.value)
+                            }
+                        )
+                        AddMenuGridItem(
+                            modifier = tileMod,
+                            icon = Icons.Default.Share,
+                            title = "SSR (iOS)",
+                            onClick = {
+                                showAddMenu = false
+                                onNavigateToAddProfile(TunnelType.SHADOWSOCKSR.value)
+                            }
+                        )
+                        AddMenuGridItem(
+                            modifier = tileMod,
+                            icon = Icons.Default.Shield,
+                            title = "Snell (iOS)",
+                            onClick = {
+                                showAddMenu = false
+                                onNavigateToAddProfile(TunnelType.SNELL.value)
                             }
                         )
                         AddMenuGridItem(
@@ -1926,14 +1962,14 @@ fun MainScreen(
                 showImportDialog = false
                 importText = ""
             },
-            title = { Text("Import Profiles") },
+            title = { Text("Import Configs / V2Ray / JSON") },
             text = {
                 Column(
                     modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     Text(
-                        text = "Paste the config below:",
+                        text = "Paste V2Ray (vmess://, vless://, trojan://, ss://, hy2://), JSON config, or slipnet:// link:",
                         style = MaterialTheme.typography.bodyMedium
                     )
                     OutlinedTextField(
@@ -1941,10 +1977,10 @@ fun MainScreen(
                         onValueChange = { importText = it },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(120.dp),
-                        placeholder = { Text("slipnet://...") },
+                            .height(130.dp),
+                        placeholder = { Text("vmess://... or vless://... or { \"outbounds\": [...] }") },
                         singleLine = false,
-                        maxLines = 5
+                        maxLines = 6
                     )
                     Row(
                         modifier = Modifier.fillMaxWidth(),

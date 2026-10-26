@@ -359,6 +359,18 @@ data class EditProfileUiState(
     val isShadowsocks: Boolean
         get() = tunnelType == TunnelType.SHADOWSOCKS
 
+    val isVmess: Boolean
+        get() = tunnelType == TunnelType.VMESS
+
+    val isSnell: Boolean
+        get() = tunnelType == TunnelType.SNELL
+
+    val isShadowsocksR: Boolean
+        get() = tunnelType == TunnelType.SHADOWSOCKSR
+
+    val isVlessReality: Boolean
+        get() = tunnelType == TunnelType.VLESS_REALITY
+
     val showConnectionMethod: Boolean
         get() = !isSshOnly && !isDoh && !isSnowflake && !isSocks5 && !isVless &&
                 tunnelType != TunnelType.PINGTUNNEL &&
@@ -371,7 +383,11 @@ data class EditProfileUiState(
                 tunnelType != TunnelType.HYSTERIA2 &&
                 tunnelType != TunnelType.TUIC &&
                 tunnelType != TunnelType.TROJAN &&
-                tunnelType != TunnelType.SHADOWSOCKS
+                tunnelType != TunnelType.SHADOWSOCKS &&
+                tunnelType != TunnelType.VMESS &&
+                tunnelType != TunnelType.SNELL &&
+                tunnelType != TunnelType.SHADOWSOCKSR &&
+                tunnelType != TunnelType.VLESS_REALITY
 }
 
 @HiltViewModel
@@ -436,6 +452,10 @@ class EditProfileViewModel @Inject constructor(
                 initialTunnelType == TunnelType.TROJAN -> "Trojan Profile"
                 initialTunnelType == TunnelType.SHADOWSOCKS -> "Shadowsocks Profile"
                 initialTunnelType == TunnelType.OPENVPN -> "OpenVPN Profile"
+                initialTunnelType == TunnelType.VMESS -> "VMess Profile (iOS/V2Ray)"
+                initialTunnelType == TunnelType.SNELL -> "Snell Profile (Surge/iOS)"
+                initialTunnelType == TunnelType.SHADOWSOCKSR -> "ShadowsocksR Profile (iOS)"
+                initialTunnelType == TunnelType.VLESS_REALITY -> "VLESS-Reality Profile"
                 else -> ""
             },
             domain = when {
@@ -1672,6 +1692,7 @@ class EditProfileViewModel @Inject constructor(
         val skipResolvers = forScanner || state.tunnelType == TunnelType.SSH || state.tunnelType == TunnelType.DOH ||
                 state.tunnelType == TunnelType.SNOWFLAKE || state.isNaiveBased || state.isSocks5 || state.isVless ||
                 state.isWireGuard || state.isOpenVpn || state.isHysteria2 || state.isTuic || state.isTrojan || state.isShadowsocks ||
+                state.isVmess || state.isSnell || state.isShadowsocksR || state.isVlessReality ||
                 (state.isDnsttOrNoizOrVaydnsBased && state.dnsTransport == DnsTransport.DOH) ||
                 (state.resolversHidden && !state.useCustomResolver)
         if (!skipResolvers) {
