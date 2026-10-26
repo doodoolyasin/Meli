@@ -78,6 +78,8 @@ import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.Waves
@@ -853,6 +855,10 @@ fun MainScreen(
             // Bottom sheet for adding profiles
             if (showAddMenu) {
                 val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+                var dnsSectionExpanded by remember { mutableStateOf(true) }
+                var standardSectionExpanded by remember { mutableStateOf(true) }
+                var specialtySectionExpanded by remember { mutableStateOf(false) }
+
                 ModalBottomSheet(
                     onDismissRequest = { showAddMenu = false },
                     sheetState = sheetState,
@@ -865,12 +871,28 @@ fun MainScreen(
                     )
                     @OptIn(ExperimentalLayoutApi::class)
                     // Category 1: DNS Tunnel Protocols
-                    Text(
-                        text = "DNS Tunnel Protocols",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
-                    )
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable { dnsSectionExpanded = !dnsSectionExpanded }
+                            .padding(horizontal = 16.dp, vertical = 6.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "DNS Tunnel Protocols (9)",
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Icon(
+                            imageVector = if (dnsSectionExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                            contentDescription = if (dnsSectionExpanded) "Collapse" else "Expand",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                    if (dnsSectionExpanded) {
                     FlowRow(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -982,16 +1004,33 @@ fun MainScreen(
                             }
                         )
                     }
+                    }
 
                     HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp))
 
                     // Category 2: Standard / Normal Protocols
-                    Text(
-                        text = "Standard Protocols",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
-                    )
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable { standardSectionExpanded = !standardSectionExpanded }
+                            .padding(horizontal = 16.dp, vertical = 6.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Standard Protocols (12)",
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Icon(
+                            imageVector = if (standardSectionExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                            contentDescription = if (standardSectionExpanded) "Collapse" else "Expand",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                    if (standardSectionExpanded) {
                     FlowRow(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -1114,16 +1153,33 @@ fun MainScreen(
                             }
                         )
                     }
+                    }
 
                     HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp))
 
                     // Category 3: Specialty & Intranet Bypass
-                    Text(
-                        text = "Specialty & Emergency Intranet",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
-                    )
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable { specialtySectionExpanded = !specialtySectionExpanded }
+                            .padding(horizontal = 16.dp, vertical = 6.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Specialty & Emergency Intranet (5)",
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Icon(
+                            imageVector = if (specialtySectionExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                            contentDescription = if (specialtySectionExpanded) "Collapse" else "Expand",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                    if (specialtySectionExpanded) {
                     FlowRow(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -1178,6 +1234,7 @@ fun MainScreen(
                                 onNavigateToAddProfile(TunnelType.PAQET.value)
                             }
                         )
+                    }
                     }
                     HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
                     AddMenuOption(

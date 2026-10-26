@@ -277,6 +277,46 @@ fun SettingsScreen(
                 )
             }
 
+            // ── Meli Protocol & Anti-DPI Syllable Engine ────────────────────────
+            var meliSyllableEngine by remember { mutableStateOf(true) }
+            var meliStrictQname by remember { mutableStateOf(true) }
+            var meliAutoTunerAdaptive by remember { mutableStateOf(true) }
+            var meliPortFallback by remember { mutableStateOf(true) }
+
+            SettingsSection(title = "Meli Protocol & Anti-DPI Syllable Engine") {
+                SwitchSettingItem(
+                    icon = Icons.Default.Language,
+                    title = "Natural Syllable Obfuscation (ضد فیلترینگ هجایی)",
+                    description = "Encode DNS payload into natural 3-letter English syllables to keep entropy < 2.8 and prevent AI DPI packet drops",
+                    checked = meliSyllableEngine,
+                    onCheckedChange = { meliSyllableEngine = it }
+                )
+                SettingsDivider()
+                SwitchSettingItem(
+                    icon = Icons.Default.VerifiedUser,
+                    title = "Strict RFC 1035 QNAME Guard",
+                    description = "Enforce max 253-character FQDN limit to ensure upstream carrier recursive resolvers never drop queries",
+                    checked = meliStrictQname,
+                    onCheckedChange = { meliStrictQname = it }
+                )
+                SettingsDivider()
+                SwitchSettingItem(
+                    icon = Icons.Default.Speed,
+                    title = "Meli Adaptive Auto-Tuner",
+                    description = "Continuously evaluate resolver response times and packet drop rates to dynamically tune payload size",
+                    checked = meliAutoTunerAdaptive,
+                    onCheckedChange = { meliAutoTunerAdaptive = it }
+                )
+                SettingsDivider()
+                SwitchSettingItem(
+                    icon = Icons.Default.Sync,
+                    title = "Meli Port Fallback (5309 / 853 / 5353)",
+                    description = "Automatically switch to alternate ports when standard DNS port 53 experiences severe packet drops",
+                    checked = meliPortFallback,
+                    onCheckedChange = { meliPortFallback = it }
+                )
+            }
+
             // Connection Settings
             SettingsSection(title = "Connection") {
                 SwitchSettingItem(
