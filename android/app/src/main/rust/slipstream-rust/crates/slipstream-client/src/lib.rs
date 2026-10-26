@@ -5,6 +5,7 @@
 
 pub mod dns;
 pub mod error;
+pub mod meli;
 pub mod pacing;
 pub mod pinning;
 pub mod runtime;

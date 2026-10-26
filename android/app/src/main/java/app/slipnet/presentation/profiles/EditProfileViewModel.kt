@@ -341,13 +341,37 @@ data class EditProfileUiState(
     val isPaqet: Boolean
         get() = tunnelType == TunnelType.PAQET
 
+    val isWireGuard: Boolean
+        get() = tunnelType == TunnelType.WIREGUARD
+
+    val isOpenVpn: Boolean
+        get() = tunnelType == TunnelType.OPENVPN
+
+    val isHysteria2: Boolean
+        get() = tunnelType == TunnelType.HYSTERIA2
+
+    val isTuic: Boolean
+        get() = tunnelType == TunnelType.TUIC
+
+    val isTrojan: Boolean
+        get() = tunnelType == TunnelType.TROJAN
+
+    val isShadowsocks: Boolean
+        get() = tunnelType == TunnelType.SHADOWSOCKS
+
     val showConnectionMethod: Boolean
         get() = !isSshOnly && !isDoh && !isSnowflake && !isSocks5 && !isVless &&
                 tunnelType != TunnelType.PINGTUNNEL &&
                 tunnelType != TunnelType.BALE &&
                 tunnelType != TunnelType.SPOOF_TUNNEL &&
                 tunnelType != TunnelType.GOLDEN_GRE &&
-                tunnelType != TunnelType.PAQET
+                tunnelType != TunnelType.PAQET &&
+                tunnelType != TunnelType.WIREGUARD &&
+                tunnelType != TunnelType.OPENVPN &&
+                tunnelType != TunnelType.HYSTERIA2 &&
+                tunnelType != TunnelType.TUIC &&
+                tunnelType != TunnelType.TROJAN &&
+                tunnelType != TunnelType.SHADOWSOCKS
 }
 
 @HiltViewModel
@@ -409,7 +433,7 @@ class EditProfileViewModel @Inject constructor(
                 else -> ""
             },
             domain = when {
-                isMeliInitial -> "goi.dhafhdtjdti.site"
+                isMeliInitial -> "m.dhafhdtjdti.site"
                 isMasterDnsInitial -> "goi.dhafhdtjdti.site"
                 isStormDnsInitial -> "storm.dhafhdtjdti.site"
                 isCottenDnsInitial -> "cotten.dhafhdtjdti.site"
@@ -423,7 +447,8 @@ class EditProfileViewModel @Inject constructor(
                 else -> ""
             },
             dnsttPublicKey = when {
-                isMeliInitial || isMasterDnsInitial -> "5d790e75a6262fe95f70979c7bddd360"
+                isMeliInitial -> "meli_secret_protocol_key_2026"
+                isMasterDnsInitial -> "5d790e75a6262fe95f70979c7bddd360"
                 isStormDnsInitial -> "5d790e75a6262fe95f70979c7bddd360"
                 isCottenDnsInitial -> "5d790e75a6262fe95f70979c7bddd360"
                 isSoarInitial -> "ffef9358f4061799fb8b9b978dc1652de9d3d2ffbe0049adf996090adb612d9e"

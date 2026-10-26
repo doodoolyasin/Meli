@@ -220,11 +220,23 @@ enum class TunnelType(val value: String, val displayName: String) {
     SOAR_SSH("soar_ssh", "Soar + SSH"),
     MELI("meli", "Meli (Custom Protocol)"),
     MELI_SSH("meli_ssh", "Meli + SSH"),
-    PAQET("paqet", "Paqet (Raw-TCP / KCP)");
+    PAQET("paqet", "Paqet (Raw-TCP / KCP)"),
+    WIREGUARD("wireguard", "WireGuard / AmneziaWG"),
+    OPENVPN("openvpn", "OpenVPN (Scramble/XOR)"),
+    HYSTERIA2("hysteria2", "Hysteria 2 (UDP/QUIC)"),
+    TUIC("tuic", "TUIC v5 (QUIC 0-RTT)"),
+    TROJAN("trojan", "Trojan (TLS Camouflage)"),
+    SHADOWSOCKS("shadowsocks", "Shadowsocks 2022");
 
     companion object {
         fun fromValue(value: String): TunnelType {
             if (value.equals("meli", ignoreCase = true)) return MELI
+            if (value.equals("wireguard", ignoreCase = true) || value.equals("awg", ignoreCase = true) || value.equals("wg", ignoreCase = true)) return WIREGUARD
+            if (value.equals("openvpn", ignoreCase = true) || value.equals("ovpn", ignoreCase = true)) return OPENVPN
+            if (value.equals("hysteria2", ignoreCase = true) || value.equals("hy2", ignoreCase = true)) return HYSTERIA2
+            if (value.equals("tuic", ignoreCase = true)) return TUIC
+            if (value.equals("trojan", ignoreCase = true)) return TROJAN
+            if (value.equals("shadowsocks", ignoreCase = true) || value.equals("ss", ignoreCase = true)) return SHADOWSOCKS
             return entries.find { it.value.equals(value, ignoreCase = true) } ?: DNSTT
         }
     }

@@ -42,6 +42,7 @@ import app.slipnet.tunnel.SlipstreamSocksBridge
 import app.slipnet.tunnel.Socks5ProxyBridge
 import app.slipnet.tunnel.VlessBridge
 import app.slipnet.tunnel.MasterDnsBridge
+import app.slipnet.tunnel.MeliBridge
 import app.slipnet.tunnel.SnowflakeBridge
 import app.slipnet.tunnel.SshTunnelBridge
 import app.slipnet.tunnel.TorSocksBridge
@@ -550,12 +551,13 @@ class SlipNetVpnService : VpnService() {
                     TunnelType.MASTERDNS, TunnelType.MASTERDNS_SSH,
                     TunnelType.STORMDNS, TunnelType.STORMDNS_SSH,
                     TunnelType.COTTENDNS, TunnelType.COTTENDNS_SSH,
-                    TunnelType.SOAR, TunnelType.SOAR_SSH,
-                    TunnelType.MELI, TunnelType.MELI_SSH -> connectMasterDns(profile, dnsServer, remoteDns, remoteDnsFallback, globalResolverOverride)
+                    TunnelType.SOAR, TunnelType.SOAR_SSH -> connectMasterDns(profile, dnsServer, remoteDns, remoteDnsFallback, globalResolverOverride)
+                    TunnelType.MELI, TunnelType.MELI_SSH -> connectMeli(profile, dnsServer, remoteDns, remoteDnsFallback, globalResolverOverride)
                     TunnelType.NOOSHDAROO, TunnelType.QWDTT -> if (profile.sshUsername.isNotBlank()) connectDnsttSsh(profile, dnsServer, remoteDns, remoteDnsFallback, globalResolverOverride) else connectDnstt(profile, dnsServer, remoteDns, remoteDnsFallback, globalResolverOverride)
                     TunnelType.NOOSHDAROO_SSH, TunnelType.QWDTT_SSH -> connectDnsttSsh(profile, dnsServer, remoteDns, remoteDnsFallback, globalResolverOverride)
                     TunnelType.BALE -> connectBale(profile, dnsServer, remoteDns)
-                    TunnelType.PINGTUNNEL, TunnelType.SPOOF_TUNNEL, TunnelType.GOLDEN_GRE, TunnelType.PAQET -> connectSocks5(profile, dnsServer, remoteDns)
+                    TunnelType.PINGTUNNEL, TunnelType.SPOOF_TUNNEL, TunnelType.GOLDEN_GRE, TunnelType.PAQET,
+                    TunnelType.WIREGUARD, TunnelType.OPENVPN, TunnelType.HYSTERIA2, TunnelType.TUIC, TunnelType.TROJAN, TunnelType.SHADOWSOCKS -> connectSocks5(profile, dnsServer, remoteDns)
                 }
 
             } catch (e: kotlinx.coroutines.CancellationException) {
@@ -1267,13 +1269,18 @@ class SlipNetVpnService : VpnService() {
                 SnowflakeBridge.stopClient()
             }
             TunnelType.DOH -> DohBridge.stop()
-            TunnelType.SOCKS5, TunnelType.BALE, TunnelType.PINGTUNNEL, TunnelType.SPOOF_TUNNEL, TunnelType.GOLDEN_GRE, TunnelType.PAQET -> Socks5ProxyBridge.stopAll()
+            TunnelType.SOCKS5, TunnelType.BALE, TunnelType.PINGTUNNEL, TunnelType.SPOOF_TUNNEL, TunnelType.GOLDEN_GRE, TunnelType.PAQET,
+            TunnelType.WIREGUARD, TunnelType.OPENVPN, TunnelType.HYSTERIA2, TunnelType.TUIC, TunnelType.TROJAN, TunnelType.SHADOWSOCKS -> Socks5ProxyBridge.stopAll()
             TunnelType.MASTERDNS, TunnelType.MASTERDNS_SSH,
             TunnelType.STORMDNS, TunnelType.STORMDNS_SSH,
             TunnelType.COTTENDNS, TunnelType.COTTENDNS_SSH,
-            TunnelType.SOAR, TunnelType.SOAR_SSH,
-            TunnelType.MELI, TunnelType.MELI_SSH -> {
+            TunnelType.SOAR, TunnelType.SOAR_SSH -> {
                 MasterDnsBridge.stopClient()
+                SshTunnelBridge.stop()
+            }
+            TunnelType.MELI, TunnelType.MELI_SSH -> {
+                MeliBridge.stopClient()
+                MeliBridge.setVpnService(null)
                 SshTunnelBridge.stop()
             }
             TunnelType.BALE -> {
@@ -2940,6 +2947,136 @@ class SlipNetVpnService : VpnService() {
 
         delay(500)
         Log.d(TAG, "MasterDNS tunnel started successfully")
+        finishConnection()
+    }
+
+    private suspend fun connectMeli(
+        profile: app.slipnet.domain.model.ServerProfile,
+        dnsServer: String,
+        remoteDns: String,
+        remoteDnsFallback: String,
+        globalResolverOverride: List<app.slipnet.domain.model.DnsResolver>? = null
+    ) {
+        val proxyPort = preferencesDataStore.proxyListenPort.first()
+        val proxyHost = preferencesDataStore.proxyListenAddress.first()
+        val meliPort = proxyPort + 1
+
+        MeliBridge.proxyOnlyMode = isProxyOnly
+        MeliBridge.setVpnService(this@SlipNetVpnService)
+
+        val domain = if (profile.domain.isNotBlank()) profile.domain else "m.dhafhdtjdti.site"
+        val resolver = if (profile.resolvers.isNotEmpty()) {
+            val r = profile.resolvers.first()
+            "${r.host}:${r.port}"
+        } else "8.8.8.8:53"
+
+        Log.i(TAG, "Starting Meli Protocol Rust Client: domain=$domain, resolver=$resolver, port=$meliPort")
+        val startResult = MeliBridge.startClient(
+            domain = domain,
+            resolver = resolver,
+            listenPort = meliPort,
+            listenHost = "127.0.0.1",
+            encryptionKey = profile.dnsttPublicKey.ifBlank { "" }
+        )
+
+        if (startResult.isFailure) {
+            val err = startResult.exceptionOrNull()?.message ?: "Failed to start Meli client"
+            Log.e(TAG, "Meli client failed to start: $err")
+            connectionManager.onVpnError(err)
+            MeliBridge.setVpnService(null)
+            stopForeground(STOP_FOREGROUND_REMOVE)
+            stopSelf()
+            return
+        }
+
+        val actualPort = MeliBridge.getClientPort()
+        if (!waitForProxyReady(actualPort, maxAttempts = 50, delayMs = 150)) {
+            val lastErr = MeliBridge.isRunning().let { if (!it) "Meli Rust client died" else "Port not listening" }
+            Log.e(TAG, "Meli client failed to become ready on port $actualPort: $lastErr")
+            connectionManager.onVpnError("Meli startup failed: $lastErr")
+            MeliBridge.stopClient()
+            MeliBridge.setVpnService(null)
+            stopForeground(STOP_FOREGROUND_REMOVE)
+            stopSelf()
+            return
+        }
+
+        if (!isProxyOnly) {
+            vpnInterface = establishVpnInterface(dnsServer)
+            if (vpnInterface == null) {
+                connectionManager.onVpnError("Failed to establish VPN interface")
+                MeliBridge.stopClient()
+                MeliBridge.setVpnService(null)
+                stopForeground(STOP_FOREGROUND_REMOVE)
+                stopSelf()
+                return
+            }
+            delay(200)
+        }
+
+        val useSsh = profile.tunnelType == TunnelType.MELI_SSH || profile.sshUsername.isNotBlank()
+        if (useSsh) {
+            configureSshBridge()
+            val targetHost = if (profile.sshHost.isBlank() || profile.sshHost == "127.0.0.1") "16.171.152.115" else profile.sshHost
+            var sshResult: Result<Unit> = Result.failure(RuntimeException("SSH not attempted"))
+            for (attempt in 1..SSH_OVER_TUNNEL_RETRIES) {
+                sshResult = withContext(Dispatchers.IO) {
+                    Log.i(TAG, "Starting SSH tunnel through Meli SOCKS5 ($targetHost:${profile.sshPort} via 127.0.0.1:$actualPort) attempt $attempt/$SSH_OVER_TUNNEL_RETRIES")
+                    SshTunnelBridge.startOverSocks5Proxy(
+                        sshHost = targetHost,
+                        sshPort = profile.sshPort,
+                        sshUsername = profile.sshUsername,
+                        sshPassword = profile.sshPassword,
+                        proxyHost = "127.0.0.1",
+                        proxyPort = actualPort,
+                        socksUsername = null,
+                        socksPassword = null,
+                        listenPort = proxyPort,
+                        listenHost = proxyHost,
+                        enableKeepAlive = true,
+                        keepAliveInterval = 10,
+                        connectTimeout = 60,
+                        authTimeout = 30
+                    )
+                }
+                if (sshResult.isSuccess) break
+                if (attempt < SSH_OVER_TUNNEL_RETRIES) delay(1000)
+            }
+            if (sshResult.isFailure) {
+                val err = sshResult.exceptionOrNull()?.message ?: "SSH connection failed"
+                Log.e(TAG, "SSH connection failed: $err")
+                connectionManager.onVpnError("SSH connection failed: $err")
+                MeliBridge.stopClient()
+                MeliBridge.setVpnService(null)
+                stopForeground(STOP_FOREGROUND_REMOVE)
+                stopSelf()
+                return
+            }
+        }
+
+        if (isProxyOnly) {
+            vpnRepository.setProxyConnected(profile)
+            Log.i(TAG, "Proxy-only mode: Meli SOCKS5 proxy ready on port ${if (useSsh) proxyPort else actualPort}")
+            finishConnection()
+            return
+        }
+
+        val socksPort = if (useSsh) proxyPort else actualPort
+        val tun2socksResult = vpnRepository.startTun2Socks(profile, vpnInterface!!, socksPortOverride = socksPort)
+        if (tun2socksResult.isFailure) {
+            connectionManager.onVpnError(tun2socksResult.exceptionOrNull()?.message ?: "Failed to start tunnel")
+            if (useSsh) SshTunnelBridge.stop()
+            MeliBridge.stopClient()
+            MeliBridge.setVpnService(null)
+            vpnInterface?.close()
+            vpnInterface = null
+            stopForeground(STOP_FOREGROUND_REMOVE)
+            stopSelf()
+            return
+        }
+
+        delay(500)
+        Log.d(TAG, "Meli tunnel started successfully")
         finishConnection()
     }
 
@@ -5048,7 +5185,8 @@ class SlipNetVpnService : VpnService() {
                 Log.d(TAG, "Stopping VLESS bridge")
                 VlessBridge.stop()
             }
-            TunnelType.BALE, TunnelType.PINGTUNNEL, TunnelType.SPOOF_TUNNEL, TunnelType.GOLDEN_GRE, TunnelType.PAQET -> {
+            TunnelType.BALE, TunnelType.PINGTUNNEL, TunnelType.SPOOF_TUNNEL, TunnelType.GOLDEN_GRE, TunnelType.PAQET,
+            TunnelType.WIREGUARD, TunnelType.OPENVPN, TunnelType.HYSTERIA2, TunnelType.TUIC, TunnelType.TROJAN, TunnelType.SHADOWSOCKS -> {
                 Log.d(TAG, "Stopping SOCKS5-compatible bridge")
                 Socks5ProxyBridge.stopAll()
             }

@@ -170,6 +170,15 @@ class ConfigImporter @Inject constructor() {
             trimmedInput
         }
 
+        // Handle full JSON configurations (Sing-box, Xray outbounds, WhiteDNS JSON)
+        if ((trimmedInput.startsWith("{") && trimmedInput.endsWith("}")) ||
+            (trimmedInput.startsWith("[") && trimmedInput.endsWith("]"))) {
+            val jsonResult = parseUniversalJson(trimmedInput)
+            if (jsonResult is ImportResult.Success && jsonResult.profiles.isNotEmpty()) {
+                return jsonResult
+            }
+        }
+
         val lines = expanded.lines().filter { it.isNotBlank() }
 
         if (lines.isEmpty()) {
@@ -185,6 +194,72 @@ class ConfigImporter @Inject constructor() {
             // Handle standard vless:// URIs
             if (trimmedLine.startsWith(VLESS_SCHEME, ignoreCase = true)) {
                 val result = parseVlessUri(trimmedLine, index + 1)
+                when (result) {
+                    is ProfileParseResult.Success -> profiles.add(result.profile)
+                    is ProfileParseResult.Warning -> warnings.add(result.message)
+                    is ProfileParseResult.Error -> warnings.add(result.message)
+                }
+                continue
+            }
+
+            // Handle Trojan URIs
+            if (trimmedLine.startsWith("trojan://", ignoreCase = true)) {
+                val result = parseTrojanUri(trimmedLine, index + 1)
+                when (result) {
+                    is ProfileParseResult.Success -> profiles.add(result.profile)
+                    is ProfileParseResult.Warning -> warnings.add(result.message)
+                    is ProfileParseResult.Error -> warnings.add(result.message)
+                }
+                continue
+            }
+
+            // Handle Shadowsocks URIs
+            if (trimmedLine.startsWith("ss://", ignoreCase = true)) {
+                val result = parseShadowsocksUri(trimmedLine, index + 1)
+                when (result) {
+                    is ProfileParseResult.Success -> profiles.add(result.profile)
+                    is ProfileParseResult.Warning -> warnings.add(result.message)
+                    is ProfileParseResult.Error -> warnings.add(result.message)
+                }
+                continue
+            }
+
+            // Handle Hysteria2 URIs
+            if (trimmedLine.startsWith("hysteria2://", ignoreCase = true) || trimmedLine.startsWith("hy2://", ignoreCase = true)) {
+                val result = parseHysteria2Uri(trimmedLine, index + 1)
+                when (result) {
+                    is ProfileParseResult.Success -> profiles.add(result.profile)
+                    is ProfileParseResult.Warning -> warnings.add(result.message)
+                    is ProfileParseResult.Error -> warnings.add(result.message)
+                }
+                continue
+            }
+
+            // Handle TUIC URIs
+            if (trimmedLine.startsWith("tuic://", ignoreCase = true)) {
+                val result = parseTuicUri(trimmedLine, index + 1)
+                when (result) {
+                    is ProfileParseResult.Success -> profiles.add(result.profile)
+                    is ProfileParseResult.Warning -> warnings.add(result.message)
+                    is ProfileParseResult.Error -> warnings.add(result.message)
+                }
+                continue
+            }
+
+            // Handle WireGuard / AmneziaWG URIs
+            if (trimmedLine.startsWith("wireguard://", ignoreCase = true) || trimmedLine.startsWith("wg://", ignoreCase = true)) {
+                val result = parseWireGuardUri(trimmedLine, index + 1)
+                when (result) {
+                    is ProfileParseResult.Success -> profiles.add(result.profile)
+                    is ProfileParseResult.Warning -> warnings.add(result.message)
+                    is ProfileParseResult.Error -> warnings.add(result.message)
+                }
+                continue
+            }
+
+            // Handle OpenVPN URIs
+            if (trimmedLine.startsWith("openvpn://", ignoreCase = true) || trimmedLine.startsWith("ovpn://", ignoreCase = true)) {
+                val result = parseOpenVpnUri(trimmedLine, index + 1)
                 when (result) {
                     is ProfileParseResult.Success -> profiles.add(result.profile)
                     is ProfileParseResult.Warning -> warnings.add(result.message)
@@ -2635,6 +2710,325 @@ class ConfigImporter @Inject constructor() {
             ProfileParseResult.Success(baseResult.profile.copy(vlessSni = fields[78]))
         } else {
             baseResult
+        }
+    }
+
+    private fun parseTrojanUri(uri: String, lineNum: Int): ProfileParseResult {
+        return try {
+            val without = uri.removePrefix("trojan://").removePrefix("TROJAN://")
+            val (mainPart, name) = if ('#' in without) {
+                without.substringBefore('#') to java.net.URLDecoder.decode(without.substringAfter('#'), "UTF-8")
+            } else without to "Trojan"
+            val password = mainPart.substringBefore('@')
+            val rest = mainPart.substringAfter('@')
+            val hostPort = rest.substringBefore('?')
+            val query = if ('?' in rest) rest.substringAfter('?') else ""
+            val host = hostPort.substringBefore(':')
+            val port = hostPort.substringAfter(':').toIntOrNull() ?: 443
+            val params = parseQueryParams(query)
+            val sni = params["sni"] ?: params["peer"] ?: host
+
+            ProfileParseResult.Success(
+                ServerProfile(
+                    name = name,
+                    domain = host,
+                    cdnPort = port,
+                    tunnelType = TunnelType.TROJAN,
+                    socksPassword = password,
+                    vlessSni = sni
+                )
+            )
+        } catch (e: Exception) {
+            ProfileParseResult.Error("Line $lineNum: Failed to parse Trojan URI: ${e.message}")
+        }
+    }
+
+    private fun parseShadowsocksUri(uri: String, lineNum: Int): ProfileParseResult {
+        return try {
+            val without = uri.removePrefix("ss://").removePrefix("SS://")
+            val (mainPart, name) = if ('#' in without) {
+                without.substringBefore('#') to java.net.URLDecoder.decode(without.substringAfter('#'), "UTF-8")
+            } else without to "Shadowsocks"
+
+            var userInfo = ""
+            var hostPort = ""
+            if ('@' in mainPart) {
+                val rawUser = mainPart.substringBefore('@')
+                hostPort = mainPart.substringAfter('@')
+                userInfo = try {
+                    String(Base64.decode(rawUser, Base64.NO_PADDING or Base64.URL_SAFE), Charsets.UTF_8)
+                } catch (_: Exception) {
+                    rawUser
+                }
+            } else {
+                val decoded = try {
+                    String(Base64.decode(mainPart, Base64.NO_PADDING or Base64.URL_SAFE), Charsets.UTF_8)
+                } catch (_: Exception) {
+                    mainPart
+                }
+                if ('@' in decoded) {
+                    userInfo = decoded.substringBefore('@')
+                    hostPort = decoded.substringAfter('@')
+                }
+            }
+
+            val method = if (':' in userInfo) userInfo.substringBefore(':') else "2022-blake3-aes-128-gcm"
+            val password = if (':' in userInfo) userInfo.substringAfter(':') else userInfo
+            val host = hostPort.substringBefore(':')
+            val port = hostPort.substringAfter(':').toIntOrNull() ?: 8388
+
+            ProfileParseResult.Success(
+                ServerProfile(
+                    name = name,
+                    domain = host,
+                    cdnPort = port,
+                    tunnelType = TunnelType.SHADOWSOCKS,
+                    socksUsername = method,
+                    socksPassword = password
+                )
+            )
+        } catch (e: Exception) {
+            ProfileParseResult.Error("Line $lineNum: Failed to parse Shadowsocks URI: ${e.message}")
+        }
+    }
+
+    private fun parseHysteria2Uri(uri: String, lineNum: Int): ProfileParseResult {
+        return try {
+            val without = uri.removePrefix("hysteria2://").removePrefix("hy2://")
+            val (mainPart, name) = if ('#' in without) {
+                without.substringBefore('#') to java.net.URLDecoder.decode(without.substringAfter('#'), "UTF-8")
+            } else without to "Hysteria 2"
+            val password = mainPart.substringBefore('@')
+            val rest = mainPart.substringAfter('@')
+            val hostPort = rest.substringBefore('?')
+            val query = if ('?' in rest) rest.substringAfter('?') else ""
+            val host = hostPort.substringBefore(':')
+            val port = hostPort.substringAfter(':').toIntOrNull() ?: 443
+            val params = parseQueryParams(query)
+            val sni = params["sni"] ?: host
+
+            ProfileParseResult.Success(
+                ServerProfile(
+                    name = name,
+                    domain = host,
+                    cdnPort = port,
+                    tunnelType = TunnelType.HYSTERIA2,
+                    socksPassword = password,
+                    vlessSni = sni
+                )
+            )
+        } catch (e: Exception) {
+            ProfileParseResult.Error("Line $lineNum: Failed to parse Hysteria2 URI: ${e.message}")
+        }
+    }
+
+    private fun parseTuicUri(uri: String, lineNum: Int): ProfileParseResult {
+        return try {
+            val without = uri.removePrefix("tuic://").removePrefix("TUIC://")
+            val (mainPart, name) = if ('#' in without) {
+                without.substringBefore('#') to java.net.URLDecoder.decode(without.substringAfter('#'), "UTF-8")
+            } else without to "TUIC"
+            val creds = mainPart.substringBefore('@')
+            val uuid = creds.substringBefore(':')
+            val password = creds.substringAfter(':')
+            val rest = mainPart.substringAfter('@')
+            val hostPort = rest.substringBefore('?')
+            val query = if ('?' in rest) rest.substringAfter('?') else ""
+            val host = hostPort.substringBefore(':')
+            val port = hostPort.substringAfter(':').toIntOrNull() ?: 8443
+            val params = parseQueryParams(query)
+            val sni = params["sni"] ?: host
+
+            ProfileParseResult.Success(
+                ServerProfile(
+                    name = name,
+                    domain = host,
+                    cdnPort = port,
+                    tunnelType = TunnelType.TUIC,
+                    vlessUuid = uuid,
+                    socksPassword = password,
+                    vlessSni = sni
+                )
+            )
+        } catch (e: Exception) {
+            ProfileParseResult.Error("Line $lineNum: Failed to parse TUIC URI: ${e.message}")
+        }
+    }
+
+    private fun parseWireGuardUri(uri: String, lineNum: Int): ProfileParseResult {
+        return try {
+            val without = uri.removePrefix("wireguard://").removePrefix("wg://")
+            val (mainPart, name) = if ('#' in without) {
+                without.substringBefore('#') to java.net.URLDecoder.decode(without.substringAfter('#'), "UTF-8")
+            } else without to "WireGuard"
+            val privKey = mainPart.substringBefore('@')
+            val rest = mainPart.substringAfter('@')
+            val hostPort = rest.substringBefore('?')
+            val query = if ('?' in rest) rest.substringAfter('?') else ""
+            val host = hostPort.substringBefore(':')
+            val port = hostPort.substringAfter(':').toIntOrNull() ?: 51820
+            val params = parseQueryParams(query)
+            val pubKey = params["publickey"] ?: params["pubkey"] ?: ""
+
+            ProfileParseResult.Success(
+                ServerProfile(
+                    name = name,
+                    domain = host,
+                    cdnPort = port,
+                    tunnelType = TunnelType.WIREGUARD,
+                    sshPrivateKey = privKey,
+                    dnsttPublicKey = pubKey
+                )
+            )
+        } catch (e: Exception) {
+            ProfileParseResult.Error("Line $lineNum: Failed to parse WireGuard URI: ${e.message}")
+        }
+    }
+
+    private fun parseOpenVpnUri(uri: String, lineNum: Int): ProfileParseResult {
+        return try {
+            val without = uri.removePrefix("openvpn://").removePrefix("ovpn://")
+            val (mainPart, name) = if ('#' in without) {
+                without.substringBefore('#') to java.net.URLDecoder.decode(without.substringAfter('#'), "UTF-8")
+            } else without to "OpenVPN"
+            val host = mainPart.substringBefore(':')
+            val port = mainPart.substringAfter(':').toIntOrNull() ?: 1194
+
+            ProfileParseResult.Success(
+                ServerProfile(
+                    name = name,
+                    domain = host,
+                    cdnPort = port,
+                    tunnelType = TunnelType.OPENVPN
+                )
+            )
+        } catch (e: Exception) {
+            ProfileParseResult.Error("Line $lineNum: Failed to parse OpenVPN URI: ${e.message}")
+        }
+    }
+
+    private fun parseQueryParams(queryString: String): Map<String, String> {
+        val params = mutableMapOf<String, String>()
+        if (queryString.isBlank()) return params
+        queryString.split('&').forEach { param ->
+            val eqIdx = param.indexOf('=')
+            if (eqIdx > 0) {
+                val key = param.substring(0, eqIdx).lowercase()
+                val value = try {
+                    java.net.URLDecoder.decode(param.substring(eqIdx + 1), "UTF-8")
+                } catch (_: Exception) {
+                    param.substring(eqIdx + 1)
+                }
+                params[key] = value
+            }
+        }
+        return params
+    }
+
+    private fun parseUniversalJson(jsonStr: String): ImportResult {
+        return try {
+            val root = org.json.JSONObject(jsonStr)
+            val profiles = mutableListOf<ServerProfile>()
+
+            val outbounds = root.optJSONArray("outbounds")
+            if (outbounds != null && outbounds.length() > 0) {
+                for (i in 0 until outbounds.length()) {
+                    val ob = outbounds.optJSONObject(i) ?: continue
+                    val tag = ob.optString("tag", "Proxy-$i")
+                    val type = ob.optString("type", ob.optString("protocol", "")).lowercase()
+                    val server = ob.optString("server", ob.optString("server_address", ""))
+                    val port = ob.optInt("server_port", ob.optInt("port", 443))
+
+                    when (type) {
+                        "vless" -> {
+                            val uuid = ob.optString("uuid", "")
+                            profiles.add(
+                                ServerProfile(
+                                    name = tag,
+                                    domain = server,
+                                    cdnPort = port,
+                                    tunnelType = TunnelType.VLESS,
+                                    vlessUuid = uuid
+                                )
+                            )
+                        }
+                        "trojan" -> {
+                            val password = ob.optString("password", "")
+                            profiles.add(
+                                ServerProfile(
+                                    name = tag,
+                                    domain = server,
+                                    cdnPort = port,
+                                    tunnelType = TunnelType.TROJAN,
+                                    socksPassword = password
+                                )
+                            )
+                        }
+                        "hysteria2" -> {
+                            val password = ob.optString("password", "")
+                            profiles.add(
+                                ServerProfile(
+                                    name = tag,
+                                    domain = server,
+                                    cdnPort = port,
+                                    tunnelType = TunnelType.HYSTERIA2,
+                                    socksPassword = password
+                                )
+                            )
+                        }
+                        "tuic" -> {
+                            val uuid = ob.optString("uuid", "")
+                            val password = ob.optString("password", "")
+                            profiles.add(
+                                ServerProfile(
+                                    name = tag,
+                                    domain = server,
+                                    cdnPort = port,
+                                    tunnelType = TunnelType.TUIC,
+                                    vlessUuid = uuid,
+                                    socksPassword = password
+                                )
+                            )
+                        }
+                        "shadowsocks" -> {
+                            val method = ob.optString("method", "2022-blake3-aes-128-gcm")
+                            val password = ob.optString("password", "")
+                            profiles.add(
+                                ServerProfile(
+                                    name = tag,
+                                    domain = server,
+                                    cdnPort = port,
+                                    tunnelType = TunnelType.SHADOWSOCKS,
+                                    socksUsername = method,
+                                    socksPassword = password
+                                )
+                            )
+                        }
+                        "wireguard" -> {
+                            val pubKey = ob.optString("peer_public_key", ob.optString("public_key", ""))
+                            val privKey = ob.optString("private_key", "")
+                            profiles.add(
+                                ServerProfile(
+                                    name = tag,
+                                    domain = server,
+                                    cdnPort = port,
+                                    tunnelType = TunnelType.WIREGUARD,
+                                    dnsttPublicKey = pubKey,
+                                    sshPrivateKey = privKey
+                                )
+                            )
+                        }
+                    }
+                }
+            }
+
+            if (profiles.isNotEmpty()) {
+                ImportResult.Success(profiles)
+            } else {
+                ImportResult.Error("No valid proxy outbounds found in JSON")
+            }
+        } catch (e: Exception) {
+            ImportResult.Error("JSON parsing error: ${e.message}")
         }
     }
 
