@@ -170,6 +170,24 @@ class ConfigImporter @Inject constructor() {
             trimmedInput
         }
 
+        // Handle WireGuard .conf file content
+        if (trimmedInput.contains("[Interface]", ignoreCase = true)) {
+            val wgRes = parseWireGuardConf(trimmedInput, 1)
+            if (wgRes is ProfileParseResult.Success) {
+                return ImportResult.Success(listOf(wgRes.profile), emptyList())
+            }
+        }
+
+        // Handle OpenVPN .ovpn file content
+        if (trimmedInput.contains("dev tun", ignoreCase = true) ||
+            trimmedInput.contains("BEGIN OpenVPN", ignoreCase = true) ||
+            (trimmedInput.contains("remote ", ignoreCase = true) && trimmedInput.contains("proto ", ignoreCase = true))) {
+            val ovpnRes = parseOpenVpnConf(trimmedInput, 1)
+            if (ovpnRes is ProfileParseResult.Success) {
+                return ImportResult.Success(listOf(ovpnRes.profile), emptyList())
+            }
+        }
+
         // Handle full JSON configurations (Sing-box, Xray outbounds, WhiteDNS JSON)
         if ((trimmedInput.startsWith("{") && trimmedInput.endsWith("}")) ||
             (trimmedInput.startsWith("[") && trimmedInput.endsWith("]"))) {
@@ -2912,6 +2930,96 @@ class ConfigImporter @Inject constructor() {
             )
         } catch (e: Exception) {
             ProfileParseResult.Error("Line $lineNum: Failed to parse WireGuard URI: ${e.message}")
+        }
+    }
+
+    private fun parseWireGuardConf(text: String, lineNum: Int): ProfileParseResult {
+        return try {
+            var privKey = ""
+            var pubKey = ""
+            var endpoint = ""
+            var port = 51820
+            var name = "WireGuard Import"
+
+            for (line in text.lines()) {
+                val t = line.trim()
+                if (t.startsWith("#")) {
+                    val comment = t.removePrefix("#").trim()
+                    if (comment.isNotBlank() && name == "WireGuard Import") name = comment
+                    continue
+                }
+                val parts = t.split("=", limit = 2).map { it.trim() }
+                if (parts.size == 2) {
+                    val key = parts[0].lowercase()
+                    val value = parts[1]
+                    when (key) {
+                        "privatekey" -> privKey = value
+                        "publickey" -> pubKey = value
+                        "endpoint" -> {
+                            endpoint = value.substringBefore(':')
+                            port = value.substringAfter(':').toIntOrNull() ?: 51820
+                        }
+                    }
+                }
+            }
+
+            if (privKey.isBlank() && endpoint.isBlank()) {
+                return ProfileParseResult.Error("Line $lineNum: Invalid WireGuard conf")
+            }
+
+            ProfileParseResult.Success(
+                ServerProfile(
+                    name = name,
+                    domain = endpoint.ifBlank { "127.0.0.1" },
+                    cdnPort = port,
+                    tunnelType = TunnelType.WIREGUARD,
+                    sshPrivateKey = privKey,
+                    dnsttPublicKey = pubKey
+                )
+            )
+        } catch (e: Exception) {
+            ProfileParseResult.Error("Line $lineNum: Failed to parse WireGuard .conf: ${e.message}")
+        }
+    }
+
+    private fun parseOpenVpnConf(text: String, lineNum: Int): ProfileParseResult {
+        return try {
+            var host = "127.0.0.1"
+            var port = 1194
+            var proto = "udp"
+            var cipher = "AES-256-CBC"
+            var name = "OpenVPN Import"
+
+            for (line in text.lines()) {
+                val t = line.trim()
+                if (t.startsWith("#") || t.startsWith(";")) continue
+                val tokens = t.split("\\s+".toRegex())
+                if (tokens.isNotEmpty()) {
+                    when (tokens[0].lowercase()) {
+                        "remote" -> {
+                            if (tokens.size >= 2) host = tokens[1]
+                            if (tokens.size >= 3) port = tokens[2].toIntOrNull() ?: 1194
+                            if (tokens.size >= 4) proto = tokens[3].lowercase()
+                        }
+                        "proto" -> if (tokens.size >= 2) proto = tokens[1].lowercase()
+                        "cipher" -> if (tokens.size >= 2) cipher = tokens[1]
+                    }
+                }
+            }
+
+            ProfileParseResult.Success(
+                ServerProfile(
+                    name = name,
+                    domain = host,
+                    cdnPort = port,
+                    tunnelType = TunnelType.OPENVPN,
+                    vlessTransport = proto,
+                    vlessSecurity = cipher,
+                    sshPrivateKey = text
+                )
+            )
+        } catch (e: Exception) {
+            ProfileParseResult.Error("Line $lineNum: Failed to parse OpenVPN .ovpn: ${e.message}")
         }
     }
 

@@ -199,7 +199,24 @@ val DOH_SERVERS = listOf(
     DohServer(
         "FlashStart DNS", "https://doh.flashstart.com/dns-query",
         listOf("185.236.104.104")
-    )
+    ),
+    // --- Additional Global & European Resolvers ---
+    DohServer("DNS0.eu High-Speed", "https://dns0.eu/dns-query", listOf("193.110.81.0", "185.253.5.0")),
+    DohServer("DNS0.eu Zero (Security)", "https://zero.dns0.eu/dns-query", listOf("193.110.81.9", "185.253.5.9")),
+    DohServer("DNS0.eu Kids", "https://kids.dns0.eu/dns-query", listOf("193.110.81.1", "185.253.5.1")),
+    DohServer("Mullvad AdBlock", "https://adblock.dns.mullvad.net/dns-query", listOf("194.242.2.3")),
+    DohServer("Mullvad Extended", "https://extended.dns.mullvad.net/dns-query", listOf("194.242.2.4")),
+    DohServer("AhaDNS Netherlands", "https://nl.ahadns.net/dns-query", listOf("5.2.75.143")),
+    DohServer("AhaDNS Spain", "https://es.ahadns.net/dns-query", listOf("185.253.155.158")),
+    DohServer("AhaDNS Italy", "https://it.ahadns.net/dns-query", listOf("45.154.255.40")),
+    DohServer("Restena LU", "https://doh.restena.lu/dns-query", listOf("158.64.1.29")),
+    DohServer("Seby DNS AU", "https://doh.seby.io/dns-query", listOf("139.99.222.72")),
+    DohServer("DNS.sb Direct", "https://doh.sb/dns-query", listOf("185.222.222.222")),
+    DohServer("DNS.surf Global", "https://dns.surf/dns-query", listOf("104.21.36.170")),
+    DohServer("DNSPod Public", "https://doh.pub/dns-query", listOf("1.12.12.12", "120.53.53.53")),
+    DohServer("Cloudflare IP DoH", "https://1.1.1.1/dns-query", listOf("1.1.1.1")),
+    DohServer("Google IP DoH", "https://8.8.8.8/dns-query", listOf("8.8.8.8")),
+    DohServer("Quad9 IP DoH", "https://9.9.9.9/dns-query", listOf("9.9.9.9"))
 )
 
 /**

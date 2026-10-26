@@ -230,6 +230,7 @@ fun MainScreen(
     var exportLockDeviceId by remember { mutableStateOf("") }
     var exportLockPasswordVisible by remember { mutableStateOf(false) }
     var exportHideResolvers by remember { mutableStateOf(false) }
+    var exportFormatStandard by remember { mutableStateOf(false) }
 
     // Tab state (hoisted so FAB and content can both access it)
     val hasChains = uiState.chains.isNotEmpty()
@@ -858,440 +859,484 @@ fun MainScreen(
                 var dnsSectionExpanded by remember { mutableStateOf(true) }
                 var standardSectionExpanded by remember { mutableStateOf(true) }
                 var specialtySectionExpanded by remember { mutableStateOf(false) }
+                var iosSectionExpanded by remember { mutableStateOf(true) }
 
                 ModalBottomSheet(
                     onDismissRequest = { showAddMenu = false },
                     sheetState = sheetState,
                     dragHandle = null
                 ) {
-                    Text(
-                        text = "New Profile",
-                        style = MaterialTheme.typography.titleMedium,
-                        modifier = Modifier.padding(start = 24.dp, top = 20.dp, bottom = 8.dp)
-                    )
-                    @OptIn(ExperimentalLayoutApi::class)
-                    // Category 1: DNS Tunnel Protocols
-                    Row(
+                    Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(RoundedCornerShape(8.dp))
-                            .clickable { dnsSectionExpanded = !dnsSectionExpanded }
-                            .padding(horizontal = 16.dp, vertical = 6.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                            .verticalScroll(rememberScrollState())
+                            .padding(bottom = 36.dp)
                     ) {
                         Text(
-                            text = "DNS Tunnel Protocols (9)",
-                            style = MaterialTheme.typography.labelLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary
+                            text = "New Profile",
+                            style = MaterialTheme.typography.titleMedium,
+                            modifier = Modifier.padding(start = 24.dp, top = 20.dp, bottom = 8.dp)
                         )
-                        Icon(
-                            imageVector = if (dnsSectionExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                            contentDescription = if (dnsSectionExpanded) "Collapse" else "Expand",
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                    }
-                    if (dnsSectionExpanded) {
-                    FlowRow(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 12.dp, vertical = 2.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                        maxItemsInEachRow = 3
-                    ) {
-                        val tileMod = Modifier.weight(1f)
-                        AddMenuGridItem(
-                            modifier = tileMod,
-                            icon = Icons.Default.Shield,
-                            title = "Meli Protocol",
-                            isMasterDnsTile = true,
-                            onClick = {
-                                showAddMenu = false
-                                onNavigateToAddProfile(TunnelType.MELI.value)
-                            }
-                        )
-                        AddMenuGridItem(
-                            modifier = tileMod,
-                            icon = Icons.Default.Shield,
-                            title = "MasterDNS",
-                            isMasterDnsTile = true,
-                            onClick = {
-                                showAddMenu = false
-                                onNavigateToAddProfile(TunnelType.MASTERDNS.value)
-                            }
-                        )
-                        AddMenuGridItem(
-                            modifier = tileMod,
-                            icon = Icons.Default.Dns,
-                            title = "DNSTT",
-                            onClick = {
-                                showAddMenu = false
-                                onNavigateToAddProfile("dnstt")
-                            }
-                        )
-                        AddMenuGridItem(
-                            modifier = tileMod,
-                            icon = Icons.Default.VisibilityOff,
-                            title = "NoizDNS",
-                            onClick = {
-                                showAddMenu = false
-                                onNavigateToAddProfile(TunnelType.NOIZDNS.value)
-                            }
-                        )
-                        AddMenuGridItem(
-                            modifier = tileMod,
-                            icon = Icons.Default.Air,
-                            title = "VayDNS",
-                            onClick = {
-                                showAddMenu = false
-                                onNavigateToAddProfile(TunnelType.VAYDNS.value)
-                            }
-                        )
-                        AddMenuGridItem(
-                            modifier = tileMod,
-                            icon = Icons.Default.Waves,
-                            title = "Slipstream",
-                            onClick = {
-                                showAddMenu = false
-                                onNavigateToAddProfile("slipstream")
-                            }
-                        )
-                        AddMenuGridItem(
-                            modifier = tileMod,
-                            icon = Icons.Default.Dns,
-                            title = "StormDNS",
-                            onClick = {
-                                showAddMenu = false
-                                onNavigateToAddProfile(TunnelType.STORMDNS.value)
-                            }
-                        )
-                        AddMenuGridItem(
-                            modifier = tileMod,
-                            icon = Icons.Default.Dns,
-                            title = "Nooshdaroo",
-                            onClick = {
-                                showAddMenu = false
-                                onNavigateToAddProfile(TunnelType.NOOSHDAROO.value)
-                            }
-                        )
-                        AddMenuGridItem(
-                            modifier = tileMod,
-                            icon = Icons.Default.Air,
-                            title = "qWDTT",
-                            onClick = {
-                                showAddMenu = false
-                                onNavigateToAddProfile(TunnelType.QWDTT.value)
-                            }
-                        )
-                        AddMenuGridItem(
-                            modifier = tileMod,
-                            icon = Icons.Default.Dns,
-                            title = "CottenDNS",
-                            onClick = {
-                                showAddMenu = false
-                                onNavigateToAddProfile(TunnelType.COTTENDNS.value)
-                            }
-                        )
-                        AddMenuGridItem(
-                            modifier = tileMod,
-                            icon = Icons.Default.Air,
-                            title = "Soar",
-                            onClick = {
-                                showAddMenu = false
-                                onNavigateToAddProfile(TunnelType.SOAR.value)
-                            }
-                        )
-                    }
-                    }
-
-                    HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp))
-
-                    // Category 2: Standard / Normal Protocols
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(8.dp))
-                            .clickable { standardSectionExpanded = !standardSectionExpanded }
-                            .padding(horizontal = 16.dp, vertical = 6.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "Standard Protocols (16)",
-                            style = MaterialTheme.typography.labelLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                        Icon(
-                            imageVector = if (standardSectionExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                            contentDescription = if (standardSectionExpanded) "Collapse" else "Expand",
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                    }
-                    if (standardSectionExpanded) {
-                    FlowRow(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 12.dp, vertical = 2.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                        maxItemsInEachRow = 3
-                    ) {
-                        val tileMod = Modifier.weight(1f)
-                        AddMenuGridItem(
-                            modifier = tileMod,
-                            icon = Icons.Default.Lock,
-                            title = "SSH",
-                            onClick = {
-                                showAddMenu = false
-                                onNavigateToAddProfile("ssh")
-                            }
-                        )
-                        AddMenuGridItem(
-                            modifier = tileMod,
-                            icon = Icons.Default.Shield,
-                            title = "VLESS",
-                            onClick = {
-                                showAddMenu = false
-                                onNavigateToAddProfile("vless")
-                            }
-                        )
-                        AddMenuGridItem(
-                            modifier = tileMod,
-                            icon = Icons.Default.Visibility,
-                            title = "VLESS-Reality",
-                            onClick = {
-                                showAddMenu = false
-                                onNavigateToAddProfile(TunnelType.VLESS_REALITY.value)
-                            }
-                        )
-                        AddMenuGridItem(
-                            modifier = tileMod,
-                            icon = Icons.Default.Dns,
-                            title = "VMess (iOS)",
-                            onClick = {
-                                showAddMenu = false
-                                onNavigateToAddProfile(TunnelType.VMESS.value)
-                            }
-                        )
-                        AddMenuGridItem(
-                            modifier = tileMod,
-                            icon = Icons.Default.Share,
-                            title = "SOCKS5",
-                            onClick = {
-                                showAddMenu = false
-                                onNavigateToAddProfile("socks5")
-                            }
-                        )
-                        AddMenuGridItem(
-                            modifier = tileMod,
-                            icon = Icons.Default.Language,
-                            title = "DOH",
-                            onClick = {
-                                showAddMenu = false
-                                onNavigateToAddProfile("doh")
-                            }
-                        )
-                        if (BuildConfig.INCLUDE_NAIVE) {
+                        @OptIn(ExperimentalLayoutApi::class)
+                        // Category 1: DNS Tunnel Protocols
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable { dnsSectionExpanded = !dnsSectionExpanded }
+                                .padding(horizontal = 16.dp, vertical = 6.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "DNS Tunnel Protocols (11)",
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Icon(
+                                imageVector = if (dnsSectionExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                                contentDescription = if (dnsSectionExpanded) "Collapse" else "Expand",
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                        if (dnsSectionExpanded) {
+                        FlowRow(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 12.dp, vertical = 2.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            maxItemsInEachRow = 3
+                        ) {
+                            val tileMod = Modifier.weight(1f)
                             AddMenuGridItem(
                                 modifier = tileMod,
                                 icon = Icons.Default.Shield,
-                                title = "NaiveProxy",
+                                title = "Meli Protocol",
+                                isMasterDnsTile = true,
                                 onClick = {
                                     showAddMenu = false
-                                    onNavigateToAddProfile("naive")
+                                    onNavigateToAddProfile(TunnelType.MELI.value)
                                 }
                             )
-                        }
-                        if (BuildConfig.INCLUDE_TOR) {
                             AddMenuGridItem(
                                 modifier = tileMod,
                                 icon = Icons.Default.Shield,
-                                title = "Tor",
+                                title = "MasterDNS",
+                                isMasterDnsTile = true,
                                 onClick = {
                                     showAddMenu = false
-                                    onNavigateToAddProfile("snowflake")
+                                    onNavigateToAddProfile(TunnelType.MASTERDNS.value)
+                                }
+                            )
+                            AddMenuGridItem(
+                                modifier = tileMod,
+                                icon = Icons.Default.Dns,
+                                title = "DNSTT",
+                                onClick = {
+                                    showAddMenu = false
+                                    onNavigateToAddProfile("dnstt")
+                                }
+                            )
+                            AddMenuGridItem(
+                                modifier = tileMod,
+                                icon = Icons.Default.VisibilityOff,
+                                title = "NoizDNS",
+                                onClick = {
+                                    showAddMenu = false
+                                    onNavigateToAddProfile(TunnelType.NOIZDNS.value)
+                                }
+                            )
+                            AddMenuGridItem(
+                                modifier = tileMod,
+                                icon = Icons.Default.Air,
+                                title = "VayDNS",
+                                onClick = {
+                                    showAddMenu = false
+                                    onNavigateToAddProfile(TunnelType.VAYDNS.value)
+                                }
+                            )
+                            AddMenuGridItem(
+                                modifier = tileMod,
+                                icon = Icons.Default.Waves,
+                                title = "Slipstream",
+                                onClick = {
+                                    showAddMenu = false
+                                    onNavigateToAddProfile("slipstream")
+                                }
+                            )
+                            AddMenuGridItem(
+                                modifier = tileMod,
+                                icon = Icons.Default.Dns,
+                                title = "StormDNS",
+                                onClick = {
+                                    showAddMenu = false
+                                    onNavigateToAddProfile(TunnelType.STORMDNS.value)
+                                }
+                            )
+                            AddMenuGridItem(
+                                modifier = tileMod,
+                                icon = Icons.Default.Dns,
+                                title = "Nooshdaroo",
+                                onClick = {
+                                    showAddMenu = false
+                                    onNavigateToAddProfile(TunnelType.NOOSHDAROO.value)
+                                }
+                            )
+                            AddMenuGridItem(
+                                modifier = tileMod,
+                                icon = Icons.Default.Air,
+                                title = "qWDTT",
+                                onClick = {
+                                    showAddMenu = false
+                                    onNavigateToAddProfile(TunnelType.QWDTT.value)
+                                }
+                            )
+                            AddMenuGridItem(
+                                modifier = tileMod,
+                                icon = Icons.Default.Dns,
+                                title = "CottenDNS",
+                                onClick = {
+                                    showAddMenu = false
+                                    onNavigateToAddProfile(TunnelType.COTTENDNS.value)
+                                }
+                            )
+                            AddMenuGridItem(
+                                modifier = tileMod,
+                                icon = Icons.Default.Air,
+                                title = "Soar",
+                                onClick = {
+                                    showAddMenu = false
+                                    onNavigateToAddProfile(TunnelType.SOAR.value)
                                 }
                             )
                         }
-                        AddMenuGridItem(
-                            modifier = tileMod,
-                            icon = Icons.Default.Shield,
-                            title = "WireGuard",
-                            onClick = {
-                                showAddMenu = false
-                                onNavigateToAddProfile(TunnelType.WIREGUARD.value)
-                            }
-                        )
-                        AddMenuGridItem(
-                            modifier = tileMod,
-                            icon = Icons.Default.Waves,
-                            title = "Hysteria 2",
-                            onClick = {
-                                showAddMenu = false
-                                onNavigateToAddProfile(TunnelType.HYSTERIA2.value)
-                            }
-                        )
-                        AddMenuGridItem(
-                            modifier = tileMod,
-                            icon = Icons.Default.Air,
-                            title = "TUIC",
-                            onClick = {
-                                showAddMenu = false
-                                onNavigateToAddProfile(TunnelType.TUIC.value)
-                            }
-                        )
-                        AddMenuGridItem(
-                            modifier = tileMod,
-                            icon = Icons.Default.Lock,
-                            title = "Trojan",
-                            onClick = {
-                                showAddMenu = false
-                                onNavigateToAddProfile(TunnelType.TROJAN.value)
-                            }
-                        )
-                        AddMenuGridItem(
-                            modifier = tileMod,
-                            icon = Icons.Default.Share,
-                            title = "Shadowsocks",
-                            onClick = {
-                                showAddMenu = false
-                                onNavigateToAddProfile(TunnelType.SHADOWSOCKS.value)
-                            }
-                        )
-                        AddMenuGridItem(
-                            modifier = tileMod,
-                            icon = Icons.Default.Share,
-                            title = "SSR (iOS)",
-                            onClick = {
-                                showAddMenu = false
-                                onNavigateToAddProfile(TunnelType.SHADOWSOCKSR.value)
-                            }
-                        )
-                        AddMenuGridItem(
-                            modifier = tileMod,
-                            icon = Icons.Default.Shield,
-                            title = "Snell (iOS)",
-                            onClick = {
-                                showAddMenu = false
-                                onNavigateToAddProfile(TunnelType.SNELL.value)
-                            }
-                        )
-                        AddMenuGridItem(
-                            modifier = tileMod,
-                            icon = Icons.Default.Settings,
-                            title = "OpenVPN",
-                            onClick = {
-                                showAddMenu = false
-                                onNavigateToAddProfile(TunnelType.OPENVPN.value)
-                            }
-                        )
-                    }
-                    }
-
-                    HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp))
-
-                    // Category 3: Specialty & Intranet Bypass
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(8.dp))
-                            .clickable { specialtySectionExpanded = !specialtySectionExpanded }
-                            .padding(horizontal = 16.dp, vertical = 6.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "Specialty & Emergency Intranet (5)",
-                            style = MaterialTheme.typography.labelLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                        Icon(
-                            imageVector = if (specialtySectionExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                            contentDescription = if (specialtySectionExpanded) "Collapse" else "Expand",
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                    }
-                    if (specialtySectionExpanded) {
-                    FlowRow(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 12.dp, vertical = 2.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                        maxItemsInEachRow = 3
-                    ) {
-                        val tileMod = Modifier.weight(1f)
-                        AddMenuGridItem(
-                            modifier = tileMod,
-                            icon = Icons.Default.Language,
-                            title = "Bale Meet",
-                            onClick = {
-                                showAddMenu = false
-                                onNavigateToAddProfile(TunnelType.BALE.value)
-                            }
-                        )
-                        AddMenuGridItem(
-                            modifier = tileMod,
-                            icon = Icons.Default.NetworkPing,
-                            title = "PingTunnel (root)",
-                            onClick = {
-                                showAddMenu = false
-                                onNavigateToAddProfile(TunnelType.PINGTUNNEL.value)
-                            }
-                        )
-                        AddMenuGridItem(
-                            modifier = tileMod,
-                            icon = Icons.Default.Shield,
-                            title = "Spoof-Tunnel",
-                            onClick = {
-                                showAddMenu = false
-                                onNavigateToAddProfile(TunnelType.SPOOF_TUNNEL.value)
-                            }
-                        )
-                        AddMenuGridItem(
-                            modifier = tileMod,
-                            icon = Icons.Default.Waves,
-                            title = "Golden-GRE",
-                            onClick = {
-                                showAddMenu = false
-                                onNavigateToAddProfile(TunnelType.GOLDEN_GRE.value)
-                            }
-                        )
-                        AddMenuGridItem(
-                            modifier = tileMod,
-                            icon = Icons.Default.Shield,
-                            title = "Paqet (Raw-TCP)",
-                            onClick = {
-                                showAddMenu = false
-                                onNavigateToAddProfile(TunnelType.PAQET.value)
-                            }
-                        )
-                    }
-                    }
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-                    AddMenuOption(
-                        icon = Icons.Default.Link,
-                        title = "Chain",
-                        description = "Chain multiple profiles",
-                        onClick = {
-                            showAddMenu = false
-                            onNavigateToAddChain()
                         }
-                    )
-                    AddMenuOption(
-                        icon = Icons.Default.FileDownload,
-                        title = "Import",
-                        description = "",
-                        onClick = {
-                            showAddMenu = false
-                            showImportDialog = true
+
+                        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp))
+
+                        // Category 2: Standard Protocols
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable { standardSectionExpanded = !standardSectionExpanded }
+                                .padding(horizontal = 16.dp, vertical = 6.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Standard Protocols (12)",
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Icon(
+                                imageVector = if (standardSectionExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                                contentDescription = if (standardSectionExpanded) "Collapse" else "Expand",
+                                tint = MaterialTheme.colorScheme.primary
+                            )
                         }
-                    )
-                    Spacer(Modifier.height(24.dp))
+                        if (standardSectionExpanded) {
+                        FlowRow(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 12.dp, vertical = 2.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            maxItemsInEachRow = 3
+                        ) {
+                            val tileMod = Modifier.weight(1f)
+                            AddMenuGridItem(
+                                modifier = tileMod,
+                                icon = Icons.Default.Lock,
+                                title = "SSH",
+                                onClick = {
+                                    showAddMenu = false
+                                    onNavigateToAddProfile("ssh")
+                                }
+                            )
+                            AddMenuGridItem(
+                                modifier = tileMod,
+                                icon = Icons.Default.Shield,
+                                title = "VLESS",
+                                onClick = {
+                                    showAddMenu = false
+                                    onNavigateToAddProfile("vless")
+                                }
+                            )
+                            AddMenuGridItem(
+                                modifier = tileMod,
+                                icon = Icons.Default.Share,
+                                title = "SOCKS5",
+                                onClick = {
+                                    showAddMenu = false
+                                    onNavigateToAddProfile("socks5")
+                                }
+                            )
+                            AddMenuGridItem(
+                                modifier = tileMod,
+                                icon = Icons.Default.Language,
+                                title = "DoH + SSH",
+                                onClick = {
+                                    showAddMenu = false
+                                    onNavigateToAddProfile("doh")
+                                }
+                            )
+                            if (BuildConfig.INCLUDE_NAIVE) {
+                                AddMenuGridItem(
+                                    modifier = tileMod,
+                                    icon = Icons.Default.Shield,
+                                    title = "NaiveProxy",
+                                    onClick = {
+                                        showAddMenu = false
+                                        onNavigateToAddProfile("naive")
+                                    }
+                                )
+                            }
+                            if (BuildConfig.INCLUDE_TOR) {
+                                AddMenuGridItem(
+                                    modifier = tileMod,
+                                    icon = Icons.Default.Shield,
+                                    title = "Tor",
+                                    onClick = {
+                                        showAddMenu = false
+                                        onNavigateToAddProfile("snowflake")
+                                    }
+                                )
+                            }
+                            AddMenuGridItem(
+                                modifier = tileMod,
+                                icon = Icons.Default.Shield,
+                                title = "WireGuard",
+                                onClick = {
+                                    showAddMenu = false
+                                    onNavigateToAddProfile(TunnelType.WIREGUARD.value)
+                                }
+                            )
+                            AddMenuGridItem(
+                                modifier = tileMod,
+                                icon = Icons.Default.Settings,
+                                title = "OpenVPN",
+                                onClick = {
+                                    showAddMenu = false
+                                    onNavigateToAddProfile(TunnelType.OPENVPN.value)
+                                }
+                            )
+                            AddMenuGridItem(
+                                modifier = tileMod,
+                                icon = Icons.Default.Waves,
+                                title = "Hysteria 2",
+                                onClick = {
+                                    showAddMenu = false
+                                    onNavigateToAddProfile(TunnelType.HYSTERIA2.value)
+                                }
+                            )
+                            AddMenuGridItem(
+                                modifier = tileMod,
+                                icon = Icons.Default.Air,
+                                title = "TUIC",
+                                onClick = {
+                                    showAddMenu = false
+                                    onNavigateToAddProfile(TunnelType.TUIC.value)
+                                }
+                            )
+                            AddMenuGridItem(
+                                modifier = tileMod,
+                                icon = Icons.Default.Lock,
+                                title = "Trojan",
+                                onClick = {
+                                    showAddMenu = false
+                                    onNavigateToAddProfile(TunnelType.TROJAN.value)
+                                }
+                            )
+                            AddMenuGridItem(
+                                modifier = tileMod,
+                                icon = Icons.Default.Share,
+                                title = "Shadowsocks",
+                                onClick = {
+                                    showAddMenu = false
+                                    onNavigateToAddProfile(TunnelType.SHADOWSOCKS.value)
+                                }
+                            )
+                        }
+                        }
+
+                        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp))
+
+                        // Category 3: iOS & Custom Proxy Protocols
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable { iosSectionExpanded = !iosSectionExpanded }
+                                .padding(horizontal = 16.dp, vertical = 6.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "iOS & Custom Protocols (4)",
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Icon(
+                                imageVector = if (iosSectionExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                                contentDescription = if (iosSectionExpanded) "Collapse" else "Expand",
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                        if (iosSectionExpanded) {
+                        FlowRow(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 12.dp, vertical = 2.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            maxItemsInEachRow = 2
+                        ) {
+                            val tileMod = Modifier.weight(1f)
+                            AddMenuGridItem(
+                                modifier = tileMod,
+                                icon = Icons.Default.Dns,
+                                title = "VMess",
+                                onClick = {
+                                    showAddMenu = false
+                                    onNavigateToAddProfile(TunnelType.VMESS.value)
+                                }
+                            )
+                            AddMenuGridItem(
+                                modifier = tileMod,
+                                icon = Icons.Default.Visibility,
+                                title = "VLESS-Reality",
+                                onClick = {
+                                    showAddMenu = false
+                                    onNavigateToAddProfile(TunnelType.VLESS_REALITY.value)
+                                }
+                            )
+                            AddMenuGridItem(
+                                modifier = tileMod,
+                                icon = Icons.Default.Shield,
+                                title = "Snell",
+                                onClick = {
+                                    showAddMenu = false
+                                    onNavigateToAddProfile(TunnelType.SNELL.value)
+                                }
+                            )
+                            AddMenuGridItem(
+                                modifier = tileMod,
+                                icon = Icons.Default.Share,
+                                title = "ShadowsocksR",
+                                onClick = {
+                                    showAddMenu = false
+                                    onNavigateToAddProfile(TunnelType.SHADOWSOCKSR.value)
+                                }
+                            )
+                        }
+                        }
+
+                        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp))
+
+                        // Category 4: Specialty & Emergency Intranet
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable { specialtySectionExpanded = !specialtySectionExpanded }
+                                .padding(horizontal = 16.dp, vertical = 6.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Specialty & Emergency Intranet (5)",
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Icon(
+                                imageVector = if (specialtySectionExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                                contentDescription = if (specialtySectionExpanded) "Collapse" else "Expand",
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                        if (specialtySectionExpanded) {
+                        FlowRow(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 12.dp, vertical = 2.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            maxItemsInEachRow = 3
+                        ) {
+                            val tileMod = Modifier.weight(1f)
+                            AddMenuGridItem(
+                                modifier = tileMod,
+                                icon = Icons.Default.Language,
+                                title = "Bale Meet",
+                                onClick = {
+                                    showAddMenu = false
+                                    onNavigateToAddProfile(TunnelType.BALE.value)
+                                }
+                            )
+                            AddMenuGridItem(
+                                modifier = tileMod,
+                                icon = Icons.Default.NetworkPing,
+                                title = "PingTunnel (root)",
+                                onClick = {
+                                    showAddMenu = false
+                                    onNavigateToAddProfile(TunnelType.PINGTUNNEL.value)
+                                }
+                            )
+                            AddMenuGridItem(
+                                modifier = tileMod,
+                                icon = Icons.Default.Shield,
+                                title = "Spoof-Tunnel",
+                                onClick = {
+                                    showAddMenu = false
+                                    onNavigateToAddProfile(TunnelType.SPOOF_TUNNEL.value)
+                                }
+                            )
+                            AddMenuGridItem(
+                                modifier = tileMod,
+                                icon = Icons.Default.Waves,
+                                title = "Golden-GRE",
+                                onClick = {
+                                    showAddMenu = false
+                                    onNavigateToAddProfile(TunnelType.GOLDEN_GRE.value)
+                                }
+                            )
+                            AddMenuGridItem(
+                                modifier = tileMod,
+                                icon = Icons.Default.Shield,
+                                title = "Paqet (Raw-TCP)",
+                                onClick = {
+                                    showAddMenu = false
+                                    onNavigateToAddProfile(TunnelType.PAQET.value)
+                                }
+                            )
+                        }
+                        }
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                        AddMenuOption(
+                            icon = Icons.Default.Link,
+                            title = "Chain",
+                            description = "Chain multiple profiles",
+                            onClick = {
+                                showAddMenu = false
+                                onNavigateToAddChain()
+                            }
+                        )
+                        AddMenuOption(
+                            icon = Icons.Default.FileDownload,
+                            title = "Import",
+                            description = "Import configs & files (JSON, vmess, vless, conf, ovpn)",
+                            onClick = {
+                                showAddMenu = false
+                                showImportDialog = true
+                            }
+                        )
+                    }
                 }
             }
         }
@@ -1318,7 +1363,7 @@ fun MainScreen(
                     Text("• NoizDNS / NoizDNS + SSH")
                     Text("• VayDNS / VayDNS + SSH")
                     Text("• SSH")
-                    Text("• DOH (DNS over HTTPS)")
+                    Text("• DoH + SSH (DNS over HTTPS)")
                     Text("Not included (full version only):", fontWeight = FontWeight.Bold)
                     Text("• Tor (Snowflake)")
                     Text("• NaïveProxy / NaïveProxy + SSH")
@@ -1635,6 +1680,28 @@ fun MainScreen(
                                 }
                             )
                         }
+                        if (!exportLockEnabled) {
+                            Column(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                                Text(
+                                    text = "فرمت خروجی (Export Format):",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    RadioButton(
+                                        selected = !exportFormatStandard,
+                                        onClick = { exportFormatStandard = false }
+                                    )
+                                    Text("اختصاصی SlipNet", style = MaterialTheme.typography.bodySmall)
+                                    Spacer(Modifier.width(12.dp))
+                                    RadioButton(
+                                        selected = exportFormatStandard,
+                                        onClick = { exportFormatStandard = true }
+                                    )
+                                    Text("استاندارد (vless://, ss://, ...)", style = MaterialTheme.typography.bodySmall)
+                                }
+                            }
+                        }
                         if (exportLockEnabled) {
                             OutlinedTextField(
                                 value = exportLockPassword,
@@ -1750,7 +1817,11 @@ fun MainScreen(
                                 if (exportLockMode == "qr") {
                                     viewModel.showQrCode(p, exportHideResolvers)
                                 } else {
-                                    viewModel.exportProfile(p, exportHideResolvers)
+                                    if (exportFormatStandard) {
+                                        viewModel.exportStandardUri(p)
+                                    } else {
+                                        viewModel.exportProfile(p, exportHideResolvers)
+                                    }
                                 }
                             }
                             exportHideResolvers = false

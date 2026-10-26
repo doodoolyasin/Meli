@@ -194,7 +194,7 @@ enum class TunnelType(val value: String, val displayName: String) {
     NOIZDNS("sayedns", "NoizDNS"),
     NOIZDNS_SSH("sayedns_ssh", "NoizDNS + SSH"),
     SSH("ssh", "SSH"),
-    DOH("doh", "DOH (DNS over HTTPS)"),
+    DOH("doh", "DoH + SSH (DNS over HTTPS)"),
     SNOWFLAKE("snowflake", "Tor"),
     NAIVE_SSH("naive_ssh", "NaiveProxy + SSH"),
     NAIVE("naive", "NaiveProxy"),

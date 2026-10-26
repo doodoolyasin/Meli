@@ -456,6 +456,10 @@ class EditProfileViewModel @Inject constructor(
                 initialTunnelType == TunnelType.SNELL -> "Snell Profile (Surge/iOS)"
                 initialTunnelType == TunnelType.SHADOWSOCKSR -> "ShadowsocksR Profile (iOS)"
                 initialTunnelType == TunnelType.VLESS_REALITY -> "VLESS-Reality Profile"
+                initialTunnelType == TunnelType.VLESS -> "VLESS CDN (Auto)"
+                initialTunnelType == TunnelType.SSH -> "SSH Direct Tunnel"
+                initialTunnelType == TunnelType.DOH -> "DoH + SSH Tunnel"
+                initialTunnelType == TunnelType.NAIVE || initialTunnelType == TunnelType.NAIVE_SSH -> "NaiveProxy Profile"
                 else -> ""
             },
             domain = when {
@@ -475,7 +479,10 @@ class EditProfileViewModel @Inject constructor(
                 initialTunnelType == TunnelType.HYSTERIA2 ||
                 initialTunnelType == TunnelType.TUIC ||
                 initialTunnelType == TunnelType.SNELL ||
-                initialTunnelType == TunnelType.VLESS_REALITY -> "app.green-tool.ir"
+                initialTunnelType == TunnelType.NAIVE ||
+                initialTunnelType == TunnelType.NAIVE_SSH ||
+                initialTunnelType == TunnelType.VLESS_REALITY ||
+                initialTunnelType == TunnelType.VLESS -> "app.green-tool.ir"
                 initialTunnelType == TunnelType.SOCKS5 ||
                 initialTunnelType == TunnelType.SHADOWSOCKS ||
                 initialTunnelType == TunnelType.SHADOWSOCKSR ||
@@ -484,6 +491,7 @@ class EditProfileViewModel @Inject constructor(
                 initialTunnelType == TunnelType.SSH -> "45.38.249.16"
                 else -> ""
             },
+            cdnIp = if (initialTunnelType == TunnelType.VLESS) "45.38.249.16" else "",
             cdnPort = when (initialTunnelType) {
                 TunnelType.SOCKS5 -> "1080"
                 TunnelType.SHADOWSOCKS, TunnelType.SHADOWSOCKSR -> "8388"
@@ -494,33 +502,43 @@ class EditProfileViewModel @Inject constructor(
                 TunnelType.WIREGUARD -> "51820"
                 TunnelType.OPENVPN -> "1194"
                 TunnelType.SNELL -> "13254"
-                TunnelType.VLESS_REALITY -> "443"
+                TunnelType.VLESS_REALITY -> "2053"
+                TunnelType.VLESS, TunnelType.NAIVE, TunnelType.NAIVE_SSH -> "443"
                 else -> "443"
             },
-            socksUsername = if (initialTunnelType == TunnelType.SOCKS5) "yasin" else "",
+            socksUsername = if (initialTunnelType in listOf(TunnelType.SOCKS5, TunnelType.NAIVE, TunnelType.NAIVE_SSH)) "yasin" else "",
             socksPassword = when (initialTunnelType) {
-                TunnelType.SOCKS5 -> "yasin"
+                TunnelType.SOCKS5, TunnelType.NAIVE, TunnelType.NAIVE_SSH -> "yasin"
                 TunnelType.SHADOWSOCKS, TunnelType.SHADOWSOCKSR, TunnelType.TROJAN, TunnelType.HYSTERIA2, TunnelType.TUIC, TunnelType.SNELL -> "yasin_secret_password_2026"
                 else -> ""
             },
-            vlessUuid = if (initialTunnelType in listOf(TunnelType.VMESS, TunnelType.TUIC, TunnelType.VLESS_REALITY)) "1937e96d-b977-fb13-ebc2-05e43ac5d5da" else "",
-            vlessWsPath = if (initialTunnelType == TunnelType.VMESS) "/vmess" else "/",
+            naiveUsername = if (initialTunnelType in listOf(TunnelType.NAIVE, TunnelType.NAIVE_SSH)) "yasin" else "",
+            naivePassword = if (initialTunnelType in listOf(TunnelType.NAIVE, TunnelType.NAIVE_SSH)) "yasin_secret_password_2026" else "",
+                else -> ""
+            },
+            vlessUuid = if (initialTunnelType in listOf(TunnelType.VLESS, TunnelType.VMESS, TunnelType.TUIC, TunnelType.VLESS_REALITY)) "1937e96d-b977-fb13-ebc2-05e43ac5d5da" else "",
+            vlessWsPath = when (initialTunnelType) {
+                TunnelType.VLESS -> "/vless"
+                TunnelType.VMESS -> "/vmess"
+                else -> "/"
+            },
             vlessSni = when (initialTunnelType) {
                 TunnelType.VLESS_REALITY -> "www.apple.com"
-                in listOf(TunnelType.TROJAN, TunnelType.VMESS, TunnelType.HYSTERIA2, TunnelType.TUIC) -> "app.green-tool.ir"
+                in listOf(TunnelType.VLESS, TunnelType.TROJAN, TunnelType.VMESS, TunnelType.HYSTERIA2, TunnelType.TUIC) -> "app.green-tool.ir"
                 else -> ""
             },
             vlessTransport = if (initialTunnelType in listOf(TunnelType.SHADOWSOCKS, TunnelType.SHADOWSOCKSR)) "aes-256-gcm" else "ws",
             sshPrivateKey = if (initialTunnelType == TunnelType.WIREGUARD) "SM3hvfbK1GECPqo3y5tLLhrMqyM/u4/uZ4tjI1seT0s=" else "",
+            dohUrl = if (initialTunnelType == TunnelType.DOH) "https://dns.google/dns-query" else "",
             dnsttPublicKey = when {
                 initialTunnelType == TunnelType.WIREGUARD -> "wojxQsiNgLLmm8WowTn/hoqvQ/QMVW6D4QRC27NAxBY="
                 isMeliInitial -> "1937e96db977fb13ebc205e43ac5d5dad7ef61c8434cd7f08b8e166135595972"
-                isMasterDnsInitial -> "5d790e75a6262fe95f70979c7bddd360"
-                isStormDnsInitial -> "5d790e75a6262fe95f70979c7bddd360"
-                isCottenDnsInitial -> "5d790e75a6262fe95f70979c7bddd360"
-                isSoarInitial -> "ffef9358f4061799fb8b9b978dc1652de9d3d2ffbe0049adf996090adb612d9e"
-                isNooshdarooInitial -> "fd984706126bf236f62a65839cfff98f9177af6e89ca57d0cd74bc29ddfbce64"
-                isQwdttInitial -> "ac50759d4a8f5d9f3be7a0d242912c20c53b18481592fdbb8de6c63ab8763577"
+                isMasterDnsInitial -> "137e43fd04a5b9dfdaf29e103fddcce2"
+                isStormDnsInitial -> "137e43fd04a5b9dfdaf29e103fddcce2"
+                isCottenDnsInitial -> "137e43fd04a5b9dfdaf29e103fddcce2"
+                isSoarInitial -> "137e43fd04a5b9dfdaf29e103fddcce2"
+                isNooshdarooInitial -> "137e43fd04a5b9dfdaf29e103fddcce2"
+                isQwdttInitial -> "137e43fd04a5b9dfdaf29e103fddcce2"
                 isVaydnsInitial -> "278431382be3d3711377ed94bcc97c7b20181c2d276ae7a389a79e6b3c7abc23"
                 isNoizdnsInitial -> "80c627491b20a8f8bccd613abb4b933650c51fb68f3982e01a607ec5d07a8a0a"
                 isDnsttInitial -> "15bedeebebf104e83f1ed0a29b1d166fbee7e59a0e7892182dea8dd42f0fa80a"
@@ -773,7 +791,12 @@ class EditProfileViewModel @Inject constructor(
     }
 
     fun updateVaydnsClientIdSize(value: String) {
-        _uiState.value = _uiState.value.copy(vaydnsClientIdSize = value)
+        val num = value.toIntOrNull()
+        val safeValue = if (num != null && num > 8) {
+            // If user enters bits (e.g. 60 bits = ~7-8 bytes) or too large byte value, clamp safely
+            if (num in 16..64) (num / 8).toString() else "8"
+        } else value
+        _uiState.value = _uiState.value.copy(vaydnsClientIdSize = safeValue)
     }
 
     fun toggleVaydnsAdvanced() {
@@ -1999,7 +2022,9 @@ class EditProfileViewModel @Inject constructor(
                 )
 
                 val savedId = saveProfileUseCase(profile)
-                setActiveProfileUseCase(savedId)
+                if (state.profileId != null) {
+                    setActiveProfileUseCase(savedId)
+                }
 
                 if (forScanner) {
                     _uiState.value = _uiState.value.copy(

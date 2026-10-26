@@ -120,13 +120,9 @@ object SnowflakeBridge {
         isTorReady = false
         torBootstrapProgress = 0
 
-        // Wait for ports to be available
-        if (useSnowflakePt && !waitForPortAvailable(snowflakePort)) {
-            return Result.failure(RuntimeException("Port $snowflakePort is in use"))
-        }
-        if (!waitForPortAvailable(torSocksPort)) {
-            return Result.failure(RuntimeException("Port $torSocksPort is in use"))
-        }
+        // Safely resolve available ports (fallback to next free port if occupied)
+        val finalSnowflakePort = if (useSnowflakePt) findAvailablePort(snowflakePort) else snowflakePort
+        val finalTorSocksPort = findAvailablePort(torSocksPort)
 
         return try {
             // Determine which lyrebird transports are needed
@@ -147,7 +143,7 @@ object SnowflakeBridge {
 
             if (useSnowflakePt) {
                 // Start Snowflake PT (Go library)
-                val sfListenAddr = "$listenHost:$snowflakePort"
+                val sfListenAddr = "$listenHost:$finalSnowflakePort"
                 val newClient = if (isAmp) {
                     Snowflake.newClient(sfListenAddr, AMP_BROKER_URL, AMP_FRONT_DOMAIN, STUN_URLS, UTLS_CLIENT_ID, AMP_CACHE_URL)
                 } else {
@@ -163,7 +159,7 @@ object SnowflakeBridge {
                     return Result.failure(RuntimeException("Snowflake PT failed to start"))
                 }
 
-                if (!verifyTcpListening(listenHost, snowflakePort)) {
+                if (!verifyTcpListening(listenHost, finalSnowflakePort)) {
                     Log.w(TAG, "Snowflake PT not listening, but client reports running")
                 }
                 Log.i(TAG, "Snowflake PT started on $sfListenAddr")
@@ -205,8 +201,8 @@ object SnowflakeBridge {
                 context = context,
                 torDataDir = torDataDir,
                 listenHost = listenHost,
-                torSocksPort = torSocksPort,
-                snowflakePort = snowflakePort,
+                torSocksPort = finalTorSocksPort,
+                snowflakePort = finalSnowflakePort,
                 bridgeLines = bridgeLines,
                 lyrebirdMethods = lyrebirdMethods,
                 upstreamSocksAddr = upstreamSocksAddr
@@ -710,6 +706,13 @@ object SnowflakeBridge {
                 Log.w(TAG, "Failed to extract $name (may not be bundled yet): ${e.message}")
             }
         }
+    }
+
+    private fun findAvailablePort(startPort: Int): Int {
+        for (port in startPort..(startPort + 50)) {
+            if (!isPortInUse(port)) return port
+        }
+        return startPort
     }
 
     private fun waitForPortAvailable(port: Int, maxWaitMs: Long = 5000): Boolean {

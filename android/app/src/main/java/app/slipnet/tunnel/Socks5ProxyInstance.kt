@@ -38,6 +38,7 @@ class Socks5ProxyInstance(val instanceId: String = "default") {
     var domainRouter: DomainRouter = DomainRouter.DISABLED
     var uploadLimiter: RateLimiter? = null
     var downloadLimiter: RateLimiter? = null
+    var vpnService: android.net.VpnService? = null
     private fun logd(msg: String) { if (debugLogging) Log.d(TAG, msg) }
 
     companion object {
@@ -509,6 +510,7 @@ class Socks5ProxyInstance(val instanceId: String = "default") {
         val remoteSocket: Socket
         try {
             remoteSocket = Socket()
+            vpnService?.protect(remoteSocket)
             remoteSocket.connect(InetSocketAddress(remoteHost, remotePort), TCP_CONNECT_TIMEOUT_MS)
             remoteSocket.tcpNoDelay = true
         } catch (e: Exception) {
@@ -741,6 +743,7 @@ class Socks5ProxyInstance(val instanceId: String = "default") {
         try {
             // Connect to remote SOCKS5 proxy
             socket = Socket()
+            vpnService?.protect(socket)
             socket.connect(InetSocketAddress(remoteHost, remotePort), DNS_TIMEOUT_MS)
             socket.soTimeout = DNS_TIMEOUT_MS
             socket.tcpNoDelay = true

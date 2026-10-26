@@ -78,6 +78,11 @@ object VlessBridge {
     private var wsHeaderObfuscation: Boolean = false
     private var wsPaddingEnabled: Boolean = false
     private val random = SecureRandom()
+    private var vpnService: android.net.VpnService? = null
+
+    fun setVpnService(service: android.net.VpnService?) {
+        this.vpnService = service
+    }
 
     fun start(
         listenPort: Int,
@@ -236,6 +241,7 @@ object VlessBridge {
         var tunnel: Socket? = null
         return try {
             val sock = Socket()
+            vpnService?.protect(sock)
             raw = sock
             sock.tcpNoDelay = true
             val target = if (fragmentEnabled) {
@@ -395,6 +401,7 @@ object VlessBridge {
             raw.connect(InetSocketAddress("127.0.0.1", fragmentPort), TCP_CONNECT_TIMEOUT_MS)
         } else {
             raw = Socket()
+            vpnService?.protect(raw)
             raw.connect(InetSocketAddress(cdnIp, cdnPort), TCP_CONNECT_TIMEOUT_MS)
         }
         raw.tcpNoDelay = true

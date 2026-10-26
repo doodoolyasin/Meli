@@ -28,6 +28,10 @@ object Socks5ProxyBridge {
         get() = defaultInstance.downloadLimiter
         set(value) { defaultInstance.downloadLimiter = value }
 
+    var vpnService: android.net.VpnService?
+        get() = defaultInstance.vpnService
+        set(value) { defaultInstance.vpnService = value }
+
     fun start(
         remoteHost: String,
         remotePort: Int,

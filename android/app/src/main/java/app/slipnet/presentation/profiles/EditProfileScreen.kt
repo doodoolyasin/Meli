@@ -2042,7 +2042,7 @@ fun EditProfileScreen(
                 }
 
                 // Smart One-Tap Network Benchmark & Auto-Tuner Card
-                if (uiState.isDnsttOrNoizOrVaydnsBased || uiState.isMasterDns || uiState.isStormDns || uiState.isMeli) {
+                if (uiState.isDnsttOrNoizOrVaydnsBased || uiState.isMasterDns || uiState.isStormDns || uiState.isMeli || uiState.isSlipstream || uiState.isCottenDns || uiState.isSoar || uiState.isNooshdaroo || uiState.isQwdtt) {
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -2079,6 +2079,41 @@ fun EditProfileScreen(
                                 }
                             }
                             Spacer(Modifier.height(8.dp))
+
+                            if (uiState.isAutoTuning) {
+                                Card(
+                                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+                                    shape = RoundedCornerShape(8.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth().padding(10.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(20.dp),
+                                            strokeWidth = 2.5.dp,
+                                            color = MaterialTheme.colorScheme.primary
+                                        )
+                                        Spacer(Modifier.width(12.dp))
+                                        Column {
+                                            Text(
+                                                text = "📡 در حال سنجش لایو انتروپی و شلیک پکت‌ها...",
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = MaterialTheme.colorScheme.primary
+                                            )
+                                            Text(
+                                                text = "تست تاخیر RTT • ارزیابی سقف QNAME • بهینه‌سازی MTU",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    }
+                                }
+                                Spacer(Modifier.height(6.dp))
+                            }
+
                             Button(
                                 onClick = { viewModel.benchmarkAndAutoTune() },
                                 enabled = !uiState.isAutoTuning,
@@ -2086,13 +2121,7 @@ fun EditProfileScreen(
                                 shape = RoundedCornerShape(8.dp)
                             ) {
                                 if (uiState.isAutoTuning) {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier.size(16.dp),
-                                        strokeWidth = 2.dp,
-                                        color = MaterialTheme.colorScheme.onPrimary
-                                    )
-                                    Spacer(Modifier.width(8.dp))
-                                    Text("در حال اندازه‌گیری توان خط...")
+                                    Text("در حال اندازه‌گیری و پایش...")
                                 } else {
                                     Icon(Icons.Default.Speed, contentDescription = null, modifier = Modifier.size(16.dp))
                                     Spacer(Modifier.width(8.dp))
@@ -3908,17 +3937,41 @@ private fun VpnProtocolsSection(
             value = uiState.domain,
             onValueChange = { viewModel.updateDomain(it) },
             label = { Text("Server Host (IP or Domain)") },
-            placeholder = { Text("vpn.example.com") },
+            placeholder = { Text("45.38.249.16") },
             singleLine = true,
             modifier = Modifier.fillMaxWidth()
         )
         OutlinedTextField(
             value = uiState.cdnPort,
             onValueChange = { viewModel.updateCdnPort(it) },
-            label = { Text("Port") },
+            label = { Text("Port (Default: 1194)") },
             placeholder = { Text("1194") },
             singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            modifier = Modifier.fillMaxWidth()
+        )
+        OutlinedTextField(
+            value = uiState.vlessTransport,
+            onValueChange = { viewModel.updateVlessTransport(it) },
+            label = { Text("Protocol (tcp / udp)") },
+            placeholder = { Text("tcp") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth()
+        )
+        OutlinedTextField(
+            value = uiState.vlessSecurity,
+            onValueChange = { viewModel.updateVlessSecurity(it) },
+            label = { Text("Cipher (e.g. AES-256-CBC or AES-256-GCM)") },
+            placeholder = { Text("AES-256-CBC") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth()
+        )
+        OutlinedTextField(
+            value = uiState.sshPrivateKey,
+            onValueChange = { viewModel.updateSshPrivateKey(it) },
+            label = { Text("Static Key / CA / Inline .ovpn Configuration") },
+            placeholder = { Text("-----BEGIN OpenVPN Static key V1-----") },
+            maxLines = 5,
             modifier = Modifier.fillMaxWidth()
         )
     }
@@ -4047,11 +4100,37 @@ private fun ProxyProtocolsSection(
         OutlinedTextField(
             value = uiState.vlessSni,
             onValueChange = { viewModel.updateVlessSni(it) },
-            label = { Text("TLS SNI") },
+            label = { Text("TLS SNI / Server Name") },
             placeholder = { Text("trojan.example.com") },
             singleLine = true,
             modifier = Modifier.fillMaxWidth()
         )
+        OutlinedTextField(
+            value = uiState.vlessTransport,
+            onValueChange = { viewModel.updateVlessTransport(it) },
+            label = { Text("Network / Transport (tcp, ws, grpc)") },
+            placeholder = { Text("tcp") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth()
+        )
+        if (uiState.vlessTransport == "ws" || uiState.vlessTransport == "grpc") {
+            OutlinedTextField(
+                value = uiState.vlessWsPath,
+                onValueChange = { viewModel.updateVlessWsPath(it) },
+                label = { Text("Path / Service Name") },
+                placeholder = { Text("/trojan-ws") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+            OutlinedTextField(
+                value = uiState.cdnIp,
+                onValueChange = { viewModel.updateCdnIp(it) },
+                label = { Text("Host Header (CDN)") },
+                placeholder = { Text("cdn.example.com") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
     }
 
     // Shadowsocks fields

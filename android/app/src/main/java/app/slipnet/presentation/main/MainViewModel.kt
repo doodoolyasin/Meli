@@ -453,6 +453,7 @@ class MainViewModel @Inject constructor(
         }
 
         if (isConnectedOrConnecting && _uiState.value.connectedProfileId != profile.id) {
+            _uiState.value = _uiState.value.copy(connectionState = ConnectionState.Connecting)
             connectionManager.reconnect(profile)
         }
     }
@@ -565,6 +566,15 @@ class MainViewModel @Inject constructor(
         }
         val json = configExporter.exportSingleProfile(profile, hideResolvers)
         _uiState.value = _uiState.value.copy(exportedJson = json)
+    }
+
+    fun exportStandardUri(profile: ServerProfile) {
+        if (profile.isLocked) {
+            _uiState.value = _uiState.value.copy(error = "Cannot export a locked profile")
+            return
+        }
+        val uri = configExporter.exportStandardUri(profile)
+        _uiState.value = _uiState.value.copy(exportedJson = uri)
     }
 
     fun exportProfileLocked(
@@ -1047,14 +1057,41 @@ class MainViewModel @Inject constructor(
             }
             TunnelType.SOCKS5 -> profile.domain to profile.socks5ServerPort
             TunnelType.VLESS -> {
-                // Test reachability to the CDN edge — that's what the TLS/WS
-                // handshake will hit. Fall back to the configured domain on
-                // 443 if the user didn't pin a specific CDN IP.
                 val host = profile.cdnIp.takeIf { it.isNotBlank() } ?: profile.domain
                 val port = if (profile.cdnPort > 0) profile.cdnPort else 443
                 if (host.isBlank()) null else host to port
             }
-            else -> null
+            TunnelType.MASTERDNS, TunnelType.MASTERDNS_SSH,
+            TunnelType.STORMDNS, TunnelType.STORMDNS_SSH,
+            TunnelType.COTTENDNS, TunnelType.COTTENDNS_SSH,
+            TunnelType.SOAR, TunnelType.SOAR_SSH,
+            TunnelType.MELI, TunnelType.MELI_SSH,
+            TunnelType.QWDTT, TunnelType.QWDTT_SSH,
+            TunnelType.NOOSHDAROO, TunnelType.NOOSHDAROO_SSH -> {
+                if (profile.dnsCustomServer.isNotBlank()) {
+                    val parts = profile.dnsCustomServer.split(":")
+                    parts[0] to (parts.getOrNull(1)?.toIntOrNull() ?: 53)
+                } else if (profile.resolvers.isNotEmpty()) {
+                    profile.resolvers.first().let { it.host to it.port }
+                } else {
+                    "45.38.249.16" to 53
+                }
+            }
+            TunnelType.WIREGUARD, TunnelType.OPENVPN,
+            TunnelType.HYSTERIA2, TunnelType.TUIC,
+            TunnelType.TROJAN, TunnelType.SHADOWSOCKS, TunnelType.SHADOWSOCKSR,
+            TunnelType.VMESS, TunnelType.SNELL, TunnelType.VLESS_REALITY -> {
+                val host = profile.domain.takeIf { it.isNotBlank() } ?: "45.38.249.16"
+                val port = if (profile.cdnPort > 0) profile.cdnPort else 443
+                host to port
+            }
+            else -> {
+                if (profile.domain.isNotBlank()) {
+                    profile.domain to (if (profile.cdnPort > 0) profile.cdnPort else 53)
+                } else {
+                    "45.38.249.16" to 53
+                }
+            }
         }
     }
 }

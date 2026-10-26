@@ -297,4 +297,70 @@ class ConfigExporter @Inject constructor() {
         val encoded = Base64.encodeToString(data.toByteArray(Charsets.UTF_8), Base64.NO_WRAP)
         return "$SCHEME$encoded"
     }
+
+    /**
+     * Exports a profile in standard universal format (vless://, vmess://, trojan://, ss://, etc.)
+     * for seamless compatibility with third-party clients (v2rayNG, Happ, Shadowrocket, Streisand).
+     */
+    fun exportStandardUri(profile: ServerProfile): String {
+        val host = if (profile.cdnIp.isNotBlank()) profile.cdnIp else profile.domain.ifBlank { "127.0.0.1" }
+        val nameEnc = try { java.net.URLEncoder.encode(profile.name, "UTF-8") } catch (_: Exception) { profile.name }
+        val sni = if (profile.vlessSni.isNotBlank()) profile.vlessSni else profile.domain
+
+        return when (profile.tunnelType) {
+            TunnelType.VLESS, TunnelType.VLESS_REALITY -> {
+                val sec = if (profile.tunnelType == TunnelType.VLESS_REALITY) "reality" else profile.vlessSecurity
+                "vless://${profile.vlessUuid}@$host:${profile.cdnPort}?type=${profile.vlessTransport}&security=$sec&path=${profile.vlessWsPath}&sni=$sni#$nameEnc"
+            }
+            TunnelType.VMESS -> {
+                val json = org.json.JSONObject().apply {
+                    put("v", "2")
+                    put("ps", profile.name)
+                    put("add", host)
+                    put("port", profile.cdnPort)
+                    put("id", profile.vlessUuid)
+                    put("aid", "0")
+                    put("scy", "auto")
+                    put("net", profile.vlessTransport.ifBlank { "ws" })
+                    put("type", "none")
+                    put("host", sni)
+                    put("path", profile.vlessWsPath.ifBlank { "/vmess" })
+                    put("tls", if (profile.vlessSecurity == "tls") "tls" else "")
+                    put("sni", sni)
+                }
+                "vmess://" + Base64.encodeToString(json.toString().toByteArray(Charsets.UTF_8), Base64.NO_WRAP)
+            }
+            TunnelType.TROJAN -> {
+                val pass = profile.socksPassword ?: ""
+                "trojan://$pass@$host:${profile.cdnPort}?security=tls&sni=$sni&type=${profile.vlessTransport.ifBlank { "tcp" }}#$nameEnc"
+            }
+            TunnelType.SHADOWSOCKS, TunnelType.SHADOWSOCKSR -> {
+                val pass = profile.socksPassword ?: ""
+                val method = if (profile.vlessTransport.isNotBlank() && profile.vlessTransport != "ws") profile.vlessTransport else "aes-256-gcm"
+                val cred = "$method:$pass"
+                val credEnc = Base64.encodeToString(cred.toByteArray(Charsets.UTF_8), Base64.NO_WRAP)
+                "ss://$credEnc@$host:${profile.cdnPort}#$nameEnc"
+            }
+            TunnelType.SOCKS5 -> {
+                val user = profile.socksUsername ?: ""
+                val pass = profile.socksPassword ?: ""
+                val auth = if (user.isNotBlank() || pass.isNotBlank()) "$user:$pass@" else ""
+                "socks5://$auth$host:${profile.socks5ServerPort}#$nameEnc"
+            }
+            TunnelType.WIREGUARD -> {
+                """
+                [Interface]
+                PrivateKey = ${profile.sshPrivateKey}
+                Address = 10.0.0.2/32
+                DNS = 1.1.1.1
+
+                [Peer]
+                PublicKey = ${profile.dnsttPublicKey}
+                Endpoint = $host:${profile.cdnPort}
+                AllowedIPs = 0.0.0.0/0
+                """.trimIndent()
+            }
+            else -> exportProfile(profile)
+        }
+    }
 }

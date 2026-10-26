@@ -2845,10 +2845,11 @@ class SlipNetVpnService : VpnService() {
         }
 
         val actualPort = MasterDnsBridge.getClientPort()
+        val tunnelName = profile.tunnelType.displayName
         if (!waitForProxyReady(actualPort, maxAttempts = 120, delayMs = 250)) {
             val lastErr = MasterDnsBridge.lastError().ifBlank { "Port not listening after 30s" }
-            Log.e(TAG, "MasterDNS failed to become ready on port $actualPort: $lastErr")
-            connectionManager.onVpnError("MasterDNS startup failed: $lastErr")
+            Log.e(TAG, "$tunnelName failed to become ready on port $actualPort: $lastErr")
+            connectionManager.onVpnError("$tunnelName startup failed: $lastErr")
             MasterDnsBridge.stopClient()
             stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf()
@@ -2871,10 +2872,10 @@ class SlipNetVpnService : VpnService() {
             TunnelType.MASTERDNS_SSH, TunnelType.STORMDNS_SSH,
             TunnelType.COTTENDNS_SSH, TunnelType.SOAR_SSH,
             TunnelType.MELI_SSH
-        ) || profile.sshUsername.isNotBlank()
+        ) || (profile.useSsh && profile.sshUsername.isNotBlank())
         if (useSsh) {
             configureSshBridge()
-            val targetHost = if (profile.sshHost.isBlank() || profile.sshHost == "127.0.0.1") "16.171.152.115" else profile.sshHost
+            val targetHost = if (profile.sshHost.isBlank() || profile.sshHost == "127.0.0.1") "45.38.249.16" else profile.sshHost
             var sshResult: Result<Unit> = Result.failure(RuntimeException("SSH not attempted"))
             for (attempt in 1..SSH_OVER_TUNNEL_RETRIES) {
                 sshResult = withContext(Dispatchers.IO) {
@@ -2970,7 +2971,9 @@ class SlipNetVpnService : VpnService() {
         val resolver = if (profile.resolvers.isNotEmpty()) {
             val r = profile.resolvers.first()
             "${r.host}:${r.port}"
-        } else "8.8.8.8:53"
+        } else if (profile.dnsCustomServer.isNotBlank()) {
+            profile.dnsCustomServer
+        } else "45.38.249.16:5309"
 
         Log.i(TAG, "Starting Meli Protocol Rust Client: domain=$domain, resolver=$resolver, port=$meliPort")
         val startResult = MeliBridge.startClient(
@@ -2978,7 +2981,7 @@ class SlipNetVpnService : VpnService() {
             resolver = resolver,
             listenPort = meliPort,
             listenHost = "127.0.0.1",
-            encryptionKey = profile.dnsttPublicKey.ifBlank { "" }
+            encryptionKey = profile.dnsttPublicKey.ifBlank { "1937e96db977fb13ebc205e43ac5d5dad7ef61c8434cd7f08b8e166135595972" }
         )
 
         if (startResult.isFailure) {
@@ -3016,10 +3019,10 @@ class SlipNetVpnService : VpnService() {
             delay(200)
         }
 
-        val useSsh = profile.tunnelType == TunnelType.MELI_SSH || profile.sshUsername.isNotBlank()
+        val useSsh = profile.tunnelType == TunnelType.MELI_SSH || (profile.useSsh && profile.sshUsername.isNotBlank())
         if (useSsh) {
             configureSshBridge()
-            val targetHost = if (profile.sshHost.isBlank() || profile.sshHost == "127.0.0.1") "16.171.152.115" else profile.sshHost
+            val targetHost = if (profile.sshHost.isBlank() || profile.sshHost == "127.0.0.1") "45.38.249.16" else profile.sshHost
             var sshResult: Result<Unit> = Result.failure(RuntimeException("SSH not attempted"))
             for (attempt in 1..SSH_OVER_TUNNEL_RETRIES) {
                 sshResult = withContext(Dispatchers.IO) {
@@ -3339,6 +3342,7 @@ class SlipNetVpnService : VpnService() {
         delay(200)
 
         // Step 2: Start SOCKS5 proxy bridge
+        Socks5ProxyBridge.vpnService = this@SlipNetVpnService
         Socks5ProxyBridge.debugLogging = preferencesDataStore.debugLogging.first()
         val bridgeResult = withContext(Dispatchers.IO) {
             Socks5ProxyBridge.start(
@@ -3401,6 +3405,7 @@ class SlipNetVpnService : VpnService() {
         vpnRepository.setCurrentTunnelType(app.slipnet.domain.model.TunnelType.VLESS)
 
         if (isProxyOnly) {
+            VlessBridge.setVpnService(this@SlipNetVpnService)
             VlessBridge.debugLogging = preferencesDataStore.debugLogging.first()
             val bridgeResult = withContext(Dispatchers.IO) {
                 VlessBridge.start(
@@ -3468,6 +3473,7 @@ class SlipNetVpnService : VpnService() {
         delay(200)
 
         // Step 2: Start VLESS bridge
+        VlessBridge.setVpnService(this@SlipNetVpnService)
         VlessBridge.debugLogging = preferencesDataStore.debugLogging.first()
         val bridgeResult = withContext(Dispatchers.IO) {
             VlessBridge.start(
