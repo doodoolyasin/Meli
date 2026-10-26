@@ -36,26 +36,27 @@ fun SshTerminalScreen(
     var showConfigSheet by remember { mutableStateOf(false) }
     val outputScrollState = rememberScrollState()
 
-    // Auto-scroll to bottom when new output arrives
+    // Smooth auto-scroll only if isAutoScroll is enabled
     LaunchedEffect(uiState.output) {
         if (uiState.isAutoScroll) {
-            outputScrollState.animateScrollTo(outputScrollState.maxValue)
+            outputScrollState.scrollTo(outputScrollState.maxValue)
         }
     }
 
     Scaffold(
+        modifier = Modifier.imePadding(),
         topBar = {
             TopAppBar(
                 title = {
                     Column {
                         Text(
-                            text = "SSH Terminal (Termius)",
+                            text = "Aryana Core Terminal",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold
                         )
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             val (dotColor, statusText) = when (uiState.connectionState) {
-                                is TerminalConnectionState.Connected -> Color(0xFF00E676) to "Connected: ${uiState.username}@${uiState.host}"
+                                is TerminalConnectionState.Connected -> Color(0xFF00E676) to "${uiState.username}@${uiState.host}:${uiState.port}"
                                 is TerminalConnectionState.Connecting -> Color(0xFFFFD600) to "Connecting..."
                                 is TerminalConnectionState.Disconnected -> Color(0xFF9E9E9E) to "Disconnected"
                                 is TerminalConnectionState.Error -> Color(0xFFFF5252) to "Error"
@@ -120,7 +121,7 @@ fun SshTerminalScreen(
                 ) {
                     Column(modifier = Modifier.padding(12.dp)) {
                         Text(
-                            text = "SSH Connection Settings",
+                            text = "Aryana Core SSH Connection",
                             style = MaterialTheme.typography.labelMedium,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.primary
@@ -177,15 +178,33 @@ fun SshTerminalScreen(
                 }
             }
 
-            // Quick Command Chips
+            // Quick Command Chips & Auto-Scroll Toggle
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(Color(0xFF161B22))
                     .horizontalScroll(rememberScrollState())
                     .padding(horizontal = 8.dp, vertical = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
+                // Auto Scroll toggle chip
+                InputChip(
+                    selected = uiState.isAutoScroll,
+                    onClick = { viewModel.toggleAutoScroll() },
+                    label = {
+                        Text(
+                            if (uiState.isAutoScroll) "Scroll: Auto" else "Scroll: Manual",
+                            fontSize = 10.sp,
+                            fontFamily = FontFamily.Monospace
+                        )
+                    },
+                    colors = InputChipDefaults.inputChipColors(
+                        selectedContainerColor = Color(0xFF238636),
+                        selectedLabelColor = Color.White
+                    )
+                )
+
                 QuickCommandChip(label = "sing-box status", cmd = "systemctl status sing-box") { viewModel.sendCommand(it) }
                 QuickCommandChip(label = "sing-box restart", cmd = "systemctl restart sing-box") { viewModel.sendCommand(it) }
                 QuickCommandChip(label = "sing-box logs", cmd = "journalctl -u sing-box -n 30 --no-pager") { viewModel.sendCommand(it) }
@@ -220,7 +239,7 @@ fun SshTerminalScreen(
                 }
             }
 
-            // Terminal Key Bar: Ctrl+C, Ctrl+Z, Tab, Clear, Enter
+            // Terminal Key Bar: History Up/Down, Ctrl+C, Ctrl+Z, Tab, Clear, Enter
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -229,14 +248,20 @@ fun SshTerminalScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                TextButton(onClick = { viewModel.historyUp() }) {
+                    Text("▲", color = Color(0xFF40C4FF), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                }
+                TextButton(onClick = { viewModel.historyDown() }) {
+                    Text("▼", color = Color(0xFF40C4FF), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                }
                 TextButton(onClick = { viewModel.sendCtrlC() }) {
                     Text("Ctrl+C", color = Color(0xFFFF5252), fontSize = 11.sp, fontWeight = FontWeight.Bold)
                 }
                 TextButton(onClick = { viewModel.sendCtrlZ() }) {
                     Text("Ctrl+Z", color = Color(0xFFFFAB40), fontSize = 11.sp, fontWeight = FontWeight.Bold)
                 }
-                TextButton(onClick = { viewModel.sendCommand("\t") }) {
-                    Text("Tab", color = Color(0xFF40C4FF), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                TextButton(onClick = { viewModel.sendTab() }) {
+                    Text("Tab", color = Color(0xFF80D8FF), fontSize = 11.sp, fontWeight = FontWeight.Bold)
                 }
                 TextButton(onClick = { viewModel.clearOutput() }) {
                     Text("Clear", color = Color(0xFFB0BEC5), fontSize = 11.sp)

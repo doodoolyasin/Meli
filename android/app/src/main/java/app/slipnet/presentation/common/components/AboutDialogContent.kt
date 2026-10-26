@@ -34,11 +34,11 @@ fun AboutDialogContent() {
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Text(
-            text = "SlipNet VPN v${BuildConfig.VERSION_NAME}",
+            text = "Aryana VPN v${BuildConfig.VERSION_NAME}",
             style = MaterialTheme.typography.titleMedium
         )
         Text(
-            text = "A free, source-available anti-censorship VPN tool designed to bypass internet restrictions. SlipNet tunnels your traffic through DNS, SSH, Tor, and other protocols to keep you connected when access is blocked.",
+            text = "Aryana VPN is powered by Aryana Core, an ultra-fast, modern anti-censorship engine designed to bypass internet restrictions. Aryana tunnels your traffic through DNS, SSH, WebRTC, Sing-box, and Rust protocols to keep you connected when access is blocked.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -81,7 +81,7 @@ fun AboutDialogContent() {
 
         // Donate
         Text(
-            text = "Support SlipNet",
+            text = "Support Aryana",
             style = MaterialTheme.typography.labelLarge,
             color = MaterialTheme.colorScheme.primary
         )

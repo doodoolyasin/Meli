@@ -7,9 +7,11 @@ import com.jcraft.jsch.JSch
 import com.jcraft.jsch.Session
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.InputStream
@@ -30,9 +32,11 @@ data class SshTerminalUiState(
     val password: String = "yasin",
     val privateKey: String = "",
     val connectionState: TerminalConnectionState = TerminalConnectionState.Disconnected,
-    val output: String = "SlipNet Built-in SSH Terminal (Termius Mode)\nType commands or select quick actions below.\n",
+    val output: String = "Aryana Core Built-in SSH Terminal (Termius Mode)\nType commands or select quick actions below.\n",
     val currentCommand: String = "",
-    val isAutoScroll: Boolean = true
+    val isAutoScroll: Boolean = true,
+    val history: List<String> = emptyList(),
+    val historyIndex: Int = -1
 )
 
 @HiltViewModel
@@ -44,6 +48,8 @@ class SshTerminalViewModel @Inject constructor() : ViewModel() {
     private var jschSession: Session? = null
     private var shellChannel: ChannelShell? = null
     private var shellInput: OutputStream? = null
+    private var readJob: Job? = null
+    @Volatile
     private var isReading = false
 
     fun updateHost(value: String) { _uiState.value = _uiState.value.copy(host = value) }
@@ -51,6 +57,31 @@ class SshTerminalViewModel @Inject constructor() : ViewModel() {
     fun updateUsername(value: String) { _uiState.value = _uiState.value.copy(username = value) }
     fun updatePassword(value: String) { _uiState.value = _uiState.value.copy(password = value) }
     fun updateCommand(value: String) { _uiState.value = _uiState.value.copy(currentCommand = value) }
+    fun toggleAutoScroll() { _uiState.value = _uiState.value.copy(isAutoScroll = !_uiState.value.isAutoScroll) }
+
+    fun historyUp() {
+        val state = _uiState.value
+        if (state.history.isEmpty()) return
+        val newIndex = if (state.historyIndex < 0) {
+            state.history.size - 1
+        } else {
+            (state.historyIndex - 1).coerceAtLeast(0)
+        }
+        val cmd = state.history.getOrNull(newIndex) ?: ""
+        _uiState.value = state.copy(historyIndex = newIndex, currentCommand = cmd)
+    }
+
+    fun historyDown() {
+        val state = _uiState.value
+        if (state.history.isEmpty() || state.historyIndex < 0) return
+        val newIndex = state.historyIndex + 1
+        if (newIndex >= state.history.size) {
+            _uiState.value = state.copy(historyIndex = -1, currentCommand = "")
+        } else {
+            val cmd = state.history[newIndex]
+            _uiState.value = state.copy(historyIndex = newIndex, currentCommand = cmd)
+        }
+    }
 
     fun connect() {
         val state = _uiState.value
@@ -77,11 +108,14 @@ class SshTerminalViewModel @Inject constructor() : ViewModel() {
                     }
                     session.setConfig("StrictHostKeyChecking", "no")
                     session.setConfig("PreferredAuthentications", "password,publickey,keyboard-interactive")
+                    session.setServerAliveInterval(15)
+                    session.setServerAliveCountMax(4)
                     session.connect(15000)
 
                     val channel = session.openChannel("shell") as ChannelShell
                     channel.setPtyType("xterm-256color")
-                    
+                    channel.setPtySize(100, 30, 800, 600)
+
                     val inStream = channel.inputStream
                     val outStream = channel.outputStream
 
@@ -94,7 +128,7 @@ class SshTerminalViewModel @Inject constructor() : ViewModel() {
                     withContext(Dispatchers.Main) {
                         _uiState.value = _uiState.value.copy(
                             connectionState = TerminalConnectionState.Connected,
-                            output = _uiState.value.output + "[Connected successfully! Ready for input.]\n\n"
+                            output = _uiState.value.output + "[Connected to Aryana Core VPS! Ready.]\n\n"
                         )
                     }
 
@@ -115,42 +149,55 @@ class SshTerminalViewModel @Inject constructor() : ViewModel() {
 
     private fun startReadingOutput(inStream: InputStream) {
         isReading = true
-        val buffer = ByteArray(4096)
-        try {
-            while (isReading && shellChannel?.isConnected == true) {
-                val available = inStream.available()
-                val readCount = inStream.read(buffer)
-                if (readCount > 0) {
-                    val rawText = String(buffer, 0, readCount, Charsets.UTF_8)
-                    // Clean ANSI escape sequences for smooth rendering
-                    val cleanText = cleanAnsi(rawText)
-                    viewModelScope.launch(Dispatchers.Main) {
-                        val current = _uiState.value.output
-                        // Keep buffer manageable (max 100k chars)
-                        val trimmed = if (current.length > 80000) current.takeLast(40000) else current
-                        _uiState.value = _uiState.value.copy(output = trimmed + cleanText)
+        readJob?.cancel()
+        readJob = viewModelScope.launch(Dispatchers.IO) {
+            val buffer = ByteArray(4096)
+            try {
+                while (isReading && isActive && shellChannel?.isConnected == true) {
+                    val readCount = inStream.read(buffer)
+                    if (readCount > 0) {
+                        val rawText = String(buffer, 0, readCount, Charsets.UTF_8)
+                        val cleanText = sanitizeAnsi(rawText)
+                        if (cleanText.isNotEmpty()) {
+                            withContext(Dispatchers.Main) {
+                                val current = _uiState.value.output
+                                val trimmed = if (current.length > 80000) current.takeLast(40000) else current
+                                _uiState.value = _uiState.value.copy(output = trimmed + cleanText)
+                            }
+                        }
+                    } else if (readCount < 0) {
+                        break
                     }
-                } else if (readCount < 0) {
-                    break
+                }
+            } catch (_: Exception) {
+            } finally {
+                if (isReading) {
+                    withContext(Dispatchers.Main) {
+                        disconnect()
+                    }
                 }
             }
-        } catch (_: Exception) {
-        } finally {
-            isReading = false
-            disconnect()
         }
     }
 
     fun sendCommand(cmd: String = _uiState.value.currentCommand) {
         if (shellChannel?.isConnected != true || shellInput == null) return
         val commandToSend = cmd
+        if (commandToSend.isNotBlank()) {
+            val updatedHistory = (_uiState.value.history + commandToSend).takeLast(50)
+            _uiState.value = _uiState.value.copy(
+                history = updatedHistory,
+                historyIndex = -1,
+                currentCommand = ""
+            )
+        } else {
+            _uiState.value = _uiState.value.copy(currentCommand = "")
+        }
+
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 shellInput?.write((commandToSend + "\n").toByteArray(Charsets.UTF_8))
                 shellInput?.flush()
-                withContext(Dispatchers.Main) {
-                    _uiState.value = _uiState.value.copy(currentCommand = "")
-                }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
                     _uiState.value = _uiState.value.copy(
@@ -179,6 +226,15 @@ class SshTerminalViewModel @Inject constructor() : ViewModel() {
         }
     }
 
+    fun sendTab() {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                shellInput?.write(byteArrayOf(9)) // ASCII TAB
+                shellInput?.flush()
+            } catch (_: Exception) {}
+        }
+    }
+
     fun sendEnter() {
         sendCommand("")
     }
@@ -189,6 +245,8 @@ class SshTerminalViewModel @Inject constructor() : ViewModel() {
 
     fun disconnect() {
         isReading = false
+        readJob?.cancel()
+        readJob = null
         try {
             shellInput?.close()
         } catch (_: Exception) {}
@@ -207,8 +265,23 @@ class SshTerminalViewModel @Inject constructor() : ViewModel() {
         )
     }
 
-    private fun cleanAnsi(text: String): String {
-        return text.replace(Regex("\u001B\\[[;?0-9]*[a-zA-Z]"), "")
+    /**
+     * Sanitizes terminal ANSI codes, OSC window titles, VT100 control codes,
+     * and normalizes carriage returns for clean Jetpack Compose rendering.
+     */
+    private fun sanitizeAnsi(text: String): String {
+        var s = text
+        // 1. Strip OSC window title sequences (e.g. \033]0;title\007 or \033]0;title\033\)
+        s = s.replace(Regex("\u001B\\][^\u0007\u001B]*(\u0007|\u001B\\\\)"), "")
+        // 2. Strip standard CSI escape sequences (colors, cursor pos, etc.)
+        s = s.replace(Regex("\u001B\\[[0-9;?]*[a-zA-Z~]"), "")
+        // 3. Strip charset escapes like \033(B
+        s = s.replace(Regex("\u001B\\([a-zA-Z0-9]"), "")
+        // 4. Normalize CRLF
+        s = s.replace("\r\n", "\n")
+        // 5. Replace lone CR
+        s = s.replace("\r", "")
+        return s
     }
 
     override fun onCleared() {

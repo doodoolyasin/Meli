@@ -281,7 +281,7 @@ fun MainScreen(
                 viewModel.parseImportConfig(contents)
             } else {
                 scope.launch {
-                    snackbarHostState.showSnackbar("Invalid QR code: not a SlipNet config")
+                    snackbarHostState.showSnackbar("Invalid QR code: not an Aryana config")
                 }
             }
         }
@@ -446,7 +446,7 @@ fun MainScreen(
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         Text(
-                            text = "SlipNet",
+                            text = "Aryana",
                             style = MaterialTheme.typography.headlineSmall,
                             fontWeight = FontWeight.Bold
                         )
@@ -1370,7 +1370,7 @@ fun MainScreen(
     if (showLiteInfoDialog) {
         AlertDialog(
             onDismissRequest = { showLiteInfoDialog = false },
-            title = { Text("SlipNet Lite") },
+            title = { Text("Aryana Lite") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("SlipNet Lite is a lightweight version with a smaller app size.")
@@ -1398,7 +1398,7 @@ fun MainScreen(
     if (showShareDialog) {
         AlertDialog(
             onDismissRequest = { showShareDialog = false },
-            title = { Text("Share SlipNet") },
+            title = { Text("Share Aryana") },
             text = {
                 Column(modifier = Modifier.fillMaxWidth()) {
                     Text(
@@ -1512,7 +1512,7 @@ fun MainScreen(
             },
             title = { Text("Disable Battery Optimization") },
             text = {
-                Text("For reliable VPN operation, disable battery optimization for SlipNet. " +
+                Text("For reliable VPN operation, disable battery optimization for Aryana. " +
                      "Without this, Android may suspend the VPN when the screen is off.")
             },
             confirmButton = {
@@ -1709,7 +1709,7 @@ fun MainScreen(
                                         selected = !exportFormatStandard,
                                         onClick = { exportFormatStandard = false }
                                     )
-                                    Text("اختصاصی SlipNet", style = MaterialTheme.typography.bodySmall)
+                                    Text("اختصاصی آریانا (Aryana)", style = MaterialTheme.typography.bodySmall)
                                     Spacer(Modifier.width(12.dp))
                                     RadioButton(
                                         selected = exportFormatStandard,
@@ -2130,7 +2130,7 @@ fun MainScreen(
     if (uiState.showFirstLaunchAbout) {
         AlertDialog(
             onDismissRequest = { viewModel.dismissFirstLaunchAbout() },
-            title = { Text("Welcome to SlipNet") },
+            title = { Text("Welcome to Aryana") },
             text = { AboutDialogContent() },
             confirmButton = {
                 TextButton(onClick = { viewModel.dismissFirstLaunchAbout() }) {

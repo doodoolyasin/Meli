@@ -53,35 +53,35 @@ class QuickSettingsTile : TileService() {
             when (state) {
                 is ConnectionState.Disconnected -> {
                     tile.state = Tile.STATE_INACTIVE
-                    tile.label = "SlipNet"
+                    tile.label = "Aryana"
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                         tile.subtitle = "Disconnected"
                     }
                 }
                 is ConnectionState.Connecting -> {
                     tile.state = Tile.STATE_ACTIVE
-                    tile.label = "SlipNet"
+                    tile.label = "Aryana"
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                         tile.subtitle = "Connecting..."
                     }
                 }
                 is ConnectionState.Connected -> {
                     tile.state = Tile.STATE_ACTIVE
-                    tile.label = "SlipNet"
+                    tile.label = "Aryana"
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                         tile.subtitle = state.profile.name
                     }
                 }
                 is ConnectionState.Disconnecting -> {
                     tile.state = Tile.STATE_INACTIVE
-                    tile.label = "SlipNet"
+                    tile.label = "Aryana"
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                         tile.subtitle = "Disconnecting..."
                     }
                 }
                 is ConnectionState.Error -> {
                     tile.state = Tile.STATE_INACTIVE
-                    tile.label = "SlipNet"
+                    tile.label = "Aryana"
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                         tile.subtitle = "Error"
                     }

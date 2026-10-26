@@ -931,7 +931,7 @@ fun SettingsScreen(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
-                    text = "SlipNet VPN v${BuildConfig.VERSION_NAME}",
+                    text = "Aryana VPN v${BuildConfig.VERSION_NAME}",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -1513,7 +1513,7 @@ fun SettingsScreen(
     if (showAboutDialog) {
         AlertDialog(
             onDismissRequest = { showAboutDialog = false },
-            title = { Text("About SlipNet") },
+            title = { Text("About Aryana") },
             text = { AboutDialogContent() },
             confirmButton = {
                 TextButton(onClick = { showAboutDialog = false }) {
@@ -2579,7 +2579,7 @@ private fun DonateCard() {
                     .padding(horizontal = 12.dp)
             ) {
                 Text(
-                    text = "Support SlipNet",
+                    text = "Support Aryana",
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.onSurface
                 )
@@ -2601,13 +2601,13 @@ private fun DonateCard() {
     if (showDonateDialog) {
         AlertDialog(
             onDismissRequest = { showDonateDialog = false },
-            title = { Text("Support SlipNet") },
+            title = { Text("Support Aryana") },
             text = {
                 Column(
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     Text(
-                        text = "SlipNet is free, source-available, and built to fight internet censorship. No ads, no data collection, no subscriptions. Your donation helps keep this tool free and improving for everyone who needs it.",
+                        text = "Aryana is free, source-available, and built to fight internet censorship. No ads, no data collection, no subscriptions. Your donation helps keep this tool free and improving for everyone who needs it.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
