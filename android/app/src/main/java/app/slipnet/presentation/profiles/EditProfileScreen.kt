@@ -1587,219 +1587,8 @@ fun EditProfileScreen(
                     }
                 }
 
-                // WireGuard / AmneziaWG fields
-                if (uiState.isWireGuard) {
-                    OutlinedTextField(
-                        value = uiState.domain,
-                        onValueChange = { viewModel.updateDomain(it) },
-                        label = { Text("Server Endpoint (IP or Domain)") },
-                        placeholder = { Text("1.2.3.4") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    OutlinedTextField(
-                        value = uiState.cdnPort,
-                        onValueChange = { viewModel.updateCdnPort(it) },
-                        label = { Text("Endpoint Port") },
-                        placeholder = { Text("51820") },
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    OutlinedTextField(
-                        value = uiState.dnsttPublicKey,
-                        onValueChange = { viewModel.updateDnsttPublicKey(it) },
-                        label = { Text("Peer Public Key") },
-                        placeholder = { Text("Base64 Public Key") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    OutlinedTextField(
-                        value = uiState.sshPrivateKey,
-                        onValueChange = { viewModel.updateSshPrivateKey(it) },
-                        label = { Text("Interface Private Key") },
-                        placeholder = { Text("Base64 Private Key") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-
-                // Hysteria 2 fields
-                if (uiState.isHysteria2) {
-                    OutlinedTextField(
-                        value = uiState.domain,
-                        onValueChange = { viewModel.updateDomain(it) },
-                        label = { Text("Server Host (IP or Domain)") },
-                        placeholder = { Text("hy2.example.com") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    OutlinedTextField(
-                        value = uiState.cdnPort,
-                        onValueChange = { viewModel.updateCdnPort(it) },
-                        label = { Text("Port") },
-                        placeholder = { Text("443") },
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    OutlinedTextField(
-                        value = uiState.socksPassword,
-                        onValueChange = { viewModel.updateSocksPassword(it) },
-                        label = { Text("Auth Password") },
-                        placeholder = { Text("Password / Secret") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    OutlinedTextField(
-                        value = uiState.vlessSni,
-                        onValueChange = { viewModel.updateVlessSni(it) },
-                        label = { Text("TLS SNI") },
-                        placeholder = { Text("hy2.example.com") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-
-                // TUIC v5 fields
-                if (uiState.isTuic) {
-                    OutlinedTextField(
-                        value = uiState.domain,
-                        onValueChange = { viewModel.updateDomain(it) },
-                        label = { Text("Server Host (IP or Domain)") },
-                        placeholder = { Text("tuic.example.com") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    OutlinedTextField(
-                        value = uiState.cdnPort,
-                        onValueChange = { viewModel.updateCdnPort(it) },
-                        label = { Text("Port") },
-                        placeholder = { Text("8443") },
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    OutlinedTextField(
-                        value = uiState.vlessUuid,
-                        onValueChange = { viewModel.updateVlessUuid(it) },
-                        label = { Text("UUID") },
-                        placeholder = { Text("xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    OutlinedTextField(
-                        value = uiState.socksPassword,
-                        onValueChange = { viewModel.updateSocksPassword(it) },
-                        label = { Text("Password") },
-                        placeholder = { Text("Password") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    OutlinedTextField(
-                        value = uiState.vlessSni,
-                        onValueChange = { viewModel.updateVlessSni(it) },
-                        label = { Text("TLS SNI") },
-                        placeholder = { Text("tuic.example.com") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-
-                // Trojan fields
-                if (uiState.isTrojan) {
-                    OutlinedTextField(
-                        value = uiState.domain,
-                        onValueChange = { viewModel.updateDomain(it) },
-                        label = { Text("Server Host (IP or Domain)") },
-                        placeholder = { Text("trojan.example.com") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    OutlinedTextField(
-                        value = uiState.cdnPort,
-                        onValueChange = { viewModel.updateCdnPort(it) },
-                        label = { Text("Port") },
-                        placeholder = { Text("443") },
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    OutlinedTextField(
-                        value = uiState.socksPassword,
-                        onValueChange = { viewModel.updateSocksPassword(it) },
-                        label = { Text("Password") },
-                        placeholder = { Text("Password") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    OutlinedTextField(
-                        value = uiState.vlessSni,
-                        onValueChange = { viewModel.updateVlessSni(it) },
-                        label = { Text("TLS SNI") },
-                        placeholder = { Text("trojan.example.com") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-
-                // Shadowsocks fields
-                if (uiState.isShadowsocks) {
-                    OutlinedTextField(
-                        value = uiState.domain,
-                        onValueChange = { viewModel.updateDomain(it) },
-                        label = { Text("Server Host (IP or Domain)") },
-                        placeholder = { Text("ss.example.com") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    OutlinedTextField(
-                        value = uiState.cdnPort,
-                        onValueChange = { viewModel.updateCdnPort(it) },
-                        label = { Text("Port") },
-                        placeholder = { Text("8388") },
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    OutlinedTextField(
-                        value = uiState.socksUsername,
-                        onValueChange = { viewModel.updateSocksUsername(it) },
-                        label = { Text("Cipher / Method") },
-                        placeholder = { Text("2022-blake3-aes-128-gcm") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    OutlinedTextField(
-                        value = uiState.socksPassword,
-                        onValueChange = { viewModel.updateSocksPassword(it) },
-                        label = { Text("Password / Key") },
-                        placeholder = { Text("Password") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-
-                // OpenVPN fields
-                if (uiState.isOpenVpn) {
-                    OutlinedTextField(
-                        value = uiState.domain,
-                        onValueChange = { viewModel.updateDomain(it) },
-                        label = { Text("Server Host (IP or Domain)") },
-                        placeholder = { Text("vpn.example.com") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    OutlinedTextField(
-                        value = uiState.cdnPort,
-                        onValueChange = { viewModel.updateCdnPort(it) },
-                        label = { Text("Port") },
-                        placeholder = { Text("1194") },
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
+                // Modern & Standalone Protocols (WireGuard, Hysteria2, TUIC, Trojan, Shadowsocks, OpenVPN)
+                ModernProtocolsSection(uiState = uiState, viewModel = viewModel)
 
                 // DoH Server URL (shown for DOH profiles)
                 if (uiState.isDoh) {
@@ -4045,6 +3834,226 @@ private fun MultiResolverSettings(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun ModernProtocolsSection(
+    uiState: EditProfileUiState,
+    viewModel: EditProfileViewModel
+) {
+    // WireGuard / AmneziaWG fields
+    if (uiState.isWireGuard) {
+        OutlinedTextField(
+            value = uiState.domain,
+            onValueChange = { viewModel.updateDomain(it) },
+            label = { Text("Server Endpoint (IP or Domain)") },
+            placeholder = { Text("1.2.3.4") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth()
+        )
+        OutlinedTextField(
+            value = uiState.cdnPort,
+            onValueChange = { viewModel.updateCdnPort(it) },
+            label = { Text("Endpoint Port") },
+            placeholder = { Text("51820") },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            modifier = Modifier.fillMaxWidth()
+        )
+        OutlinedTextField(
+            value = uiState.dnsttPublicKey,
+            onValueChange = { viewModel.updateDnsttPublicKey(it) },
+            label = { Text("Peer Public Key") },
+            placeholder = { Text("Base64 Public Key") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth()
+        )
+        OutlinedTextField(
+            value = uiState.sshPrivateKey,
+            onValueChange = { viewModel.updateSshPrivateKey(it) },
+            label = { Text("Interface Private Key") },
+            placeholder = { Text("Base64 Private Key") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth()
+        )
+    }
+
+    // Hysteria 2 fields
+    if (uiState.isHysteria2) {
+        OutlinedTextField(
+            value = uiState.domain,
+            onValueChange = { viewModel.updateDomain(it) },
+            label = { Text("Server Host (IP or Domain)") },
+            placeholder = { Text("hy2.example.com") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth()
+        )
+        OutlinedTextField(
+            value = uiState.cdnPort,
+            onValueChange = { viewModel.updateCdnPort(it) },
+            label = { Text("Port") },
+            placeholder = { Text("443") },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            modifier = Modifier.fillMaxWidth()
+        )
+        OutlinedTextField(
+            value = uiState.socksPassword,
+            onValueChange = { viewModel.updateSocksPassword(it) },
+            label = { Text("Auth Password") },
+            placeholder = { Text("Password / Secret") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth()
+        )
+        OutlinedTextField(
+            value = uiState.vlessSni,
+            onValueChange = { viewModel.updateVlessSni(it) },
+            label = { Text("TLS SNI") },
+            placeholder = { Text("hy2.example.com") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth()
+        )
+    }
+
+    // TUIC v5 fields
+    if (uiState.isTuic) {
+        OutlinedTextField(
+            value = uiState.domain,
+            onValueChange = { viewModel.updateDomain(it) },
+            label = { Text("Server Host (IP or Domain)") },
+            placeholder = { Text("tuic.example.com") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth()
+        )
+        OutlinedTextField(
+            value = uiState.cdnPort,
+            onValueChange = { viewModel.updateCdnPort(it) },
+            label = { Text("Port") },
+            placeholder = { Text("8443") },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            modifier = Modifier.fillMaxWidth()
+        )
+        OutlinedTextField(
+            value = uiState.vlessUuid,
+            onValueChange = { viewModel.updateVlessUuid(it) },
+            label = { Text("UUID") },
+            placeholder = { Text("xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth()
+        )
+        OutlinedTextField(
+            value = uiState.socksPassword,
+            onValueChange = { viewModel.updateSocksPassword(it) },
+            label = { Text("Password") },
+            placeholder = { Text("Password") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth()
+        )
+        OutlinedTextField(
+            value = uiState.vlessSni,
+            onValueChange = { viewModel.updateVlessSni(it) },
+            label = { Text("TLS SNI") },
+            placeholder = { Text("tuic.example.com") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth()
+        )
+    }
+
+    // Trojan fields
+    if (uiState.isTrojan) {
+        OutlinedTextField(
+            value = uiState.domain,
+            onValueChange = { viewModel.updateDomain(it) },
+            label = { Text("Server Host (IP or Domain)") },
+            placeholder = { Text("trojan.example.com") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth()
+        )
+        OutlinedTextField(
+            value = uiState.cdnPort,
+            onValueChange = { viewModel.updateCdnPort(it) },
+            label = { Text("Port") },
+            placeholder = { Text("443") },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            modifier = Modifier.fillMaxWidth()
+        )
+        OutlinedTextField(
+            value = uiState.socksPassword,
+            onValueChange = { viewModel.updateSocksPassword(it) },
+            label = { Text("Password") },
+            placeholder = { Text("Password") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth()
+        )
+        OutlinedTextField(
+            value = uiState.vlessSni,
+            onValueChange = { viewModel.updateVlessSni(it) },
+            label = { Text("TLS SNI") },
+            placeholder = { Text("trojan.example.com") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth()
+        )
+    }
+
+    // Shadowsocks fields
+    if (uiState.isShadowsocks) {
+        OutlinedTextField(
+            value = uiState.domain,
+            onValueChange = { viewModel.updateDomain(it) },
+            label = { Text("Server Host (IP or Domain)") },
+            placeholder = { Text("ss.example.com") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth()
+        )
+        OutlinedTextField(
+            value = uiState.cdnPort,
+            onValueChange = { viewModel.updateCdnPort(it) },
+            label = { Text("Port") },
+            placeholder = { Text("8388") },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            modifier = Modifier.fillMaxWidth()
+        )
+        OutlinedTextField(
+            value = uiState.socksUsername,
+            onValueChange = { viewModel.updateSocksUsername(it) },
+            label = { Text("Cipher / Method") },
+            placeholder = { Text("2022-blake3-aes-128-gcm") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth()
+        )
+        OutlinedTextField(
+            value = uiState.socksPassword,
+            onValueChange = { viewModel.updateSocksPassword(it) },
+            label = { Text("Password / Key") },
+            placeholder = { Text("Password") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth()
+        )
+    }
+
+    // OpenVPN fields
+    if (uiState.isOpenVpn) {
+        OutlinedTextField(
+            value = uiState.domain,
+            onValueChange = { viewModel.updateDomain(it) },
+            label = { Text("Server Host (IP or Domain)") },
+            placeholder = { Text("vpn.example.com") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth()
+        )
+        OutlinedTextField(
+            value = uiState.cdnPort,
+            onValueChange = { viewModel.updateCdnPort(it) },
+            label = { Text("Port") },
+            placeholder = { Text("1194") },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            modifier = Modifier.fillMaxWidth()
+        )
     }
 }
 
