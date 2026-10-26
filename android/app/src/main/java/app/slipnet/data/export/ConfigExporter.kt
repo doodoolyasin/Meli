@@ -360,7 +360,7 @@ class ConfigExporter @Inject constructor() {
                 AllowedIPs = 0.0.0.0/0
                 """.trimIndent()
             }
-            else -> exportProfile(profile)
+            else -> exportSingleProfile(profile)
         }
     }
 }

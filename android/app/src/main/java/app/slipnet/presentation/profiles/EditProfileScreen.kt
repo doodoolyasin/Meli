@@ -2042,7 +2042,7 @@ fun EditProfileScreen(
                 }
 
                 // Smart One-Tap Network Benchmark & Auto-Tuner Card
-                if (uiState.isDnsttOrNoizOrVaydnsBased || uiState.isMasterDns || uiState.isStormDns || uiState.isMeli || uiState.isSlipstream || uiState.isCottenDns || uiState.isSoar || uiState.isNooshdaroo || uiState.isQwdtt) {
+                if (uiState.isDnsttOrNoizOrVaydnsBased || uiState.isMasterDns || uiState.isStormDns || uiState.isMeli || uiState.isSlipstreamBased || uiState.isCottenDns || uiState.isSoar || uiState.isNooshdaroo || uiState.isQwdtt) {
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()

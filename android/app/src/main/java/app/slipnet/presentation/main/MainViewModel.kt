@@ -1068,13 +1068,10 @@ class MainViewModel @Inject constructor(
             TunnelType.MELI, TunnelType.MELI_SSH,
             TunnelType.QWDTT, TunnelType.QWDTT_SSH,
             TunnelType.NOOSHDAROO, TunnelType.NOOSHDAROO_SSH -> {
-                if (profile.dnsCustomServer.isNotBlank()) {
-                    val parts = profile.dnsCustomServer.split(":")
-                    parts[0] to (parts.getOrNull(1)?.toIntOrNull() ?: 53)
-                } else if (profile.resolvers.isNotEmpty()) {
+                if (profile.resolvers.isNotEmpty()) {
                     profile.resolvers.first().let { it.host to it.port }
                 } else {
-                    "45.38.249.16" to 53
+                    "45.38.249.16" to (if (profile.tunnelType == TunnelType.MELI || profile.tunnelType == TunnelType.MELI_SSH) 5309 else 53)
                 }
             }
             TunnelType.WIREGUARD, TunnelType.OPENVPN,
