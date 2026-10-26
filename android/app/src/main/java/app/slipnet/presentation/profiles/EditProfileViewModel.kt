@@ -2054,18 +2054,23 @@ class EditProfileViewModel @Inject constructor(
             return "Encryption / Public key is required"
         }
 
-        val is32HexKey = tunnelType == TunnelType.MASTERDNS || tunnelType == TunnelType.MASTERDNS_SSH ||
-                         tunnelType == TunnelType.STORMDNS || tunnelType == TunnelType.STORMDNS_SSH ||
-                         tunnelType == TunnelType.COTTENDNS || tunnelType == TunnelType.COTTENDNS_SSH ||
-                         tunnelType == TunnelType.MELI || tunnelType == TunnelType.MELI_SSH
-
-        if (is32HexKey) {
-            if (trimmed.length != 32) {
-                return "Key must be 32 hex characters (16 bytes), got ${trimmed.length}"
+        if (tunnelType == TunnelType.MELI || tunnelType == TunnelType.MELI_SSH) {
+            if (trimmed.length != 32 && trimmed.length != 64) {
+                return "Key must be 32 or 64 hex characters, got ${trimmed.length}"
             }
         } else {
-            if (trimmed.length != 64) {
-                return "DNSTT / Protocol key must be 64 hex characters (32 bytes), got ${trimmed.length}"
+            val is32HexKey = tunnelType == TunnelType.MASTERDNS || tunnelType == TunnelType.MASTERDNS_SSH ||
+                             tunnelType == TunnelType.STORMDNS || tunnelType == TunnelType.STORMDNS_SSH ||
+                             tunnelType == TunnelType.COTTENDNS || tunnelType == TunnelType.COTTENDNS_SSH
+
+            if (is32HexKey) {
+                if (trimmed.length != 32) {
+                    return "Key must be 32 hex characters (16 bytes), got ${trimmed.length}"
+                }
+            } else {
+                if (trimmed.length != 64) {
+                    return "DNSTT / Protocol key must be 64 hex characters (32 bytes), got ${trimmed.length}"
+                }
             }
         }
 

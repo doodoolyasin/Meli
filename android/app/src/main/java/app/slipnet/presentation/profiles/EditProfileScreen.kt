@@ -1693,11 +1693,11 @@ fun EditProfileScreen(
                     OutlinedTextField(
                         value = uiState.dnsttPublicKey,
                         onValueChange = { viewModel.updateDnsttPublicKey(it) },
-                        label = { Text(if (isMasterOrStormDnsProfile) "Encryption Key" else "Public Key") },
-                        placeholder = { Text(if (isMasterOrStormDnsProfile) "32 hex characters (e.g. 5d79...)" else "Server's Noise public key (64 hex)") },
+                        label = { Text(if (uiState.isMeli) "Meli Key (64 or 32 hex)" else if (isMasterOrStormDnsProfile) "Encryption Key" else "Public Key") },
+                        placeholder = { Text(if (uiState.isMeli) "64 hex characters" else if (isMasterOrStormDnsProfile) "32 hex characters (e.g. 5d79...)" else "Server's Noise public key (64 hex)") },
                         isError = uiState.dnsttPublicKeyError != null,
                         supportingText = {
-                            Text(uiState.dnsttPublicKeyError ?: if (isMasterOrStormDnsProfile) "Encryption key (32 hex characters)" else "Server's Noise protocol public key in hex format (64 hex)")
+                            Text(uiState.dnsttPublicKeyError ?: if (uiState.isMeli) "Meli protocol key (64 or 32 hex characters)" else if (isMasterOrStormDnsProfile) "Encryption key (32 hex characters)" else "Server's Noise protocol public key in hex format (64 hex)")
                         },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
