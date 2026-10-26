@@ -12,25 +12,28 @@ import java.util.concurrent.atomic.AtomicLong
 data class LogEntry(val id: Long, val raw: String, val level: Char)
 
 /**
- * In-memory log buffer that wraps [android.util.Log].
+ * High-capacity in-memory diagnostic log buffer for Aryana Core.
  *
- * Every call forwards to the real Android logger AND appends to a ring buffer
- * that the debug-log UI can observe without spawning a `logcat` process
- * (which triggers Google Play Protect).
+ * Forwards to Android Logcat AND maintains a rich 3000-entry ring buffer
+ * accessible via the in-app Diagnostic Inspector.
  *
- * Usage: replace `import android.util.Log` with
- *        `import app.slipnet.util.AppLog as Log`
- * — no other code changes needed.
+ * Sensitive credentials (passwords, private keys, auth tokens) are automatically
+ * sanitized without discarding crucial error context, IPs, ports, or protocols.
  */
 object AppLog {
-    private const val MAX_LINES = 500
+    private const val MAX_LINES = 3000
     private val nextId = AtomicLong(0)
     private val buffer = ArrayDeque<LogEntry>()
 
-    /** When true, sensitive config details are redacted from the in-app log buffer. */
-    @Volatile var redactSensitive = false
+    /** When true, credentials and private keys are scrubbed from the in-app log buffer. */
+    @Volatile var redactSensitive = true
 
-    // Lazy snapshot — only rebuilt when the debug sheet is open (observerCount > 0).
+    // Current connection context for instant diagnostic reporting
+    @Volatile var currentProfileName: String = "None"
+    @Volatile var currentTunnelType: String = "None"
+    @Volatile var lastErrorDetail: String = ""
+
+    // Lazy snapshot — rebuilt when the debug sheet is open (observerCount > 0).
     private val _lines = MutableStateFlow<List<LogEntry>>(emptyList())
     val lines: StateFlow<List<LogEntry>> = _lines.asStateFlow()
 
@@ -66,33 +69,47 @@ object AppLog {
         val item = PacketLogItem(id, ts, direction, protocol, target, size, latencyMs, status)
         synchronized(packetBuffer) {
             packetBuffer.addLast(item)
-            while (packetBuffer.size > 200) packetBuffer.removeFirst()
+            while (packetBuffer.size > 500) packetBuffer.removeFirst()
             _packetLogs.value = ArrayList(packetBuffer)
         }
     }
 
-    // Track whether anyone is observing so we skip work when not needed.
     @Volatile var observerCount = 0
         private set
 
-    // Dirty flag: set by append(), cleared by flush().
-    // Avoids creating an ArrayList copy on every single log call — instead
-    // the UI polls via flushIfDirty() on each collection (every frame).
     private val dirty = AtomicBoolean(false)
 
     private val dateFormat = object : ThreadLocal<SimpleDateFormat>() {
         override fun initialValue() = SimpleDateFormat("MM-dd HH:mm:ss.SSS", Locale.US)
     }
 
-    private fun append(level: Char, tag: String, msg: String) {
-        val id = nextId.getAndIncrement()
-        val entry = if (observerCount > 0) {
-            val ts = dateFormat.get()!!.format(Date())
-            LogEntry(id, "$ts $level/$tag: $msg", level)
-        } else {
-            // Lightweight entry — no timestamp formatting when nobody is watching
-            LogEntry(id, "$level/$tag: $msg", level)
+    /**
+     * Sanitizes sensitive credentials (passwords, private keys, auth tokens)
+     * while preserving IPs, ports, error messages, and operational details.
+     */
+    fun sanitizeSecrets(msg: String): String {
+        var s = msg
+        // Redact passwords & tokens: password=xyz, token: abc
+        s = s.replace(Regex("""(?i)(password|passwd|pwd|secret|token)\s*[:=]\s*[^\s,;]+"""), "$1=[REDACTED]")
+        // Redact full private keys
+        s = s.replace(Regex("""-----BEGIN [A-Z ]+PRIVATE KEY-----[\s\S]*?-----END [A-Z ]+PRIVATE KEY-----"""), "[REDACTED_PRIVATE_KEY]")
+        // Mask 64-char hex private keys, retaining first 4 and last 4
+        s = s.replace(Regex("""\b([a-fA-F0-9]{4})[a-fA-F0-9]{24,56}([a-fA-F0-9]{4})\b""")) { m ->
+            "${m.groupValues[1]}...${m.groupValues[2]}"
         }
+        return s
+    }
+
+    private fun append(level: Char, tag: String, msg: String) {
+        val safeMsg = if (redactSensitive) sanitizeSecrets(msg) else msg
+        if (level == 'E') {
+            lastErrorDetail = safeMsg
+        }
+
+        val id = nextId.getAndIncrement()
+        val ts = dateFormat.get()!!.format(Date())
+        val entry = LogEntry(id, "$ts $level/$tag: $safeMsg", level)
+
         synchronized(buffer) {
             buffer.addLast(entry)
             while (buffer.size > MAX_LINES) buffer.removeFirst()
@@ -102,11 +119,6 @@ object AppLog {
         }
     }
 
-    /**
-     * Copy the buffer to the StateFlow if anything changed since the last flush.
-     * Called by the debug sheet on a periodic timer (~100ms) so we batch many
-     * rapid log calls into a single ArrayList copy + recomposition.
-     */
     fun flushIfDirty() {
         if (dirty.compareAndSet(true, false)) {
             synchronized(buffer) {
@@ -115,10 +127,8 @@ object AppLog {
         }
     }
 
-    /** Call from debug sheet onStart/onStop to enable/disable snapshots. */
     fun addObserver() {
         observerCount++
-        // Immediately snapshot current buffer for new observer
         synchronized(buffer) {
             _lines.value = ArrayList(buffer)
         }
@@ -128,81 +138,40 @@ object AppLog {
         observerCount = (observerCount - 1).coerceAtLeast(0)
     }
 
-    /** Tags whose messages contain sensitive config details (hosts, ports, credentials). */
-    private val SENSITIVE_TAGS = setOf(
-        "HevSocks5Tunnel",
-        "SlipstreamSocksBridge",
-        "DnsttSocksBridge",
-        "SshTunnelBridge",
-        "SlipNetVpnService",
-        "KotlinTunnelManager",
-        "NaiveSocksBridge",
-        "TorSocksBridge",
-        "SlipstreamBridge",
-        "DnsttBridge",
-        "NaiveBridge",
-        "VpnRepositoryImpl",
-        "VaydnsBridge",
-        "DnsResolverProber",
-        "DohBridge",
-        "HttpProxyServer",
-        "ProxyHttpConnect",
-        "ProxyWebSocket",
-        "TlsSocketFactory",
-        "NaiveSocksProxy",
-        "PayloadSocketFactory",
-        "DomainRouter",
-        "DnsDoHProxy"
-    )
-
-    /** Tag prefixes for dynamic tags (e.g. SshTunnel[default], Socks5Proxy[0]). */
-    private val SENSITIVE_TAG_PREFIXES = arrayOf("SshTunnel[", "Socks5Proxy[")
-
-    /**
-     * Check if this log line should be redacted from the in-app buffer.
-     * For locked profiles, all messages from sensitive tags are suppressed
-     * (still forwarded to Android logcat which requires ADB access).
-     */
-    private fun shouldRedact(tag: String): Boolean {
-        if (!redactSensitive) return false
-        if (tag in SENSITIVE_TAGS) return true
-        return SENSITIVE_TAG_PREFIXES.any { tag.startsWith(it) }
-    }
-
     fun v(tag: String, msg: String): Int {
-        if (!shouldRedact(tag)) append('V', tag, msg)
+        append('V', tag, msg)
         return android.util.Log.v(tag, msg)
     }
 
     fun d(tag: String, msg: String): Int {
-        if (!shouldRedact(tag)) append('D', tag, msg)
+        append('D', tag, msg)
         return android.util.Log.d(tag, msg)
     }
 
     fun i(tag: String, msg: String): Int {
-        if (!shouldRedact(tag)) append('I', tag, msg)
+        append('I', tag, msg)
         return android.util.Log.i(tag, msg)
     }
 
     fun w(tag: String, msg: String): Int {
-        if (!shouldRedact(tag)) append('W', tag, msg)
+        append('W', tag, msg)
         return android.util.Log.w(tag, msg)
     }
 
     @JvmStatic
     fun w(tag: String, msg: String, tr: Throwable?): Int {
-        if (!shouldRedact(tag)) append('W', tag, if (tr != null) "$msg\n${tr.stackTraceToString()}" else msg)
+        append('W', tag, if (tr != null) "$msg\n${tr.stackTraceToString()}" else msg)
         return android.util.Log.w(tag, msg, tr)
     }
 
     fun e(tag: String, msg: String): Int {
-        if (!shouldRedact(tag)) append('E', tag, msg)
+        append('E', tag, msg)
         return android.util.Log.e(tag, msg)
     }
 
     @JvmStatic
     fun e(tag: String, msg: String, tr: Throwable?): Int {
-        if (!shouldRedact(tag)) append('E', tag, if (tr != null) "$msg\n${tr.stackTraceToString()}" else msg)
+        append('E', tag, if (tr != null) "$msg\n${tr.stackTraceToString()}" else msg)
         return android.util.Log.e(tag, msg, tr)
     }
 
@@ -218,6 +187,7 @@ object AppLog {
         txCount.set(0)
         rxCount.set(0)
         dropCount.set(0)
+        lastErrorDetail = ""
     }
 }
 

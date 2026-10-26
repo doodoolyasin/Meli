@@ -361,6 +361,8 @@ class SlipNetVpnService : VpnService() {
 
             currentProfileId = profileId
             currentProfileName = profile.name
+            app.slipnet.util.AppLog.currentProfileName = profile.name
+            app.slipnet.util.AppLog.currentTunnelType = profile.tunnelType.displayName
             isUserInitiatedDisconnect = false
 
             // Log connection summary before enabling redaction so it's visible for locked profiles
