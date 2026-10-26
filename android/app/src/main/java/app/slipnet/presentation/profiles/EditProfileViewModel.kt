@@ -542,7 +542,10 @@ class EditProfileViewModel @Inject constructor(
                 isDnsttInitial -> "15bedeebebf104e83f1ed0a29b1d166fbee7e59a0e7892182dea8dd42f0fa80a"
                 else -> ""
             },
-            resolvers = "8.8.8.8:53",
+            resolvers = when {
+                isMasterDnsInitial || isStormDnsInitial || isCottenDnsInitial || isSoarInitial || isNooshdarooInitial || isQwdttInitial -> "45.38.249.16:53"
+                else -> "8.8.8.8:53"
+            },
             authoritativeMode = false,
             dnsttAuthoritative = false,
             tunnelEncryptionMethod = 1,
@@ -584,7 +587,8 @@ class EditProfileViewModel @Inject constructor(
         )
         if (!needsResolver) return
         if (_uiState.value.resolvers.isBlank()) {
-            _uiState.value = _uiState.value.copy(resolvers = "8.8.8.8:53")
+            val defaultRes = if (isMasterDnsInitial || isStormDnsInitial || isCottenDnsInitial || isSoarInitial || isNooshdarooInitial || isQwdttInitial) "45.38.249.16:53" else "8.8.8.8:53"
+            _uiState.value = _uiState.value.copy(resolvers = defaultRes)
         }
     }
 
