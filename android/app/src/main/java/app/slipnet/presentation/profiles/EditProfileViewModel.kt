@@ -430,6 +430,12 @@ class EditProfileViewModel @Inject constructor(
                 isNoizdnsInitial -> "NoizDNS Tunnel"
                 isDnsttInitial -> "DNSTT Tunnel"
                 isSlipstreamInitial -> "Slipstream Tunnel"
+                initialTunnelType == TunnelType.WIREGUARD -> "WireGuard Profile"
+                initialTunnelType == TunnelType.HYSTERIA2 -> "Hysteria 2 Profile"
+                initialTunnelType == TunnelType.TUIC -> "TUIC Profile"
+                initialTunnelType == TunnelType.TROJAN -> "Trojan Profile"
+                initialTunnelType == TunnelType.SHADOWSOCKS -> "Shadowsocks Profile"
+                initialTunnelType == TunnelType.OPENVPN -> "OpenVPN Profile"
                 else -> ""
             },
             domain = when {
@@ -1665,6 +1671,7 @@ class EditProfileViewModel @Inject constructor(
         // is to find resolvers. Also skip for tunnel types that don't need resolvers.
         val skipResolvers = forScanner || state.tunnelType == TunnelType.SSH || state.tunnelType == TunnelType.DOH ||
                 state.tunnelType == TunnelType.SNOWFLAKE || state.isNaiveBased || state.isSocks5 || state.isVless ||
+                state.isWireGuard || state.isOpenVpn || state.isHysteria2 || state.isTuic || state.isTrojan || state.isShadowsocks ||
                 (state.isDnsttOrNoizOrVaydnsBased && state.dnsTransport == DnsTransport.DOH) ||
                 (state.resolversHidden && !state.useCustomResolver)
         if (!skipResolvers) {

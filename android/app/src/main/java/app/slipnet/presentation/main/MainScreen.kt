@@ -1059,6 +1059,60 @@ fun MainScreen(
                                 }
                             )
                         }
+                        AddMenuGridItem(
+                            modifier = tileMod,
+                            icon = Icons.Default.Shield,
+                            title = "WireGuard",
+                            onClick = {
+                                showAddMenu = false
+                                onNavigateToAddProfile(TunnelType.WIREGUARD.value)
+                            }
+                        )
+                        AddMenuGridItem(
+                            modifier = tileMod,
+                            icon = Icons.Default.Waves,
+                            title = "Hysteria 2",
+                            onClick = {
+                                showAddMenu = false
+                                onNavigateToAddProfile(TunnelType.HYSTERIA2.value)
+                            }
+                        )
+                        AddMenuGridItem(
+                            modifier = tileMod,
+                            icon = Icons.Default.Air,
+                            title = "TUIC",
+                            onClick = {
+                                showAddMenu = false
+                                onNavigateToAddProfile(TunnelType.TUIC.value)
+                            }
+                        )
+                        AddMenuGridItem(
+                            modifier = tileMod,
+                            icon = Icons.Default.Lock,
+                            title = "Trojan",
+                            onClick = {
+                                showAddMenu = false
+                                onNavigateToAddProfile(TunnelType.TROJAN.value)
+                            }
+                        )
+                        AddMenuGridItem(
+                            modifier = tileMod,
+                            icon = Icons.Default.Share,
+                            title = "Shadowsocks",
+                            onClick = {
+                                showAddMenu = false
+                                onNavigateToAddProfile(TunnelType.SHADOWSOCKS.value)
+                            }
+                        )
+                        AddMenuGridItem(
+                            modifier = tileMod,
+                            icon = Icons.Default.Settings,
+                            title = "OpenVPN",
+                            onClick = {
+                                showAddMenu = false
+                                onNavigateToAddProfile(TunnelType.OPENVPN.value)
+                            }
+                        )
                     }
 
                     HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp))
