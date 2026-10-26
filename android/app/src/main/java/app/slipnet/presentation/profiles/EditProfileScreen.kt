@@ -3854,6 +3854,17 @@ private fun ModernProtocolsSection(
     uiState: EditProfileUiState,
     viewModel: EditProfileViewModel
 ) {
+    VpnProtocolsSection(uiState, viewModel)
+    QuicProtocolsSection(uiState, viewModel)
+    ProxyProtocolsSection(uiState, viewModel)
+    IosProtocolsSection(uiState, viewModel)
+}
+
+@Composable
+private fun VpnProtocolsSection(
+    uiState: EditProfileUiState,
+    viewModel: EditProfileViewModel
+) {
     // WireGuard / AmneziaWG fields
     if (uiState.isWireGuard) {
         OutlinedTextField(
@@ -3891,6 +3902,33 @@ private fun ModernProtocolsSection(
         )
     }
 
+    // OpenVPN fields
+    if (uiState.isOpenVpn) {
+        OutlinedTextField(
+            value = uiState.domain,
+            onValueChange = { viewModel.updateDomain(it) },
+            label = { Text("Server Host (IP or Domain)") },
+            placeholder = { Text("vpn.example.com") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth()
+        )
+        OutlinedTextField(
+            value = uiState.cdnPort,
+            onValueChange = { viewModel.updateCdnPort(it) },
+            label = { Text("Port") },
+            placeholder = { Text("1194") },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            modifier = Modifier.fillMaxWidth()
+        )
+    }
+}
+
+@Composable
+private fun QuicProtocolsSection(
+    uiState: EditProfileUiState,
+    viewModel: EditProfileViewModel
+) {
     // Hysteria 2 fields
     if (uiState.isHysteria2) {
         OutlinedTextField(
@@ -3972,7 +4010,13 @@ private fun ModernProtocolsSection(
             modifier = Modifier.fillMaxWidth()
         )
     }
+}
 
+@Composable
+private fun ProxyProtocolsSection(
+    uiState: EditProfileUiState,
+    viewModel: EditProfileViewModel
+) {
     // Trojan fields
     if (uiState.isTrojan) {
         OutlinedTextField(
@@ -4030,44 +4074,29 @@ private fun ModernProtocolsSection(
             modifier = Modifier.fillMaxWidth()
         )
         OutlinedTextField(
-            value = uiState.socksUsername,
-            onValueChange = { viewModel.updateSocksUsername(it) },
-            label = { Text("Cipher / Method") },
-            placeholder = { Text("2022-blake3-aes-128-gcm") },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth()
-        )
-        OutlinedTextField(
             value = uiState.socksPassword,
             onValueChange = { viewModel.updateSocksPassword(it) },
-            label = { Text("Password / Key") },
+            label = { Text("Password") },
             placeholder = { Text("Password") },
             singleLine = true,
             modifier = Modifier.fillMaxWidth()
         )
-    }
-
-    // OpenVPN fields
-    if (uiState.isOpenVpn) {
         OutlinedTextField(
-            value = uiState.domain,
-            onValueChange = { viewModel.updateDomain(it) },
-            label = { Text("Server Host (IP or Domain)") },
-            placeholder = { Text("vpn.example.com") },
+            value = uiState.vlessTransport,
+            onValueChange = { viewModel.updateVlessTransport(it) },
+            label = { Text("Method (Cipher)") },
+            placeholder = { Text("2022-blake3-aes-128-gcm or aes-256-gcm") },
             singleLine = true,
             modifier = Modifier.fillMaxWidth()
         )
-        OutlinedTextField(
-            value = uiState.cdnPort,
-            onValueChange = { viewModel.updateCdnPort(it) },
-            label = { Text("Port") },
-            placeholder = { Text("1194") },
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            modifier = Modifier.fillMaxWidth()
-        )
     }
+}
 
+@Composable
+private fun IosProtocolsSection(
+    uiState: EditProfileUiState,
+    viewModel: EditProfileViewModel
+) {
     // VMess fields (V2Ray / iOS)
     if (uiState.isVmess) {
         OutlinedTextField(
