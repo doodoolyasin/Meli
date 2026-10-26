@@ -470,8 +470,34 @@ class EditProfileViewModel @Inject constructor(
                 isNoizdnsInitial -> "noiz.dhafhdtjdti.site"
                 isDnsttInitial -> "t.dhafhdtjdti.site"
                 isSlipstreamInitial -> "slip.dhafhdtjdti.site"
+                initialTunnelType == TunnelType.TROJAN ||
+                initialTunnelType == TunnelType.VMESS ||
+                initialTunnelType == TunnelType.HYSTERIA2 ||
+                initialTunnelType == TunnelType.TUIC -> "app.green-tool.ir"
+                initialTunnelType == TunnelType.SOCKS5 ||
+                initialTunnelType == TunnelType.SHADOWSOCKS ||
+                initialTunnelType == TunnelType.SSH -> "45.38.249.16"
                 else -> ""
             },
+            cdnPort = when (initialTunnelType) {
+                TunnelType.SOCKS5 -> "1080"
+                TunnelType.SHADOWSOCKS -> "8388"
+                TunnelType.TROJAN -> "4433"
+                TunnelType.VMESS -> "10086"
+                TunnelType.HYSTERIA2 -> "8443"
+                TunnelType.TUIC -> "8444"
+                else -> "443"
+            },
+            socksUsername = if (initialTunnelType == TunnelType.SOCKS5) "yasin" else "",
+            socksPassword = when (initialTunnelType) {
+                TunnelType.SOCKS5 -> "yasin"
+                TunnelType.SHADOWSOCKS, TunnelType.TROJAN, TunnelType.HYSTERIA2, TunnelType.TUIC -> "yasin_secret_password_2026"
+                else -> ""
+            },
+            vlessUuid = if (initialTunnelType == TunnelType.VMESS || initialTunnelType == TunnelType.TUIC) "1937e96d-b977-fb13-ebc2-05e43ac5d5da" else "",
+            vlessWsPath = if (initialTunnelType == TunnelType.VMESS) "/vmess" else "/",
+            vlessSni = if (initialTunnelType in listOf(TunnelType.TROJAN, TunnelType.VMESS, TunnelType.HYSTERIA2, TunnelType.TUIC)) "app.green-tool.ir" else "",
+            vlessTransport = if (initialTunnelType == TunnelType.SHADOWSOCKS) "aes-256-gcm" else "ws",
             dnsttPublicKey = when {
                 isMeliInitial -> "1937e96db977fb13ebc205e43ac5d5dad7ef61c8434cd7f08b8e166135595972"
                 isMasterDnsInitial -> "5d790e75a6262fe95f70979c7bddd360"

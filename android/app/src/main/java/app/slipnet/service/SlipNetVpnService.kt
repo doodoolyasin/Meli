@@ -557,7 +557,9 @@ class SlipNetVpnService : VpnService() {
                     TunnelType.NOOSHDAROO_SSH, TunnelType.QWDTT_SSH -> connectDnsttSsh(profile, dnsServer, remoteDns, remoteDnsFallback, globalResolverOverride)
                     TunnelType.BALE -> connectBale(profile, dnsServer, remoteDns)
                     TunnelType.PINGTUNNEL, TunnelType.SPOOF_TUNNEL, TunnelType.GOLDEN_GRE, TunnelType.PAQET,
-                    TunnelType.WIREGUARD, TunnelType.OPENVPN, TunnelType.HYSTERIA2, TunnelType.TUIC, TunnelType.TROJAN, TunnelType.SHADOWSOCKS -> connectSocks5(profile, dnsServer, remoteDns)
+                    TunnelType.WIREGUARD, TunnelType.OPENVPN, TunnelType.HYSTERIA2, TunnelType.TUIC, TunnelType.TROJAN, TunnelType.SHADOWSOCKS,
+                    TunnelType.VMESS, TunnelType.SNELL, TunnelType.SHADOWSOCKSR, TunnelType.VLESS_REALITY -> connectSocks5(profile, dnsServer, remoteDns)
+                    else -> connectSocks5(profile, dnsServer, remoteDns)
                 }
 
             } catch (e: kotlinx.coroutines.CancellationException) {
@@ -5301,35 +5303,7 @@ class SlipNetVpnService : VpnService() {
         }
 
 
-        val needsSelfExclusion = currentTunnelType == TunnelType.DNSTT ||
-                currentTunnelType == TunnelType.NOIZDNS ||
-                currentTunnelType == TunnelType.VAYDNS ||
-                currentTunnelType == TunnelType.SSH ||
-                currentTunnelType == TunnelType.DNSTT_SSH ||
-                currentTunnelType == TunnelType.NOIZDNS_SSH ||
-                currentTunnelType == TunnelType.VAYDNS_SSH ||
-                currentTunnelType == TunnelType.DOH ||
-                currentTunnelType == TunnelType.SLIPSTREAM ||
-                currentTunnelType == TunnelType.SLIPSTREAM_SSH ||
-                currentTunnelType == TunnelType.NAIVE_SSH ||
-                currentTunnelType == TunnelType.NAIVE ||
-                currentTunnelType == TunnelType.SNOWFLAKE ||
-                currentTunnelType == TunnelType.SOCKS5 ||
-                currentTunnelType == TunnelType.VLESS ||
-                currentTunnelType == TunnelType.MASTERDNS ||
-                currentTunnelType == TunnelType.MASTERDNS_SSH ||
-                currentTunnelType == TunnelType.STORMDNS ||
-                currentTunnelType == TunnelType.STORMDNS_SSH ||
-                currentTunnelType == TunnelType.COTTENDNS ||
-                currentTunnelType == TunnelType.COTTENDNS_SSH ||
-                currentTunnelType == TunnelType.SOAR ||
-                currentTunnelType == TunnelType.SOAR_SSH ||
-                currentTunnelType == TunnelType.MELI ||
-                currentTunnelType == TunnelType.MELI_SSH ||
-                currentTunnelType == TunnelType.NOOSHDAROO ||
-                currentTunnelType == TunnelType.NOOSHDAROO_SSH ||
-                currentTunnelType == TunnelType.QWDTT ||
-                currentTunnelType == TunnelType.QWDTT_SSH
+        val needsSelfExclusion = currentTunnelType != TunnelType.DOH
 
         val splitEnabled = preferencesDataStore.splitTunnelingEnabled.first()
         val splitMode = preferencesDataStore.splitTunnelingMode.first()
