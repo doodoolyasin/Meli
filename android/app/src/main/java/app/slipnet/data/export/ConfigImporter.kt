@@ -366,7 +366,6 @@ class ConfigImporter @Inject constructor() {
                             }
                         }
                         is ProfileParseResult.Warning -> {
-                            profiles.add(parseResult.profile)
                             warnings.add(parseResult.message)
                         }
                         is ProfileParseResult.Error -> {
