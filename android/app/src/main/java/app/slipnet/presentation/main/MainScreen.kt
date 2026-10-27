@@ -85,6 +85,8 @@ import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.Waves
 import androidx.compose.material.icons.filled.NetworkPing
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -96,6 +98,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.ModalDrawerSheet
@@ -254,6 +257,31 @@ fun MainScreen(
     var searchQuery by remember { mutableStateOf("") }
     var isSearchActive by remember { mutableStateOf(false) }
     var selectedCategoryIndex by remember { mutableIntStateOf(0) }
+
+    val subGroups = remember(uiState.profiles) {
+        uiState.profiles
+            .map { it.subscriptionGroup.trim() }
+            .filter { it.isNotBlank() }
+            .distinct()
+    }
+
+    val groupTabs = remember(uiState.profiles, uiState.chains, subGroups) {
+        val list = mutableListOf<Pair<String, Int>>()
+        list.add("All" to uiState.profiles.size)
+        val defaultCount = uiState.profiles.count { it.subscriptionGroup.isBlank() }
+        if (defaultCount > 0 || subGroups.isNotEmpty()) {
+            list.add("Default" to defaultCount)
+        }
+        subGroups.forEach { subId ->
+            val count = uiState.profiles.count { it.subscriptionGroup == subId }
+            list.add(subId to count)
+        }
+        if (uiState.chains.isNotEmpty()) {
+            list.add("Chains" to uiState.chains.size)
+        }
+        list
+    }
+
     var showAboutDialog by remember { mutableStateOf(false) }
     // Export lock dialog state
     var exportLockProfile by remember { mutableStateOf<ServerProfile?>(null) }
@@ -886,31 +914,6 @@ fun MainScreen(
                 .padding(paddingValues)
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
-                // Dynamic Subscription Groups (PattNG Architecture)
-                val subGroups = remember(uiState.profiles) {
-                    uiState.profiles
-                        .map { it.subscriptionGroup.trim() }
-                        .filter { it.isNotBlank() }
-                        .distinct()
-                }
-
-                val groupTabs = remember(uiState.profiles, uiState.chains, subGroups) {
-                    val list = mutableListOf<Pair<String, Int>>()
-                    list.add("All" to uiState.profiles.size)
-                    val defaultCount = uiState.profiles.count { it.subscriptionGroup.isBlank() }
-                    if (defaultCount > 0 || subGroups.isNotEmpty()) {
-                        list.add("Default" to defaultCount)
-                    }
-                    subGroups.forEach { subId ->
-                        val count = uiState.profiles.count { it.subscriptionGroup == subId }
-                        list.add(subId to count)
-                    }
-                    if (uiState.chains.isNotEmpty()) {
-                        list.add("Chains" to uiState.chains.size)
-                    }
-                    list
-                }
-
                 val displayedProfiles = remember(uiState.profiles, selectedCategoryIndex, searchQuery, groupTabs) {
                     val currentGroup = groupTabs.getOrNull(selectedCategoryIndex)?.first ?: "All"
                     uiState.profiles.filter { profile ->
@@ -1913,7 +1916,7 @@ fun MainScreen(
                             showDeleteOptionsDialog = false
                             viewModel.deleteProfilesMatching {
                                 val res = uiState.pingResults[it.id]
-                                res is PingResult.Error || res is PingResult.Timeout
+                                res is PingResult.Error
                             }
                             scope.launch { snackbarHostState.showSnackbar("Deleted failed (-1 ms) configs") }
                         },
@@ -2009,7 +2012,7 @@ fun MainScreen(
                             showExportOptionsDialog = false
                             val text = viewModel.exportProfilesToClipboard {
                                 val res = uiState.pingResults[it.id]
-                                res is PingResult.Error || res is PingResult.Timeout
+                                res is PingResult.Error
                             }
                             if (text.isNotBlank()) {
                                 clipboardManager.setText(androidx.compose.ui.text.AnnotatedString(text))

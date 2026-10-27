@@ -987,7 +987,7 @@ class MainViewModel @Inject constructor(
             if (active != null) {
                 connectionManager.disconnect()
                 kotlinx.coroutines.delay(600)
-                connectProfile(active)
+                connect(active)
             }
         }
     }

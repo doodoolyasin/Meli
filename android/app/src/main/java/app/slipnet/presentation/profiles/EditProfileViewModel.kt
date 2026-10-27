@@ -715,6 +715,10 @@ class EditProfileViewModel @Inject constructor(
         }
     }
 
+    fun updateTunnelType(type: TunnelType) {
+        _uiState.value = _uiState.value.copy(tunnelType = type)
+    }
+
     fun updateName(name: String) {
         _uiState.value = _uiState.value.copy(name = name, nameError = null)
     }
