@@ -2836,6 +2836,17 @@ class SlipNetVpnService : VpnService() {
         val proxyHost = preferencesDataStore.proxyListenAddress.first()
         val masterDnsPort = proxyPort + 1
 
+        if (!isProxyOnly) {
+            vpnInterface = establishVpnInterface(dnsServer)
+            if (vpnInterface == null) {
+                connectionManager.onVpnError("Failed to establish VPN interface")
+                stopForeground(STOP_FOREGROUND_REMOVE)
+                stopSelf()
+                return
+            }
+            delay(200)
+        }
+
         val proxyResult = vpnRepository.startMasterDnsProxy(
             profile,
             portOverride = masterDnsPort,
@@ -2844,6 +2855,8 @@ class SlipNetVpnService : VpnService() {
         )
         if (proxyResult.isFailure) {
             connectionManager.onVpnError(proxyResult.exceptionOrNull()?.message ?: "Failed to start MasterDNS proxy")
+            vpnInterface?.close()
+            vpnInterface = null
             stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf()
             return
@@ -2856,21 +2869,11 @@ class SlipNetVpnService : VpnService() {
             Log.e(TAG, "$tunnelName failed to become ready on port $actualPort: $lastErr")
             connectionManager.onVpnError("$tunnelName startup failed: $lastErr")
             MasterDnsBridge.stopClient()
+            vpnInterface?.close()
+            vpnInterface = null
             stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf()
             return
-        }
-
-        if (!isProxyOnly) {
-            vpnInterface = establishVpnInterface(dnsServer)
-            if (vpnInterface == null) {
-                connectionManager.onVpnError("Failed to establish VPN interface")
-                MasterDnsBridge.stopClient()
-                stopForeground(STOP_FOREGROUND_REMOVE)
-                stopSelf()
-                return
-            }
-            delay(200)
         }
 
         val useSsh = profile.tunnelType in setOf(
@@ -2971,6 +2974,18 @@ class SlipNetVpnService : VpnService() {
 
         MeliBridge.proxyOnlyMode = isProxyOnly
         MeliBridge.setVpnService(this@SlipNetVpnService)
+        SlipstreamBridge.setVpnService(this@SlipNetVpnService)
+
+        if (!isProxyOnly) {
+            vpnInterface = establishVpnInterface(dnsServer)
+            if (vpnInterface == null) {
+                connectionManager.onVpnError("Failed to establish VPN interface")
+                stopForeground(STOP_FOREGROUND_REMOVE)
+                stopSelf()
+                return
+            }
+            delay(200)
+        }
 
         val domain = if (profile.domain.isNotBlank()) profile.domain else "m.dhafhdtjdti.site"
         val resolver = if (profile.resolvers.isNotEmpty()) {
@@ -2992,6 +3007,8 @@ class SlipNetVpnService : VpnService() {
             Log.e(TAG, "Meli client failed to start: $err")
             connectionManager.onVpnError(err)
             MeliBridge.setVpnService(null)
+            vpnInterface?.close()
+            vpnInterface = null
             stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf()
             return
@@ -3004,22 +3021,11 @@ class SlipNetVpnService : VpnService() {
             connectionManager.onVpnError("Meli startup failed: $lastErr")
             MeliBridge.stopClient()
             MeliBridge.setVpnService(null)
+            vpnInterface?.close()
+            vpnInterface = null
             stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf()
             return
-        }
-
-        if (!isProxyOnly) {
-            vpnInterface = establishVpnInterface(dnsServer)
-            if (vpnInterface == null) {
-                connectionManager.onVpnError("Failed to establish VPN interface")
-                MeliBridge.stopClient()
-                MeliBridge.setVpnService(null)
-                stopForeground(STOP_FOREGROUND_REMOVE)
-                stopSelf()
-                return
-            }
-            delay(200)
         }
 
         val useSsh = profile.tunnelType == TunnelType.MELI_SSH || (profile.tunnelType.value.endsWith("_ssh") && profile.sshUsername.isNotBlank())

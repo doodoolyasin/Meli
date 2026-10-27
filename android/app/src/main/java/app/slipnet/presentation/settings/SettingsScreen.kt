@@ -286,7 +286,7 @@ fun SettingsScreen(
             SettingsSection(title = "Meli Protocol & Anti-DPI Syllable Engine") {
                 SwitchSettingItem(
                     icon = Icons.Default.Language,
-                    title = "Natural Syllable Obfuscation (ضد فیلترینگ هجایی)",
+                    title = "Natural Syllable Obfuscation",
                     description = "Encode DNS payload into natural 3-letter English syllables to keep entropy < 2.8 and prevent AI DPI packet drops",
                     checked = meliSyllableEngine,
                     onCheckedChange = { meliSyllableEngine = it }
@@ -1774,7 +1774,7 @@ private fun EmergencySettingsSection(
 ) {
     SettingsSection(
         title = "National Intranet Bypass",
-        subtitle = "حالت اضطراری اینترنت ملی",
+        subtitle = "Emergency shutdown bypass mode",
         content = content
     )
 }

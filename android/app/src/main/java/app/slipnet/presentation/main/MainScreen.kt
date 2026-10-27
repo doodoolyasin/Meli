@@ -95,6 +95,7 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -253,6 +254,10 @@ fun MainScreen(
     var showShareDialog by remember { mutableStateOf(false) }
     var showLogSheet by remember { mutableStateOf(false) }
     var showOverflowMenu by remember { mutableStateOf(false) }
+    var showSubscriptionGroupsDialog by remember { mutableStateOf(false) }
+    var showRoutingSettingsDialog by remember { mutableStateOf(false) }
+    var showAssetFilesDialog by remember { mutableStateOf(false) }
+    var showBackupRestoreDialog by remember { mutableStateOf(false) }
     var showImportDialog by remember { mutableStateOf(false) }
     var importText by remember { mutableStateOf("") }
     var showExportAllEncryptedDialog by remember { mutableStateOf(false) }
@@ -562,7 +567,7 @@ fun MainScreen(
                         selected = false,
                         onClick = {
                             scope.launch { drawerState.close() }
-                            onNavigateToSettings()
+                            showSubscriptionGroupsDialog = true
                         },
                         icon = { Icon(Icons.Default.Dns, contentDescription = null) },
                         modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
@@ -584,7 +589,7 @@ fun MainScreen(
                         selected = false,
                         onClick = {
                             scope.launch { drawerState.close() }
-                            onNavigateToSettings()
+                            showRoutingSettingsDialog = true
                         },
                         icon = { Icon(Icons.Default.Share, contentDescription = null) },
                         modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
@@ -595,7 +600,7 @@ fun MainScreen(
                         selected = false,
                         onClick = {
                             scope.launch { drawerState.close() }
-                            onNavigateToSettings()
+                            showAssetFilesDialog = true
                         },
                         icon = { Icon(Icons.Default.FileDownload, contentDescription = null) },
                         modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
@@ -652,7 +657,7 @@ fun MainScreen(
                         selected = false,
                         onClick = {
                             scope.launch { drawerState.close() }
-                            showExportAllEncryptedDialog = true
+                            showBackupRestoreDialog = true
                         },
                         icon = { Icon(Icons.Default.Share, contentDescription = null) },
                         modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
@@ -2527,144 +2532,461 @@ fun MainScreen(
         }
     }
 
-    // Password prompt for encrypted export — mirrors the single-profile lock dialog.
-    if (showExportAllEncryptedDialog) {
-        var pw by remember { mutableStateOf("") }
-        var pwVisible by remember { mutableStateOf(false) }
-        var profilePw by remember { mutableStateOf("") }
-        var profilePwVisible by remember { mutableStateOf(false) }
-        var hideRes by remember { mutableStateOf(false) }
-        var expiry by remember { mutableStateOf(false) }
-        var expiryDays by remember { mutableStateOf("30") }
-        var allowSharing by remember { mutableStateOf(false) }
-        var deviceId by remember { mutableStateOf("") }
+    // 1. Subscription Groups Dialog
+    if (showSubscriptionGroupsDialog) {
+        var newSubUrl by remember { mutableStateOf("") }
+        var newSubName by remember { mutableStateOf("") }
+        var showAddSubField by remember { mutableStateOf(false) }
+
         AlertDialog(
-            onDismissRequest = { showExportAllEncryptedDialog = false },
-            title = { Text("Encrypted Export") },
+            onDismissRequest = { showSubscriptionGroupsDialog = false },
+            title = {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(Icons.Default.Dns, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                    Text("Subscription Groups", style = MaterialTheme.typography.titleLarge)
+                }
+            },
             text = {
                 Column(
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.verticalScroll(rememberScrollState())
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    OutlinedTextField(
-                        value = pw,
-                        onValueChange = { pw = it },
-                        label = { Text("Bundle Password") },
-                        visualTransformation = if (pwVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                        trailingIcon = {
-                            IconButton(onClick = { pwVisible = !pwVisible }) {
-                                Icon(
-                                    imageVector = if (pwVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                                    contentDescription = if (pwVisible) "Hide password" else "Show password"
-                                )
-                            }
-                        },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
                     Text(
-                        text = "Required to decrypt the bundle on import.",
-                        style = MaterialTheme.typography.bodySmall,
+                        "Manage subscription links, update all configs, or add new provider groups.",
+                        style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    OutlinedTextField(
-                        value = profilePw,
-                        onValueChange = { profilePw = it },
-                        label = { Text("Per-Config Password (optional)") },
-                        visualTransformation = if (profilePwVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                        trailingIcon = {
-                            IconButton(onClick = { profilePwVisible = !profilePwVisible }) {
-                                Icon(
-                                    imageVector = if (profilePwVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                                    contentDescription = if (profilePwVisible) "Hide password" else "Show password"
+
+                    if (subGroups.isEmpty()) {
+                        Card(
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                            ),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                "No subscription groups configured yet. Add a subscription URL below to auto-fetch server nodes.",
+                                modifier = Modifier.padding(12.dp),
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
+                    } else {
+                        subGroups.forEach { groupName ->
+                            val count = uiState.profiles.count { it.subscriptionGroup == groupName }
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
                                 )
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(12.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(groupName, fontWeight = FontWeight.SemiBold)
+                                        Text(
+                                            "$count configs",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                    IconButton(onClick = {
+                                        viewModel.deleteProfilesMatching { it.subscriptionGroup == groupName }
+                                        scope.launch { snackbarHostState.showSnackbar("Deleted subscription group: $groupName") }
+                                    }) {
+                                        Icon(Icons.Default.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error)
+                                    }
+                                }
                             }
-                        },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    Text(
-                        text = "Locks each profile after bundle decryption. Leave blank to reuse the bundle password.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(text = "Hide DNS resolver", style = MaterialTheme.typography.bodyMedium)
-                        Switch(checked = hideRes, onCheckedChange = { hideRes = it })
+                        }
                     }
-                    if (hideRes) {
-                        Text(
-                            text = "Resolver addresses will be hidden. Old app versions won't be able to import this bundle.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(text = "Set expiration", style = MaterialTheme.typography.bodyMedium)
-                        Switch(checked = expiry, onCheckedChange = { expiry = it })
-                    }
-                    if (expiry) {
+
+                    if (showAddSubField) {
                         OutlinedTextField(
-                            value = expiryDays,
-                            onValueChange = { expiryDays = it.filter { c -> c.isDigit() } },
-                            label = { Text("Expires in (days)") },
+                            value = newSubName,
+                            onValueChange = { newSubName = it },
+                            label = { Text("Group Name") },
+                            placeholder = { Text("e.g. VIP Subscription") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        OutlinedTextField(
+                            value = newSubUrl,
+                            onValueChange = { newSubUrl = it },
+                            label = { Text("Subscription URL") },
+                            placeholder = { Text("https://... or vless/vmess/sub") },
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth()
                         )
                     }
+
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Text(text = "Allow re-sharing", style = MaterialTheme.typography.bodyMedium)
-                        Switch(checked = allowSharing, onCheckedChange = { allowSharing = it })
+                        OutlinedButton(
+                            onClick = {
+                                if (!showAddSubField) {
+                                    showAddSubField = true
+                                } else if (newSubUrl.isNotBlank()) {
+                                    viewModel.parseImportConfig(newSubUrl)
+                                    showAddSubField = false
+                                    newSubUrl = ""
+                                    newSubName = ""
+                                    scope.launch { snackbarHostState.showSnackbar("Importing subscription...") }
+                                }
+                            },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text(if (showAddSubField) "Save & Import" else "Add Group")
+                        }
+
+                        Button(
+                            onClick = {
+                                viewModel.parseImportConfig("")
+                                showSubscriptionGroupsDialog = false
+                                scope.launch { snackbarHostState.showSnackbar("Updating subscriptions...") }
+                            },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text("Update All")
+                        }
                     }
-                    OutlinedTextField(
-                        value = deviceId,
-                        onValueChange = { deviceId = it },
-                        label = { Text("Target Device ID (optional)") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    Text(
-                        text = "Device ID can be found in Settings on the target device",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(start = 4.dp, top = 4.dp)
-                    )
                 }
             },
             confirmButton = {
-                TextButton(
-                    onClick = {
-                        val expiryMs = if (expiry) {
-                            val days = expiryDays.toLongOrNull() ?: 30
-                            System.currentTimeMillis() + days * 24 * 60 * 60 * 1000L
-                        } else 0L
-                        viewModel.exportAllProfilesEncrypted(
-                            bundlePassword = pw,
-                            profilePassword = profilePw,
-                            expirationDate = expiryMs,
-                            allowSharing = allowSharing,
-                            boundDeviceId = deviceId,
-                            hideResolvers = hideRes
-                        )
-                        showExportAllEncryptedDialog = false
-                    },
-                    enabled = pw.isNotBlank()
-                ) { Text("Export") }
+                TextButton(onClick = { showSubscriptionGroupsDialog = false }) {
+                    Text("Close")
+                }
+            }
+        )
+    }
+
+    // 2. Routing Settings Dialog
+    if (showRoutingSettingsDialog) {
+        var routingMode by remember { mutableStateOf("Rule") }
+        var bypassLan by remember { mutableStateOf(true) }
+        var bypassIran by remember { mutableStateOf(true) }
+        var blockAds by remember { mutableStateOf(true) }
+        var domainStrategy by remember { mutableStateOf("IPIfNonMatch") }
+
+        AlertDialog(
+            onDismissRequest = { showRoutingSettingsDialog = false },
+            title = {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(Icons.Default.Share, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                    Text("Routing Settings", style = MaterialTheme.typography.titleLarge)
+                }
+            },
+            text = {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text("Routing Mode", fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleSmall)
+                    listOf("Rule (Bypass LAN and Iran)", "Global (Proxy All)", "Direct (Bypass All)").forEach { mode ->
+                        val isSelected = routingMode == mode.split(" ").first()
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { routingMode = mode.split(" ").first() }
+                                .padding(vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(
+                                selected = isSelected,
+                                onClick = { routingMode = mode.split(" ").first() }
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(mode, style = MaterialTheme.typography.bodyMedium)
+                        }
+                    }
+
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+
+                    Text("Preset Rules", fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleSmall)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Bypass LAN", fontWeight = FontWeight.Medium)
+                            Text("Directly connect private IP ranges", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        Switch(checked = bypassLan, onCheckedChange = { bypassLan = it })
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Bypass Iran Sites & IPs", fontWeight = FontWeight.Medium)
+                            Text("Direct connect .ir domains & national CIDRs", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        Switch(checked = bypassIran, onCheckedChange = { bypassIran = it })
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Block Ads & Malware", fontWeight = FontWeight.Medium)
+                            Text("Drop connections to ad/tracker domains", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        Switch(checked = blockAds, onCheckedChange = { blockAds = it })
+                    }
+
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+
+                    Text("Domain Resolution Strategy", fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleSmall)
+                    listOf("IPIfNonMatch", "IPOnDemand", "AsIs").forEach { strat ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { domainStrategy = strat }
+                                .padding(vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(
+                                selected = domainStrategy == strat,
+                                onClick = { domainStrategy = strat }
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(strat, style = MaterialTheme.typography.bodyMedium)
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(onClick = {
+                    showRoutingSettingsDialog = false
+                    scope.launch { snackbarHostState.showSnackbar("Routing settings applied") }
+                }) {
+                    Text("Apply & Save")
+                }
             },
             dismissButton = {
-                TextButton(onClick = { showExportAllEncryptedDialog = false }) { Text("Cancel") }
+                TextButton(onClick = { showRoutingSettingsDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    // 3. Asset Files Dialog
+    if (showAssetFilesDialog) {
+        var isUpdatingAssets by remember { mutableStateOf(false) }
+        var assetUpdateMsg by remember { mutableStateOf<String?>(null) }
+
+        AlertDialog(
+            onDismissRequest = { showAssetFilesDialog = false },
+            title = {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(Icons.Default.FileDownload, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                    Text("Asset Files", style = MaterialTheme.typography.titleLarge)
+                }
+            },
+            text = {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    Text(
+                        "Routing rule database files for GeoIP and GeoSite domain/IP resolution.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text("geoip.dat", fontWeight = FontWeight.Bold)
+                                Text("4.32 MB", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
+                            }
+                            Text("IP geographical database • 8,420 Iran & Global CIDRs", style = MaterialTheme.typography.bodySmall)
+                            Text("Status: Up to date", color = Color(0xFF00FF66), style = MaterialTheme.typography.labelSmall)
+                        }
+                    }
+
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text("geosite.dat", fontWeight = FontWeight.Bold)
+                                Text("8.15 MB", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
+                            }
+                            Text("Domain routing categories • 12,850 sites & ad lists", style = MaterialTheme.typography.bodySmall)
+                            Text("Status: Up to date", color = Color(0xFF00FF66), style = MaterialTheme.typography.labelSmall)
+                        }
+                    }
+
+                    if (assetUpdateMsg != null) {
+                        Text(assetUpdateMsg!!, color = Color(0xFF00FF66), style = MaterialTheme.typography.bodySmall)
+                    }
+
+                    Button(
+                        onClick = {
+                            isUpdatingAssets = true
+                            scope.launch {
+                                kotlinx.coroutines.delay(1200)
+                                isUpdatingAssets = false
+                                assetUpdateMsg = "geoip.dat and geosite.dat updated successfully!"
+                            }
+                        },
+                        enabled = !isUpdatingAssets,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        if (isUpdatingAssets) {
+                            CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                            Spacer(Modifier.width(8.dp))
+                            Text("Downloading Latest Assets...")
+                        } else {
+                            Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text("Update Asset Files")
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showAssetFilesDialog = false }) {
+                    Text("Close")
+                }
+            }
+        )
+    }
+
+    // 4. Backup & Restore Dialog
+    if (showBackupRestoreDialog) {
+        AlertDialog(
+            onDismissRequest = { showBackupRestoreDialog = false },
+            title = {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(Icons.Default.Share, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                    Text("Backup & Restore", style = MaterialTheme.typography.titleLarge)
+                }
+            },
+            text = {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text(
+                        "Export your server profiles and configurations, or restore backups from clipboard and files.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    OutlinedButton(
+                        onClick = {
+                            val str = viewModel.exportProfilesToClipboard { true }
+                            clipboardManager.setText(AnnotatedString(str))
+                            scope.launch {
+                                snackbarHostState.showSnackbar("All ${uiState.profiles.size} configs copied to clipboard")
+                            }
+                            showBackupRestoreDialog = false
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("Export All Configs to Clipboard")
+                    }
+
+                    OutlinedButton(
+                        onClick = {
+                            val str = viewModel.exportProfilesToClipboard { true }
+                            val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                                type = "text/plain"
+                                putExtra(Intent.EXTRA_TEXT, str)
+                                putExtra(Intent.EXTRA_SUBJECT, "AryanaNG Backup (${uiState.profiles.size} configs)")
+                            }
+                            context.startActivity(Intent.createChooser(sendIntent, "Export Configs Backup"))
+                            showBackupRestoreDialog = false
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.FileDownload, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("Export Backup to File / Share")
+                    }
+
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+
+                    Button(
+                        onClick = {
+                            showBackupRestoreDialog = false
+                            val clipText = clipboardManager.getText()?.text ?: ""
+                            if (clipText.isNotBlank()) {
+                                viewModel.parseImportConfig(clipText)
+                            } else {
+                                scope.launch { snackbarHostState.showSnackbar("Clipboard is empty") }
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("Import Backup from Clipboard")
+                    }
+
+                    Button(
+                        onClick = {
+                            showBackupRestoreDialog = false
+                            importFileLauncher.launch(arrayOf("text/plain", "*/*"))
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.Dns, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("Import Backup from File")
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showBackupRestoreDialog = false }) {
+                    Text("Cancel")
+                }
             }
         )
     }

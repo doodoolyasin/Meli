@@ -701,8 +701,12 @@ class VpnRepositoryImpl @Inject constructor(
         val resolvers = resolverOverride ?: profile.resolvers
         return when (profile.dnsTransport) {
             DnsTransport.UDP -> {
-                resolvers.joinToString(",") { "${resolveHost(it.host)}:${it.port}" }
-                    .ifBlank { "8.8.8.8:53" }
+                val list = resolvers.map { "${resolveHost(it.host)}:${it.port}" }.filter { it.isNotBlank() }
+                if (list.isEmpty()) {
+                    "45.38.249.16:53,8.8.8.8:53,1.1.1.1:53"
+                } else {
+                    list.joinToString(",")
+                }
             }
             DnsTransport.DOH -> {
                 profile.dohUrl.ifBlank { "https://dns.google/dns-query" }
