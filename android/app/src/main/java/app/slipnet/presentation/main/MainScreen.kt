@@ -664,7 +664,16 @@ fun MainScreen(
                         onClick = {
                             scope.launch {
                                 drawerState.close()
-                                snackbarHostState.showSnackbar("AryanaNG is up to date (v2.5.8)")
+                                snackbarHostState.showSnackbar("Checking for updates...")
+                            }
+                            viewModel.manualCheckForUpdate { update ->
+                                scope.launch {
+                                    if (update == null) {
+                                        snackbarHostState.showSnackbar("AryanaNG is up to date (${app.slipnet.BuildConfig.VERSION_NAME})")
+                                    } else {
+                                        snackbarHostState.showSnackbar("Update available: v${update.versionName}")
+                                    }
+                                }
                             }
                         },
                         icon = { Icon(Icons.Default.Refresh, contentDescription = null) },

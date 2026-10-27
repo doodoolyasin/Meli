@@ -326,6 +326,17 @@ class MainViewModel @Inject constructor(
         _uiState.value = _uiState.value.copy(availableUpdate = null)
     }
 
+    fun manualCheckForUpdate(onResult: (app.slipnet.util.AppUpdate?) -> Unit) {
+        viewModelScope.launch {
+            val current = app.slipnet.BuildConfig.VERSION_NAME
+            val update = app.slipnet.util.UpdateChecker.check(current)
+            if (update != null) {
+                _uiState.value = _uiState.value.copy(availableUpdate = update)
+            }
+            onResult(update)
+        }
+    }
+
     fun skipUpdate() {
         val version = _uiState.value.availableUpdate?.versionName ?: return
         _uiState.value = _uiState.value.copy(availableUpdate = null)
