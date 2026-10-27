@@ -553,7 +553,7 @@ fun MainScreen(
                             scope.launch { drawerState.close() }
                             onNavigateToSettings()
                         },
-                        icon = { Icon(Icons.Default.Folder, contentDescription = null) },
+                        icon = { Icon(Icons.Default.Dns, contentDescription = null) },
                         modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
                     )
 
@@ -564,7 +564,7 @@ fun MainScreen(
                             scope.launch { drawerState.close() }
                             onNavigateToAppSelector()
                         },
-                        icon = { Icon(Icons.Default.Apps, contentDescription = null) },
+                        icon = { Icon(Icons.Default.Settings, contentDescription = null) },
                         modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
                     )
 
@@ -575,7 +575,7 @@ fun MainScreen(
                             scope.launch { drawerState.close() }
                             onNavigateToSettings()
                         },
-                        icon = { Icon(Icons.Default.AltRoute, contentDescription = null) },
+                        icon = { Icon(Icons.Default.Share, contentDescription = null) },
                         modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
                     )
 
@@ -586,7 +586,7 @@ fun MainScreen(
                             scope.launch { drawerState.close() }
                             onNavigateToSettings()
                         },
-                        icon = { Icon(Icons.Default.InsertDriveFile, contentDescription = null) },
+                        icon = { Icon(Icons.Default.FileDownload, contentDescription = null) },
                         modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
                     )
 
@@ -608,7 +608,7 @@ fun MainScreen(
                             scope.launch { drawerState.close() }
                             onNavigateToDnsScanner()
                         },
-                        icon = { Icon(Icons.Default.Speed, contentDescription = null) },
+                        icon = { Icon(Icons.Default.NetworkPing, contentDescription = null) },
                         modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
                     )
 
@@ -619,7 +619,7 @@ fun MainScreen(
                             scope.launch { drawerState.close() }
                             onNavigateToTerminal()
                         },
-                        icon = { Icon(Icons.Default.Terminal, contentDescription = null, tint = Color(0xFF00FF66)) },
+                        icon = { Icon(Icons.Default.Dns, contentDescription = null, tint = Color(0xFF00FF66)) },
                         modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
                     )
 
@@ -643,7 +643,7 @@ fun MainScreen(
                             scope.launch { drawerState.close() }
                             showExportAllEncryptedDialog = true
                         },
-                        icon = { Icon(Icons.Default.Backup, contentDescription = null) },
+                        icon = { Icon(Icons.Default.Share, contentDescription = null) },
                         modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
                     )
 
@@ -656,7 +656,7 @@ fun MainScreen(
                                 snackbarHostState.showSnackbar("AryanaNG is up to date (v2.5.8)")
                             }
                         },
-                        icon = { Icon(Icons.Default.SystemUpdate, contentDescription = null) },
+                        icon = { Icon(Icons.Default.Refresh, contentDescription = null) },
                         modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
                     )
 
@@ -787,7 +787,7 @@ fun MainScreen(
                                 HorizontalDivider()
                                 DropdownMenuItem(
                                     text = { Text("Add new profile") },
-                                    leadingIcon = { Icon(Icons.Default.AddCircleOutline, contentDescription = null) },
+                                    leadingIcon = { Icon(Icons.Default.Add, contentDescription = null) },
                                     onClick = {
                                         showAddMenu = false
                                         onNavigateToAddProfile("")
@@ -805,7 +805,7 @@ fun MainScreen(
                             ) {
                                 DropdownMenuItem(
                                     text = { Text("Restart service") },
-                                    leadingIcon = { Icon(Icons.Default.RestartAlt, contentDescription = null) },
+                                    leadingIcon = { Icon(Icons.Default.Refresh, contentDescription = null) },
                                     onClick = {
                                         showOverflowMenu = false
                                         viewModel.restartService()
@@ -814,7 +814,7 @@ fun MainScreen(
                                 )
                                 DropdownMenuItem(
                                     text = { Text("Delete configs") },
-                                    leadingIcon = { Icon(Icons.Default.DeleteOutline, contentDescription = null) },
+                                    leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null) },
                                     onClick = {
                                         showOverflowMenu = false
                                         showDeleteOptionsDialog = true
@@ -823,7 +823,7 @@ fun MainScreen(
                                 )
                                 DropdownMenuItem(
                                     text = { Text("Export config to clipboard") },
-                                    leadingIcon = { Icon(Icons.Default.ContentPasteGo, contentDescription = null) },
+                                    leadingIcon = { Icon(Icons.Default.ContentCopy, contentDescription = null) },
                                     onClick = {
                                         showOverflowMenu = false
                                         showExportOptionsDialog = true
@@ -833,7 +833,7 @@ fun MainScreen(
                                 HorizontalDivider()
                                 DropdownMenuItem(
                                     text = { Text(if (uiState.isPingRunning) "Stop ping test" else "Ping (Real delay)") },
-                                    leadingIcon = { Icon(Icons.Default.Speed, contentDescription = null) },
+                                    leadingIcon = { Icon(Icons.Default.NetworkPing, contentDescription = null) },
                                     onClick = {
                                         showOverflowMenu = false
                                         viewModel.pingAllProfiles()
@@ -842,7 +842,7 @@ fun MainScreen(
                                 )
                                 DropdownMenuItem(
                                     text = { Text("Ping (Tcping)") },
-                                    leadingIcon = { Icon(Icons.Default.NetworkCheck, contentDescription = null) },
+                                    leadingIcon = { Icon(Icons.Default.NetworkPing, contentDescription = null) },
                                     onClick = {
                                         showOverflowMenu = false
                                         viewModel.pingAllProfilesSimple()
@@ -852,7 +852,7 @@ fun MainScreen(
                                 HorizontalDivider()
                                 DropdownMenuItem(
                                     text = { Text("Sort by test results") },
-                                    leadingIcon = { Icon(Icons.Default.Sort, contentDescription = null) },
+                                    leadingIcon = { Icon(Icons.Default.NetworkPing, contentDescription = null) },
                                     onClick = {
                                         showOverflowMenu = false
                                         viewModel.sortProfilesByPing()
@@ -861,7 +861,7 @@ fun MainScreen(
                                 )
                                 DropdownMenuItem(
                                     text = { Text("Sort by protocol") },
-                                    leadingIcon = { Icon(Icons.Default.FilterList, contentDescription = null) },
+                                    leadingIcon = { Icon(Icons.Default.Dns, contentDescription = null) },
                                     onClick = {
                                         showOverflowMenu = false
                                         viewModel.sortProfilesByProtocol()
