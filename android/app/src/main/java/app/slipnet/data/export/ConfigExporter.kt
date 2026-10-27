@@ -4,15 +4,16 @@ import android.util.Base64
 import app.slipnet.domain.model.ServerProfile
 import app.slipnet.domain.model.SshAuthType
 import app.slipnet.domain.model.TunnelType
+import app.slipnet.util.AryanaCrypto
 import app.slipnet.util.BundleCrypto
 import app.slipnet.util.LockPasswordUtil
 import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Exports profiles to compact encoded text format.
+ * Exports profiles to military-grade authenticated encoded text format.
  *
- * Single profile format: slipnet://[base64-encoded-profile]
+ * Single profile format: aryana://[aead-encrypted-profile]
  * Multiple profiles: one URI per line
  *
  * Encoded profile format v24 (pipe-delimited):
@@ -24,10 +25,13 @@ import javax.inject.Singleton
 class ConfigExporter @Inject constructor() {
 
     companion object {
-        const val SCHEME = "slipnet://"
-        const val ENCRYPTED_SCHEME = "slipnet-enc://"
+        const val SCHEME = "aryana://"
+        const val LEGACY_SCHEME = "slipnet://"
+        const val ENCRYPTED_SCHEME = "aryana-enc://"
+        const val LEGACY_ENCRYPTED_SCHEME = "slipnet-enc://"
         /** Scheme for password-encrypted multi-profile bundles (see [exportAllProfilesEncrypted]). */
-        const val BUNDLE_ENCRYPTED_SCHEME = "slipnet-bundle-enc://"
+        const val BUNDLE_ENCRYPTED_SCHEME = "aryana-bundle-enc://"
+        const val LEGACY_BUNDLE_ENCRYPTED_SCHEME = "slipnet-bundle-enc://"
         const val VERSION = "28"
         const val MODE_SLIPSTREAM = "ss"
         const val MODE_SLIPSTREAM_SSH = "slipstream_ssh"
@@ -77,18 +81,14 @@ class ConfigExporter @Inject constructor() {
             boundDeviceId = boundDeviceId
         )
         val data = buildProfileData(lockedProfile, hideResolvers)
-        val encrypted = LockPasswordUtil.encryptConfig(data)
-        val encoded = Base64.encodeToString(encrypted, Base64.NO_WRAP)
-        return "$ENCRYPTED_SCHEME$encoded"
+        return AryanaCrypto.encrypt(data, password)
     }
 
     fun reExportLockedProfile(profile: ServerProfile): String {
         if (!profile.isLocked) throw IllegalStateException("Profile is not locked")
         if (!profile.allowSharing) throw IllegalStateException("Profile does not allow re-sharing")
         val data = buildProfileData(profile)
-        val encrypted = LockPasswordUtil.encryptConfig(data)
-        val encoded = Base64.encodeToString(encrypted, Base64.NO_WRAP)
-        return "$ENCRYPTED_SCHEME$encoded"
+        return AryanaCrypto.encrypt(data)
     }
 
     fun exportAllProfiles(profiles: List<ServerProfile>): String {
@@ -294,8 +294,13 @@ class ConfigExporter @Inject constructor() {
 
     private fun encodeProfile(profile: ServerProfile, hideResolvers: Boolean = false): String {
         val data = buildProfileData(profile, hideResolvers)
+        return AryanaCrypto.encrypt(data)
+    }
+
+    fun encodeLegacyProfile(profile: ServerProfile, hideResolvers: Boolean = false): String {
+        val data = buildProfileData(profile, hideResolvers)
         val encoded = Base64.encodeToString(data.toByteArray(Charsets.UTF_8), Base64.NO_WRAP)
-        return "$SCHEME$encoded"
+        return "$LEGACY_SCHEME$encoded"
     }
 
     /**

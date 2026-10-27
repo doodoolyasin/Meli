@@ -16,6 +16,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.InputStream
 import java.io.OutputStream
+import java.util.UUID
 import javax.inject.Inject
 
 sealed class TerminalConnectionState {
@@ -25,6 +26,28 @@ sealed class TerminalConnectionState {
     data class Error(val message: String) : TerminalConnectionState()
 }
 
+enum class TerminalTheme(
+    val displayName: String,
+    val bgHex: Long,
+    val textHex: Long,
+    val surfaceHex: Long
+) {
+    TERMIUS_DARK("Termius Dark", 0xFF0D1117, 0xFF39FF14, 0xFF161B22),
+    DRACULA("Dracula", 0xFF282A36, 0xFF50FA7B, 0xFF44475A),
+    MONOKAI("Monokai", 0xFF272822, 0xFFA6E22E, 0xFF3E3D32),
+    SOLARIZED_DARK("Solarized Dark", 0xFF002B36, 0xFF2AA198, 0xFF073642)
+}
+
+data class SavedSshHost(
+    val id: String = UUID.randomUUID().toString(),
+    val name: String,
+    val host: String,
+    val port: String = "22",
+    val username: String = "root",
+    val password: String = "",
+    val privateKey: String = ""
+)
+
 data class SshTerminalUiState(
     val host: String = "45.38.249.16",
     val port: String = "22",
@@ -32,11 +55,17 @@ data class SshTerminalUiState(
     val password: String = "yasin",
     val privateKey: String = "",
     val connectionState: TerminalConnectionState = TerminalConnectionState.Disconnected,
-    val output: String = "Aryana Core Built-in SSH Terminal (Termius Mode)\nType commands or select quick actions below.\n",
+    val output: String = "Aryana Core Terminal (Termius Suite)\nConnecting secure SSH interactive shell...\n",
     val currentCommand: String = "",
     val isAutoScroll: Boolean = true,
     val history: List<String> = emptyList(),
-    val historyIndex: Int = -1
+    val historyIndex: Int = -1,
+    val selectedTheme: TerminalTheme = TerminalTheme.TERMIUS_DARK,
+    val fontSizeSp: Int = 12,
+    val savedHosts: List<SavedSshHost> = listOf(
+        SavedSshHost(name = "Default VPS (Aryana)", host = "45.38.249.16", port = "22", username = "yasin", password = "yasin")
+    ),
+    val customSnippets: List<String> = emptyList()
 )
 
 @HiltViewModel
@@ -56,8 +85,40 @@ class SshTerminalViewModel @Inject constructor() : ViewModel() {
     fun updatePort(value: String) { _uiState.value = _uiState.value.copy(port = value) }
     fun updateUsername(value: String) { _uiState.value = _uiState.value.copy(username = value) }
     fun updatePassword(value: String) { _uiState.value = _uiState.value.copy(password = value) }
+    fun updatePrivateKey(value: String) { _uiState.value = _uiState.value.copy(privateKey = value) }
     fun updateCommand(value: String) { _uiState.value = _uiState.value.copy(currentCommand = value) }
     fun toggleAutoScroll() { _uiState.value = _uiState.value.copy(isAutoScroll = !_uiState.value.isAutoScroll) }
+    fun setTheme(theme: TerminalTheme) { _uiState.value = _uiState.value.copy(selectedTheme = theme) }
+    fun setFontSize(size: Int) { _uiState.value = _uiState.value.copy(fontSizeSp = size) }
+
+    fun selectHost(saved: SavedSshHost) {
+        _uiState.value = _uiState.value.copy(
+            host = saved.host,
+            port = saved.port,
+            username = saved.username,
+            password = saved.password,
+            privateKey = saved.privateKey
+        )
+    }
+
+    fun saveCurrentHost(label: String) {
+        val s = _uiState.value
+        val newHost = SavedSshHost(
+            name = label.ifBlank { "${s.username}@${s.host}" },
+            host = s.host,
+            port = s.port,
+            username = s.username,
+            password = s.password,
+            privateKey = s.privateKey
+        )
+        _uiState.value = s.copy(savedHosts = s.savedHosts + newHost)
+    }
+
+    fun addCustomSnippet(snippet: String) {
+        if (snippet.isNotBlank() && !_uiState.value.customSnippets.contains(snippet)) {
+            _uiState.value = _uiState.value.copy(customSnippets = _uiState.value.customSnippets + snippet)
+        }
+    }
 
     fun historyUp() {
         val state = _uiState.value
@@ -114,7 +175,7 @@ class SshTerminalViewModel @Inject constructor() : ViewModel() {
 
                     val channel = session.openChannel("shell") as ChannelShell
                     channel.setPtyType("xterm-256color")
-                    channel.setPtySize(100, 30, 800, 600)
+                    channel.setPtySize(120, 35, 1024, 768)
 
                     val inStream = channel.inputStream
                     val outStream = channel.outputStream
@@ -128,7 +189,7 @@ class SshTerminalViewModel @Inject constructor() : ViewModel() {
                     withContext(Dispatchers.Main) {
                         _uiState.value = _uiState.value.copy(
                             connectionState = TerminalConnectionState.Connected,
-                            output = _uiState.value.output + "[Connected to Aryana Core VPS! Ready.]\n\n"
+                            output = _uiState.value.output + "[Termius SSH Engine: Connected to ${state.host}! Terminal ready.]\n\n"
                         )
                     }
 
@@ -208,36 +269,25 @@ class SshTerminalViewModel @Inject constructor() : ViewModel() {
         }
     }
 
-    fun sendCtrlC() {
+    fun sendRawBytes(bytes: ByteArray) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                shellInput?.write(byteArrayOf(3)) // ASCII ETX (Ctrl+C)
+                shellInput?.write(bytes)
                 shellInput?.flush()
             } catch (_: Exception) {}
         }
     }
 
-    fun sendCtrlZ() {
-        viewModelScope.launch(Dispatchers.IO) {
-            try {
-                shellInput?.write(byteArrayOf(26)) // ASCII SUB (Ctrl+Z)
-                shellInput?.flush()
-            } catch (_: Exception) {}
-        }
-    }
-
-    fun sendTab() {
-        viewModelScope.launch(Dispatchers.IO) {
-            try {
-                shellInput?.write(byteArrayOf(9)) // ASCII TAB
-                shellInput?.flush()
-            } catch (_: Exception) {}
-        }
-    }
-
-    fun sendEnter() {
-        sendCommand("")
-    }
+    fun sendEsc() = sendRawBytes(byteArrayOf(27))
+    fun sendTab() = sendRawBytes(byteArrayOf(9))
+    fun sendCtrlC() = sendRawBytes(byteArrayOf(3))
+    fun sendCtrlD() = sendRawBytes(byteArrayOf(4))
+    fun sendCtrlZ() = sendRawBytes(byteArrayOf(26))
+    fun sendArrowUp() = sendRawBytes(byteArrayOf(27, 91, 65))
+    fun sendArrowDown() = sendRawBytes(byteArrayOf(27, 91, 66))
+    fun sendArrowRight() = sendRawBytes(byteArrayOf(27, 91, 67))
+    fun sendArrowLeft() = sendRawBytes(byteArrayOf(27, 91, 68))
+    fun sendEnter() = sendCommand("")
 
     fun clearOutput() {
         _uiState.value = _uiState.value.copy(output = "")
@@ -265,21 +315,12 @@ class SshTerminalViewModel @Inject constructor() : ViewModel() {
         )
     }
 
-    /**
-     * Sanitizes terminal ANSI codes, OSC window titles, VT100 control codes,
-     * and normalizes carriage returns for clean Jetpack Compose rendering.
-     */
     private fun sanitizeAnsi(text: String): String {
         var s = text
-        // 1. Strip OSC window title sequences (e.g. \033]0;title\007 or \033]0;title\033\)
         s = s.replace(Regex("\u001B\\][^\u0007\u001B]*(\u0007|\u001B\\\\)"), "")
-        // 2. Strip standard CSI escape sequences (colors, cursor pos, etc.)
         s = s.replace(Regex("\u001B\\[[0-9;?]*[a-zA-Z~]"), "")
-        // 3. Strip charset escapes like \033(B
         s = s.replace(Regex("\u001B\\([a-zA-Z0-9]"), "")
-        // 4. Normalize CRLF
         s = s.replace("\r\n", "\n")
-        // 5. Replace lone CR
         s = s.replace("\r", "")
         return s
     }

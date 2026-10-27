@@ -34,7 +34,13 @@ fun SshTerminalScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     var showConfigSheet by remember { mutableStateOf(false) }
+    var showThemesDialog by remember { mutableStateOf(false) }
     val outputScrollState = rememberScrollState()
+
+    val currentTheme = uiState.selectedTheme
+    val termBg = Color(currentTheme.bgHex)
+    val termText = Color(currentTheme.textHex)
+    val termSurface = Color(currentTheme.surfaceHex)
 
     // Smooth auto-scroll only if isAutoScroll is enabled
     LaunchedEffect(uiState.output) {
@@ -50,7 +56,7 @@ fun SshTerminalScreen(
                 title = {
                     Column {
                         Text(
-                            text = "Aryana Core Terminal",
+                            text = "ترمینال آریانا (Termius Suite)",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold
                         )
@@ -81,6 +87,13 @@ fun SshTerminalScreen(
                     }
                 },
                 actions = {
+                    IconButton(onClick = { showThemesDialog = true }) {
+                        Icon(
+                            Icons.Default.Palette,
+                            contentDescription = "Theme & Appearance",
+                            tint = Color(0xFF80D8FF)
+                        )
+                    }
                     IconButton(onClick = { showConfigSheet = !showConfigSheet }) {
                         Icon(
                             Icons.Default.Settings,
@@ -99,7 +112,7 @@ fun SshTerminalScreen(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color(0xFF161B22)
+                    containerColor = termSurface
                 )
             )
         }
@@ -108,24 +121,93 @@ fun SshTerminalScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .background(Color(0xFF0D1117))
+                .background(termBg)
         ) {
+            // Theme & Font Size Dialog
+            if (showThemesDialog) {
+                AlertDialog(
+                    onDismissRequest = { showThemesDialog = false },
+                    title = { Text("تنظیمات ظاهری ترمینال (Termius Style)") },
+                    text = {
+                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Text("تم رنگی (Color Theme):", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+                            TerminalTheme.entries.forEach { theme ->
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                ) {
+                                    RadioButton(
+                                        selected = uiState.selectedTheme == theme,
+                                        onClick = { viewModel.setTheme(theme) }
+                                    )
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(theme.displayName, style = MaterialTheme.typography.bodyMedium)
+                                }
+                            }
+                            HorizontalDivider()
+                            Text("سایز فونت (Font Size):", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                listOf(10, 12, 14, 16).forEach { size ->
+                                    FilterChip(
+                                        selected = uiState.fontSizeSp == size,
+                                        onClick = { viewModel.setFontSize(size) },
+                                        label = { Text("${size}sp") }
+                                    )
+                                }
+                            }
+                        }
+                    },
+                    confirmButton = {
+                        TextButton(onClick = { showThemesDialog = false }) { Text("تأیید") }
+                    }
+                )
+            }
+
             // Expandable Server Config Card
             if (showConfigSheet) {
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(8.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFF1F242C)),
+                    colors = CardDefaults.cardColors(containerColor = termSurface),
                     shape = RoundedCornerShape(8.dp)
                 ) {
                     Column(modifier = Modifier.padding(12.dp)) {
-                        Text(
-                            text = "Aryana Core SSH Connection",
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary
-                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "تنظیمات اتصال SSH (Termius Host)",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            if (uiState.savedHosts.isNotEmpty()) {
+                                var expandedHostDropdown by remember { mutableStateOf(false) }
+                                Box {
+                                    TextButton(onClick = { expandedHostDropdown = true }) {
+                                        Text("سرورهای ذخیره‌شده ▼", fontSize = 11.sp)
+                                    }
+                                    DropdownMenu(
+                                        expanded = expandedHostDropdown,
+                                        onDismissRequest = { expandedHostDropdown = false }
+                                    ) {
+                                        uiState.savedHosts.forEach { saved ->
+                                            DropdownMenuItem(
+                                                text = { Text("${saved.name} (${saved.host})") },
+                                                onClick = {
+                                                    viewModel.selectHost(saved)
+                                                    expandedHostDropdown = false
+                                                }
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
                         Spacer(Modifier.height(8.dp))
                         Row(modifier = Modifier.fillMaxWidth()) {
                             OutlinedTextField(
@@ -164,25 +246,34 @@ fun SshTerminalScreen(
                             )
                         }
                         Spacer(Modifier.height(8.dp))
-                        Button(
-                            onClick = {
-                                viewModel.connect()
-                                showConfigSheet = false
-                            },
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF238636))
-                        ) {
-                            Text("Save & Connect")
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Button(
+                                onClick = {
+                                    viewModel.connect()
+                                    showConfigSheet = false
+                                },
+                                modifier = Modifier.weight(1f),
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF238636))
+                            ) {
+                                Text("اتصال به سرور")
+                            }
+                            OutlinedButton(
+                                onClick = {
+                                    viewModel.saveCurrentHost("${uiState.username}@${uiState.host}")
+                                }
+                            ) {
+                                Text("ذخیره سرور", fontSize = 11.sp)
+                            }
                         }
                     }
                 }
             }
 
-            // Quick Command Chips & Auto-Scroll Toggle
+            // Quick Command Chips & Snippets Bar (Termius Snippets)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(Color(0xFF161B22))
+                    .background(termSurface)
                     .horizontalScroll(rememberScrollState())
                     .padding(horizontal = 8.dp, vertical = 4.dp),
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -210,6 +301,7 @@ fun SshTerminalScreen(
                 QuickCommandChip(label = "sing-box logs", cmd = "journalctl -u sing-box -n 30 --no-pager") { viewModel.sendCommand(it) }
                 QuickCommandChip(label = "meli logs", cmd = "journalctl -u meli-rust-server -n 30 --no-pager") { viewModel.sendCommand(it) }
                 QuickCommandChip(label = "top", cmd = "top -b -n 1 | head -n 15") { viewModel.sendCommand(it) }
+                QuickCommandChip(label = "ss -tulpn", cmd = "ss -tulpn") { viewModel.sendCommand(it) }
                 QuickCommandChip(label = "ip a", cmd = "ip a") { viewModel.sendCommand(it) }
                 QuickCommandChip(label = "free -m", cmd = "free -m") { viewModel.sendCommand(it) }
                 QuickCommandChip(label = "df -h", cmd = "df -h") { viewModel.sendCommand(it) }
@@ -222,15 +314,15 @@ fun SshTerminalScreen(
                     .weight(1f)
                     .fillMaxWidth()
                     .padding(6.dp)
-                    .background(Color(0xFF0D1117), RoundedCornerShape(6.dp))
+                    .background(termBg, RoundedCornerShape(6.dp))
             ) {
                 SelectionContainer {
                     Text(
                         text = uiState.output,
-                        color = Color(0xFF39FF14),
+                        color = termText,
                         fontFamily = FontFamily.Monospace,
-                        fontSize = 12.sp,
-                        lineHeight = 16.sp,
+                        fontSize = uiState.fontSizeSp.sp,
+                        lineHeight = (uiState.fontSizeSp + 4).sp,
                         modifier = Modifier
                             .fillMaxSize()
                             .padding(8.dp)
@@ -239,35 +331,48 @@ fun SshTerminalScreen(
                 }
             }
 
-            // Terminal Key Bar: History Up/Down, Ctrl+C, Ctrl+Z, Tab, Clear, Enter
+            // Termius Extended Keyboard Accessory Bar (Esc, Tab, Ctrl+C, Ctrl+D, Ctrl+Z, Arrows, Clear, Enter)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(Color(0xFF161B22))
-                    .padding(horizontal = 8.dp, vertical = 2.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                    .background(termSurface)
+                    .horizontalScroll(rememberScrollState())
+                    .padding(horizontal = 6.dp, vertical = 2.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                TextButton(onClick = { viewModel.historyUp() }) {
-                    Text("▲", color = Color(0xFF40C4FF), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                TextButton(onClick = { viewModel.sendEsc() }) {
+                    Text("ESC", color = Color(0xFFFFD54F), fontSize = 11.sp, fontWeight = FontWeight.Bold)
                 }
-                TextButton(onClick = { viewModel.historyDown() }) {
-                    Text("▼", color = Color(0xFF40C4FF), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                TextButton(onClick = { viewModel.sendTab() }) {
+                    Text("TAB", color = Color(0xFF80D8FF), fontSize = 11.sp, fontWeight = FontWeight.Bold)
                 }
                 TextButton(onClick = { viewModel.sendCtrlC() }) {
                     Text("Ctrl+C", color = Color(0xFFFF5252), fontSize = 11.sp, fontWeight = FontWeight.Bold)
                 }
+                TextButton(onClick = { viewModel.sendCtrlD() }) {
+                    Text("Ctrl+D", color = Color(0xFFFF8A80), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                }
                 TextButton(onClick = { viewModel.sendCtrlZ() }) {
                     Text("Ctrl+Z", color = Color(0xFFFFAB40), fontSize = 11.sp, fontWeight = FontWeight.Bold)
                 }
-                TextButton(onClick = { viewModel.sendTab() }) {
-                    Text("Tab", color = Color(0xFF80D8FF), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                TextButton(onClick = { viewModel.sendArrowUp() }) {
+                    Text("▲", color = Color(0xFF40C4FF), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                }
+                TextButton(onClick = { viewModel.sendArrowDown() }) {
+                    Text("▼", color = Color(0xFF40C4FF), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                }
+                TextButton(onClick = { viewModel.sendArrowLeft() }) {
+                    Text("◀", color = Color(0xFF40C4FF), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                }
+                TextButton(onClick = { viewModel.sendArrowRight() }) {
+                    Text("▶", color = Color(0xFF40C4FF), fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 }
                 TextButton(onClick = { viewModel.clearOutput() }) {
                     Text("Clear", color = Color(0xFFB0BEC5), fontSize = 11.sp)
                 }
                 TextButton(onClick = { viewModel.sendEnter() }) {
-                    Text("Enter ⏎", color = Color(0xFF00E676), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Text("⏎ Enter", color = Color(0xFF00E676), fontSize = 11.sp, fontWeight = FontWeight.Bold)
                 }
             }
 
@@ -275,7 +380,7 @@ fun SshTerminalScreen(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(Color(0xFF161B22))
+                    .background(termSurface)
                     .padding(horizontal = 8.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -289,7 +394,7 @@ fun SshTerminalScreen(
                 OutlinedTextField(
                     value = uiState.currentCommand,
                     onValueChange = { viewModel.updateCommand(it) },
-                    placeholder = { Text("type command...", fontSize = 12.sp, color = Color(0xFF6E7681)) },
+                    placeholder = { Text("دستور را وارد کنید...", fontSize = 12.sp, color = Color(0xFF6E7681)) },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
                     keyboardActions = KeyboardActions(onSend = {

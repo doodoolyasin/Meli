@@ -8,6 +8,7 @@ import app.slipnet.domain.model.ResolverMode
 import app.slipnet.domain.model.ServerProfile
 import app.slipnet.domain.model.SshAuthType
 import app.slipnet.domain.model.TunnelType
+import app.slipnet.util.AryanaCrypto
 import app.slipnet.util.BundleCrypto
 import app.slipnet.util.LockPasswordUtil
 import javax.inject.Inject
@@ -95,6 +96,7 @@ class ConfigImporter @Inject constructor() {
 
     companion object {
         private const val SCHEME = "slipnet://"
+        private const val SCHEME_ARYANA = "aryana://"
         private const val ENCRYPTED_SCHEME = "slipnet-enc://"
         private const val BUNDLE_ENCRYPTED_SCHEME = "slipnet-bundle-enc://"
         private const val MODE_SLIPSTREAM = "ss"
@@ -335,6 +337,48 @@ class ConfigImporter @Inject constructor() {
                     is ProfileParseResult.Success -> profiles.add(result.profile)
                     is ProfileParseResult.Warning -> warnings.add(result.message)
                     is ProfileParseResult.Error -> warnings.add(result.message)
+                }
+                continue
+            }
+
+            // Handle Aryana military-grade encrypted format (aryana:// or ARYANA://)
+            if (trimmedLine.startsWith(SCHEME_ARYANA, ignoreCase = true) ||
+                trimmedLine.startsWith("aryana-enc://", ignoreCase = true)) {
+                val decoded = try {
+                    AryanaCrypto.decrypt(trimmedLine, bundlePassword ?: "")
+                } catch (e: Exception) {
+                    if (bundlePassword.isNullOrEmpty()) {
+                        return ImportResult.NeedsPassword
+                    }
+                    warnings.add("Line ${index + 1}: Failed to decrypt Aryana config (${e.message ?: "invalid key"}), skipping")
+                    continue
+                }
+
+                if (decoded.contains(FIELD_DELIMITER)) {
+                    val parseResult = parseProfile(decoded, index + 1)
+                    when (parseResult) {
+                        is ProfileParseResult.Success -> {
+                            val profile = parseResult.profile
+                            if (profile.boundDeviceId.isNotEmpty() && localDeviceId.isNotEmpty() && profile.boundDeviceId != localDeviceId) {
+                                warnings.add("Line ${index + 1}: Profile is bound to a different device, skipping")
+                            } else {
+                                profiles.add(profile)
+                            }
+                        }
+                        is ProfileParseResult.Warning -> {
+                            profiles.add(parseResult.profile)
+                            warnings.add(parseResult.message)
+                        }
+                        is ProfileParseResult.Error -> {
+                            warnings.add(parseResult.message)
+                        }
+                    }
+                } else {
+                    val subRes = parseAndImport(decoded, localDeviceId, bundlePassword)
+                    if (subRes is ImportResult.Success) {
+                        profiles.addAll(subRes.profiles)
+                        warnings.addAll(subRes.warnings)
+                    }
                 }
                 continue
             }

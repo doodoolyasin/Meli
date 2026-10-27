@@ -97,6 +97,19 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.ModalNavigationDrawer
+import androidx.compose.material3.ModalDrawerSheet
+import androidx.compose.material3.NavigationDrawerItem
+import androidx.compose.material3.NavigationDrawerItemDefaults
+import androidx.compose.material3.rememberDrawerState
+import androidx.compose.material3.DrawerValue
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -156,6 +169,10 @@ import androidx.compose.material.icons.filled.Timer
 import app.slipnet.presentation.theme.ConnectedGreen
 import app.slipnet.presentation.theme.ConnectingOrange
 import app.slipnet.presentation.theme.DisconnectedRed
+import app.slipnet.presentation.theme.ColorFabActive
+import app.slipnet.presentation.theme.ColorFabInactiveDark
+import app.slipnet.presentation.theme.ColorFabInactiveLight
+import app.slipnet.presentation.theme.ColorConfigType
 import com.journeyapps.barcodescanner.ScanContract
 import com.journeyapps.barcodescanner.ScanOptions
 import kotlinx.coroutines.launch
@@ -221,6 +238,11 @@ fun MainScreen(
     var showDeleteAllDialog by remember { mutableStateOf(false) }
     var showDeleteDuplicatesDialog by remember { mutableStateOf(false) }
     var profileToDelete by remember { mutableStateOf<ServerProfile?>(null) }
+    val drawerState = rememberDrawerState(DrawerValue.Closed)
+    var searchQuery by remember { mutableStateOf("") }
+    var isSearchActive by remember { mutableStateOf(false) }
+    var selectedCategoryIndex by remember { mutableIntStateOf(0) }
+    var showAboutDialog by remember { mutableStateOf(false) }
     // Export lock dialog state
     var exportLockProfile by remember { mutableStateOf<ServerProfile?>(null) }
     var exportLockEnabled by remember { mutableStateOf(false) }
@@ -437,189 +459,443 @@ fun MainScreen(
         }
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+    ModalNavigationDrawer(
+        drawerState = drawerState,
+        drawerContent = {
+            ModalDrawerSheet(
+                drawerState = drawerState,
+                modifier = Modifier.fillMaxWidth(0.82f)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState())
+                ) {
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f))
+                            .padding(24.dp)
                     ) {
-                        Text(
-                            text = "Aryana",
-                            style = MaterialTheme.typography.headlineSmall,
-                            fontWeight = FontWeight.Bold
-                        )
-                        if (BuildConfig.FLAVOR == "lite") {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(60.dp)
+                                    .clip(CircleShape)
+                                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Shield,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(34.dp),
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                            Spacer(Modifier.height(10.dp))
                             Text(
-                                text = "Lite",
-                                style = MaterialTheme.typography.labelLarge,
+                                text = "آریانا (Aryana Core)",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = "محیط ضد فیلترینگ و اینترنت ملی",
+                                style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
-                        if (BuildConfig.FLAVOR == "lite") {
-                            IconButton(onClick = { showLiteInfoDialog = true }) {
-                                Icon(
-                                    Icons.Default.Info,
-                                    contentDescription = "Lite version info",
-                                    modifier = Modifier.size(20.dp)
-                                )
+                    }
+
+                    Spacer(Modifier.height(8.dp))
+
+                    NavigationDrawerItem(
+                        label = {
+                            Column {
+                                Text("ترمینال SSH (Termius)", fontWeight = FontWeight.Bold)
+                                Text("شل لینوکس و ابزارهای مانیتورینگ", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
-                        }
-                    }
-                },
-                actions = {
-                    IconButton(onClick = { showLogSheet = true }) {
-                        Icon(
-                            Icons.Default.BugReport,
-                            contentDescription = "Connection Logs & Telemetry",
-                            tint = Color(0xFF00E5FF)
-                        )
-                    }
-                    IconButton(onClick = { showShareDialog = true }) {
-                        Icon(Icons.Default.Share, contentDescription = "Share App")
-                    }
-                    IconButton(onClick = onNavigateToTerminal) {
-                        Icon(
-                            Icons.Default.Dns,
-                            contentDescription = "SSH Terminal (Termius)",
-                            tint = Color(0xFF00FF66)
-                        )
-                    }
-                    IconButton(onClick = onNavigateToSettings) {
-                        Icon(Icons.Default.Settings, contentDescription = "Settings")
-                    }
-                    // Overflow menu (three-dot, rightmost)
-                    Box {
-                        IconButton(onClick = { showOverflowMenu = true }) {
-                            Icon(Icons.Default.MoreVert, contentDescription = "More")
-                        }
-                        DropdownMenu(
-                            expanded = showOverflowMenu,
-                            onDismissRequest = { showOverflowMenu = false }
-                        ) {
-                            DropdownMenuItem(
-                                text = {
-                                    Text(if (uiState.isPingRunning) "Stop Real Ping" else "Real Ping")
-                                },
-                                onClick = {
-                                    showOverflowMenu = false
-                                    viewModel.pingAllProfiles()
-                                },
-                                enabled = uiState.profiles.isNotEmpty()
+                        },
+                        selected = false,
+                        onClick = {
+                            scope.launch { drawerState.close() }
+                            onNavigateToTerminal()
+                        },
+                        icon = {
+                            Icon(
+                                Icons.Default.Dns,
+                                contentDescription = null,
+                                tint = Color(0xFF00FF66)
                             )
-                            DropdownMenuItem(
-                                text = {
-                                    Text(if (uiState.isPingRunning) "Stop Simple Ping" else "Simple Ping")
-                                },
-                                onClick = {
-                                    showOverflowMenu = false
-                                    viewModel.pingAllProfilesSimple()
-                                },
-                                enabled = uiState.profiles.isNotEmpty()
-                            )
-                            if (uiState.pingResults.isNotEmpty() && !uiState.isPingRunning) {
-                                DropdownMenuItem(
-                                    text = { Text("Clear Ping Results") },
-                                    onClick = {
-                                        showOverflowMenu = false
-                                        viewModel.clearPingResults()
-                                    }
-                                )
-                            }
-                            // Only show "Sort by Ping" when at least one profile has a
-                            // successful measurement — otherwise there's nothing to sort by.
-                            if (uiState.pingResults.values.any { it is PingResult.Success }) {
-                                DropdownMenuItem(
-                                    text = { Text("Sort by Ping") },
-                                    onClick = {
-                                        showOverflowMenu = false
-                                        viewModel.sortProfilesByPing()
-                                    }
-                                )
-                            }
-                            DropdownMenuItem(
-                                text = { Text("SSH Terminal (Termius)") },
-                                leadingIcon = { Icon(Icons.Default.Dns, contentDescription = null, tint = Color(0xFF00FF66)) },
-                                onClick = {
-                                    showOverflowMenu = false
-                                    onNavigateToTerminal()
-                                }
-                            )
-                            DropdownMenuItem(
-                                text = { Text("Export All Profiles") },
-                                onClick = {
-                                    showOverflowMenu = false
-                                    viewModel.exportAllProfiles()
-                                },
-                                enabled = uiState.profiles.isNotEmpty()
-                            )
-                            DropdownMenuItem(
-                                text = { Text("Export All (Encrypted)") },
-                                onClick = {
-                                    showOverflowMenu = false
-                                    showExportAllEncryptedDialog = true
-                                },
-                                enabled = uiState.profiles.any { !it.isLocked }
-                            )
-                            DropdownMenuItem(
-                                text = { Text("Import Profiles") },
-                                onClick = {
-                                    showOverflowMenu = false
-                                    showImportDialog = true
-                                }
-                            )
-                            DropdownMenuItem(
-                                text = { Text("Delete Duplicate Profiles") },
-                                onClick = {
-                                    showOverflowMenu = false
-                                    showDeleteDuplicatesDialog = true
-                                },
-                                enabled = uiState.profiles.size > 1
-                            )
-                            DropdownMenuItem(
-                                text = { Text("Delete All Profiles") },
-                                onClick = {
-                                    showOverflowMenu = false
-                                    showDeleteAllDialog = true
-                                },
-                                enabled = uiState.profiles.isNotEmpty()
-                            )
-                        }
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.Transparent
-                )
-            )
-        },
-        floatingActionButton = {
-            Column(
-                horizontalAlignment = Alignment.End
-            ) {
-                FloatingActionButton(
-                    onClick = { showAddMenu = !showAddMenu },
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(end = 8.dp)
-                ) {
-                    Icon(Icons.Default.Add, contentDescription = "Add Profile")
+                        },
+                        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                    )
+
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+
+                    NavigationDrawerItem(
+                        label = { Text("اسکنر دی‌ان‌اس و پینگ E2E") },
+                        selected = false,
+                        onClick = {
+                            scope.launch { drawerState.close() }
+                            onNavigateToSettings()
+                        },
+                        icon = { Icon(Icons.Default.Speed, contentDescription = null) },
+                        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                    )
+
+                    NavigationDrawerItem(
+                        label = { Text("پروکسی تفکیکی برنامه‌ها") },
+                        selected = false,
+                        onClick = {
+                            scope.launch { drawerState.close() }
+                            onNavigateToSettings()
+                        },
+                        icon = { Icon(Icons.Default.Apps, contentDescription = null) },
+                        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                    )
+
+                    NavigationDrawerItem(
+                        label = { Text("گزارش عیب‌یابی و لاگ لایو") },
+                        selected = false,
+                        onClick = {
+                            scope.launch { drawerState.close() }
+                            showLogSheet = true
+                        },
+                        icon = { Icon(Icons.Default.BugReport, contentDescription = null, tint = Color(0xFF00E5FF)) },
+                        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                    )
+
+                    NavigationDrawerItem(
+                        label = { Text("تنظیمات هسته و تونل") },
+                        selected = false,
+                        onClick = {
+                            scope.launch { drawerState.close() }
+                            onNavigateToSettings()
+                        },
+                        icon = { Icon(Icons.Default.Settings, contentDescription = null) },
+                        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                    )
+
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+
+                    NavigationDrawerItem(
+                        label = { Text("خروجی امن (پروتکل aryana://)") },
+                        selected = false,
+                        onClick = {
+                            scope.launch { drawerState.close() }
+                            showExportAllEncryptedDialog = true
+                        },
+                        icon = { Icon(Icons.Default.Share, contentDescription = null) },
+                        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                    )
+
+                    NavigationDrawerItem(
+                        label = { Text("درباره آریانا") },
+                        selected = false,
+                        onClick = {
+                            scope.launch { drawerState.close() }
+                            showAboutDialog = true
+                        },
+                        icon = { Icon(Icons.Default.Info, contentDescription = null) },
+                        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                    )
                 }
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                // Connect / Disconnect FAB
-                ConnectFab(
-                    connectionState = uiState.connectionState,
-                    hasProfile = uiState.activeProfile != null || uiState.activeChain != null || uiState.profiles.isNotEmpty(),
-                    snowflakeBootstrapProgress = uiState.snowflakeBootstrapProgress,
-                    onToggleConnection = { requestConnectOrToggle() },
-                    modifier = Modifier.padding(
-                        bottom = 24.dp + navBarPadding.calculateBottomPadding() + fabExtraPadding,
-                        end = 8.dp
+            }
+        }
+    ) {
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    navigationIcon = {
+                        if (isSearchActive) {
+                            IconButton(onClick = {
+                                isSearchActive = false
+                                searchQuery = ""
+                            }) {
+                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "بستن")
+                            }
+                        } else {
+                            IconButton(onClick = { scope.launch { drawerState.open() } }) {
+                                Icon(Icons.Default.Menu, contentDescription = "منو")
+                            }
+                        }
+                    },
+                    title = {
+                        if (isSearchActive) {
+                            OutlinedTextField(
+                                value = searchQuery,
+                                onValueChange = { searchQuery = it },
+                                placeholder = { Text("جستجوی سرور، آی‌پی، پروتکل...", fontSize = 12.sp) },
+                                singleLine = true,
+                                trailingIcon = {
+                                    if (searchQuery.isNotEmpty()) {
+                                        IconButton(onClick = { searchQuery = "" }) {
+                                            Icon(Icons.Default.Close, contentDescription = "پاک کردن", modifier = Modifier.size(18.dp))
+                                        }
+                                    }
+                                },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(50.dp)
+                            )
+                        } else {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Text(
+                                    text = "آریانا",
+                                    style = MaterialTheme.typography.titleLarge,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Box(
+                                    modifier = Modifier
+                                        .clip(CircleShape)
+                                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.2f))
+                                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                                ) {
+                                    Text(
+                                        text = "${uiState.profiles.size}",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                            }
+                        }
+                    },
+                    actions = {
+                        if (!isSearchActive) {
+                            IconButton(onClick = { isSearchActive = true }) {
+                                Icon(Icons.Default.Search, contentDescription = "جستجو")
+                            }
+                        }
+                        Box {
+                            IconButton(onClick = { showAddMenu = true }) {
+                                Icon(Icons.Default.Add, contentDescription = "افزودن")
+                            }
+                            DropdownMenu(
+                                expanded = showAddMenu,
+                                onDismissRequest = { showAddMenu = false }
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text("اسکن بارکد QR") },
+                                    leadingIcon = { Icon(Icons.Default.QrCode2, contentDescription = null) },
+                                    onClick = {
+                                        showAddMenu = false
+                                        val options = ScanOptions().apply {
+                                            setDesiredBarcodeFormats(ScanOptions.QR_CODE)
+                                            setPrompt("اسکن بارکد پیکربندی آریانا")
+                                            setBeepEnabled(true)
+                                            setOrientationLocked(false)
+                                        }
+                                        qrScanLauncher.launch(options)
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("وارد کردن از کلیپ‌بورد") },
+                                    leadingIcon = { Icon(Icons.Default.ContentCopy, contentDescription = null) },
+                                    onClick = {
+                                        showAddMenu = false
+                                        val clip = clipboardManager.getText()?.text
+                                        if (!clip.isNullOrBlank()) {
+                                            viewModel.parseImportConfig(clip)
+                                        } else {
+                                            scope.launch { snackbarHostState.showSnackbar("کلیپ‌بورد خالی است") }
+                                        }
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("وارد کردن از فایل (JSON / OVPN / Conf)") },
+                                    leadingIcon = { Icon(Icons.Default.FileDownload, contentDescription = null) },
+                                    onClick = {
+                                        showAddMenu = false
+                                        importFileLauncher.launch(arrayOf("*/*"))
+                                    }
+                                )
+                                HorizontalDivider()
+                                DropdownMenuItem(
+                                    text = { Text("ایجاد دستی کانفیگ (پروتکل‌های ملی و جهانی)") },
+                                    leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) },
+                                    onClick = {
+                                        showAddMenu = false
+                                        onNavigateToAddProfile("masterdns")
+                                    }
+                                )
+                            }
+                        }
+                        Box {
+                            IconButton(onClick = { showOverflowMenu = true }) {
+                                Icon(Icons.Default.MoreVert, contentDescription = "بیشتر")
+                            }
+                            DropdownMenu(
+                                expanded = showOverflowMenu,
+                                onDismissRequest = { showOverflowMenu = false }
+                            ) {
+                                DropdownMenuItem(
+                                    text = {
+                                        Text(if (uiState.isPingRunning) "توقف تست پینگ" else "Real Ping (تست واقعی تاخیر)")
+                                    },
+                                    onClick = {
+                                        showOverflowMenu = false
+                                        viewModel.pingAllProfiles()
+                                    },
+                                    enabled = uiState.profiles.isNotEmpty()
+                                )
+                                DropdownMenuItem(
+                                    text = {
+                                        Text(if (uiState.isPingRunning) "توقف Simple Ping" else "Simple Ping (تست TCP)")
+                                    },
+                                    onClick = {
+                                        showOverflowMenu = false
+                                        viewModel.pingAllProfilesSimple()
+                                    },
+                                    enabled = uiState.profiles.isNotEmpty()
+                                )
+                                if (uiState.pingResults.isNotEmpty() && !uiState.isPingRunning) {
+                                    DropdownMenuItem(
+                                        text = { Text("پاک کردن نتایج پینگ") },
+                                        onClick = {
+                                            showOverflowMenu = false
+                                            viewModel.clearPingResults()
+                                        }
+                                    )
+                                }
+                                if (uiState.pingResults.values.any { it is PingResult.Success }) {
+                                    DropdownMenuItem(
+                                        text = { Text("مرتب‌سازی بر اساس پینگ") },
+                                        onClick = {
+                                            showOverflowMenu = false
+                                            viewModel.sortProfilesByPing()
+                                        }
+                                    )
+                                }
+                                DropdownMenuItem(
+                                    text = { Text("ترمینال SSH (Termius Suite)") },
+                                    leadingIcon = { Icon(Icons.Default.Dns, contentDescription = null, tint = Color(0xFF00FF66)) },
+                                    onClick = {
+                                        showOverflowMenu = false
+                                        onNavigateToTerminal()
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("خروجی تمام کانفیگ‌ها (aryana://)") },
+                                    onClick = {
+                                        showOverflowMenu = false
+                                        showExportAllEncryptedDialog = true
+                                    },
+                                    enabled = uiState.profiles.isNotEmpty()
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("حذف کانفیگ‌های تکراری") },
+                                    onClick = {
+                                        showOverflowMenu = false
+                                        showDeleteDuplicatesDialog = true
+                                    },
+                                    enabled = uiState.profiles.size > 1
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("حذف همه کانفیگ‌ها") },
+                                    onClick = {
+                                        showOverflowMenu = false
+                                        showDeleteAllDialog = true
+                                    },
+                                    enabled = uiState.profiles.isNotEmpty()
+                                )
+                            }
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.surface
                     )
                 )
-            }
-        },
+            },
+            bottomBar = {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .windowInsetsPadding(WindowInsets.navigationBars)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(MaterialTheme.colorScheme.surface)
+                            .clickable {
+                                if (uiState.connectionState is ConnectionState.Connected) {
+                                    viewModel.pingAllProfiles()
+                                } else {
+                                    requestConnectOrToggle()
+                                }
+                            }
+                    ) {
+                        HorizontalDivider()
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(60.dp)
+                                .padding(horizontal = 16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            val isConnected = uiState.connectionState is ConnectionState.Connected
+                            val isConnecting = uiState.connectionState is ConnectionState.Connecting
+                            val isError = uiState.connectionState is ConnectionState.Error
+
+                            val statusDotColor = when {
+                                isConnected -> ConnectedGreen
+                                isConnecting -> ConnectingOrange
+                                isError -> DisconnectedRed
+                                else -> Color.Gray
+                            }
+
+                            val statusText = when {
+                                isConnected -> "متصل به: ${uiState.activeProfile?.name ?: "سرور آریانا"}"
+                                isConnecting -> "در حال برقراری ارتباط با تونل..."
+                                isError -> "خطا در اتصال — لمس برای تلاش مجدد"
+                                else -> "قطع شده — لمس برای تست و اتصال"
+                            }
+
+                            Box(
+                                modifier = Modifier
+                                    .size(10.dp)
+                                    .clip(CircleShape)
+                                    .background(statusDotColor)
+                            )
+                            Spacer(Modifier.width(10.dp))
+                            Text(
+                                text = statusText,
+                                style = MaterialTheme.typography.bodyMedium,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .padding(end = 64.dp)
+                            )
+                        }
+                    }
+
+                    val isRunning = uiState.connectionState is ConnectionState.Connected ||
+                            uiState.connectionState is ConnectionState.Connecting
+                    FloatingActionButton(
+                        onClick = { requestConnectOrToggle() },
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(end = 16.dp)
+                            .offset(y = (-24).dp),
+                        containerColor = if (uiState.connectionState is ConnectionState.Connected) ColorFabActive
+                            else ColorFabInactiveDark
+                    ) {
+                        Icon(
+                            imageVector = if (isRunning) Icons.Default.Stop else Icons.Default.PlayArrow,
+                            contentDescription = if (isRunning) "Disconnect" else "Connect",
+                            tint = Color.White,
+                            modifier = Modifier.size(28.dp)
+                        )
+                    }
+                }
+            },
         snackbarHost = { SnackbarHost(snackbarHostState) },
         containerColor = MaterialTheme.colorScheme.background,
         contentWindowInsets = WindowInsets(0, 0, 0, 0)
@@ -642,6 +918,86 @@ fun MainScreen(
                 .padding(paddingValues)
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
+                val displayedProfiles = remember(uiState.profiles, selectedCategoryIndex, searchQuery) {
+                    uiState.profiles.filter { profile ->
+                        val matchesCat = when (selectedCategoryIndex) {
+                            1 -> profile.tunnelType in listOf(
+                                TunnelType.MASTERDNS, TunnelType.MASTERDNS_SSH,
+                                TunnelType.STORMDNS, TunnelType.STORMDNS_SSH,
+                                TunnelType.DNSTT, TunnelType.DNSTT_SSH,
+                                TunnelType.NOIZDNS, TunnelType.NOIZDNS_SSH,
+                                TunnelType.VAYDNS, TunnelType.VAYDNS_SSH,
+                                TunnelType.SOAR, TunnelType.SOAR_SSH,
+                                TunnelType.COTTENDNS, TunnelType.COTTENDNS_SSH,
+                                TunnelType.SLIPSTREAM, TunnelType.SLIPSTREAM_SSH
+                            )
+                            2 -> profile.tunnelType in listOf(TunnelType.MELI, TunnelType.MELI_SSH)
+                            3 -> profile.tunnelType in listOf(
+                                TunnelType.VLESS, TunnelType.VLESS_REALITY,
+                                TunnelType.VMESS, TunnelType.TROJAN,
+                                TunnelType.SHADOWSOCKS, TunnelType.SHADOWSOCKSR,
+                                TunnelType.SNELL
+                            )
+                            4 -> profile.tunnelType in listOf(
+                                TunnelType.WIREGUARD, TunnelType.OPENVPN,
+                                TunnelType.HYSTERIA2, TunnelType.TUIC,
+                                TunnelType.BALE, TunnelType.PAQET,
+                                TunnelType.SOCKS5, TunnelType.SSH,
+                                TunnelType.DOH, TunnelType.SNOWFLAKE,
+                                TunnelType.NAIVE, TunnelType.NAIVE_SSH
+                            )
+                            else -> true
+                        }
+                        val matchesQuery = if (searchQuery.isBlank()) true else {
+                            profile.name.contains(searchQuery, ignoreCase = true) ||
+                            profile.domain.contains(searchQuery, ignoreCase = true) ||
+                            profile.cdnIp.contains(searchQuery, ignoreCase = true) ||
+                            profile.tunnelType.displayName.contains(searchQuery, ignoreCase = true)
+                        }
+                        matchesCat && matchesQuery
+                    }
+                }
+
+                // ── PattNG Group Category Pills ──────────────────────────
+                val categoryTabs = listOf(
+                    "همه" to uiState.profiles.size,
+                    "DNS تانل" to uiState.profiles.count { it.tunnelType in listOf(TunnelType.MASTERDNS, TunnelType.MASTERDNS_SSH, TunnelType.STORMDNS, TunnelType.STORMDNS_SSH, TunnelType.DNSTT, TunnelType.DNSTT_SSH, TunnelType.NOIZDNS, TunnelType.NOIZDNS_SSH, TunnelType.VAYDNS, TunnelType.VAYDNS_SSH, TunnelType.SOAR, TunnelType.SOAR_SSH, TunnelType.COTTENDNS, TunnelType.COTTENDNS_SSH, TunnelType.SLIPSTREAM, TunnelType.SLIPSTREAM_SSH) },
+                    "پروتکل ملی" to uiState.profiles.count { it.tunnelType in listOf(TunnelType.MELI, TunnelType.MELI_SSH) },
+                    "V2Ray / Reality" to uiState.profiles.count { it.tunnelType in listOf(TunnelType.VLESS, TunnelType.VLESS_REALITY, TunnelType.VMESS, TunnelType.TROJAN, TunnelType.SHADOWSOCKS, TunnelType.SHADOWSOCKSR, TunnelType.SNELL) },
+                    "VPN مدرن" to uiState.profiles.count { it.tunnelType in listOf(TunnelType.WIREGUARD, TunnelType.OPENVPN, TunnelType.HYSTERIA2, TunnelType.TUIC, TunnelType.BALE, TunnelType.PAQET, TunnelType.SOCKS5, TunnelType.SSH, TunnelType.DOH, TunnelType.SNOWFLAKE, TunnelType.NAIVE, TunnelType.NAIVE_SSH) },
+                    "زنجیره‌ها" to uiState.chains.size
+                )
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState())
+                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    categoryTabs.forEachIndexed { index, (label, count) ->
+                        FilterChip(
+                            selected = selectedCategoryIndex == index,
+                            onClick = {
+                                selectedCategoryIndex = index
+                                if (index == 5) selectedTab = 1 else selectedTab = 0
+                            },
+                            label = {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(label, fontSize = 12.sp)
+                                    Spacer(Modifier.width(4.dp))
+                                    Text("($count)", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        )
+                    }
+                }
+
                 // ── Tab Row (only when chains exist) ────────────────────
                 if (hasChains) {
                     SingleChoiceSegmentedButtonRow(
@@ -796,7 +1152,7 @@ fun MainScreen(
                                 modifier = Modifier.fillMaxSize()
                             ) {
                                 items(
-                                items = uiState.profiles,
+                                items = displayedProfiles,
                                 key = { it.id }
                             ) { profile ->
                                 val isConnected = uiState.connectedProfileId == profile.id
@@ -1358,8 +1714,29 @@ fun MainScreen(
             }
         }
     }
+    }
 
     // ── Dialogs ─────────────────────────────────────────────────────────
+
+    // About Aryana dialog
+    if (showAboutDialog) {
+        AlertDialog(
+            onDismissRequest = { showAboutDialog = false },
+            title = { Text("درباره آریانا (Aryana Core)") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("آریانا نسخه اختصاصی ضد اختلالات شبکه ملی و شات‌داون اینترنت.")
+                    Text("ویژگی‌های رابط کاربری الگوبرداری‌شده از استانداردهای PattNG.")
+                    Text("پشتیبانی از تانل‌های DNS (MasterDNS, Storm, Noiz, Vay, Soar, Cotten, DNSTT)، پروتکل ملی Meli Pure-Rust، V2Ray / Reality، WireGuard و ترمینال SSH تعاملی.")
+                    Text("پروتکل رمزنگاری کانفیگ: ARYANA:// (AES-256-GCM + PBKDF2)")
+                    Text("نسخه: ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})")
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showAboutDialog = false }) { Text("بستن") }
+            }
+        )
+    }
 
     // Debug log sheet
     if (showLogSheet) {

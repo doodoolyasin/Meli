@@ -41,3 +41,14 @@ val SurfaceVariantAmoled = Color(0xFF1A1A1A)
 // Traffic indicator colors
 val UploadBlue = Color(0xFF2196F3)
 val DownloadGreen = Color(0xFF4CAF50)
+
+// PattNG UI signature colors
+val ColorFabActive = Color(0xFF2E7D32)
+val ColorFabInactiveDark = Color(0xFF374151)
+val ColorFabInactiveLight = Color(0xFF9E9E9E)
+val ColorConfigType = Color(0xFF00ACC1)
+val ColorPingGreen = Color(0xFF4CAF50)
+val ColorPingOrange = Color(0xFFFF9800)
+val ColorPingRed = Color(0xFFE53935)
+val ColorSelectionAccent = Color(0xFF00E676)
+
