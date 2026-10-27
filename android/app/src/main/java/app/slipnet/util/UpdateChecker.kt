@@ -28,6 +28,7 @@ object UpdateChecker {
         try {
             val conn = URL(GITHUB_API).openConnection() as HttpURLConnection
             conn.requestMethod = "GET"
+            conn.setRequestProperty("User-Agent", "AryanaNG-Android")
             conn.setRequestProperty("Accept", "application/vnd.github+json")
             conn.connectTimeout = TIMEOUT_MS
             conn.readTimeout = TIMEOUT_MS
@@ -46,6 +47,21 @@ object UpdateChecker {
             val htmlUrl = json.optString("html_url", "")
             val releaseBody = json.optString("body", "").take(500)
 
+            var apkUrl = htmlUrl
+            val assets = json.optJSONArray("assets")
+            if (assets != null) {
+                for (i in 0 until assets.length()) {
+                    val asset = assets.optJSONObject(i)
+                    val name = asset?.optString("name", "") ?: ""
+                    val downloadUrl = asset?.optString("browser_download_url", "") ?: ""
+                    if (name.endsWith(".apk") && downloadUrl.isNotBlank()) {
+                        if (name.contains("arm64") || apkUrl == htmlUrl) {
+                            apkUrl = downloadUrl
+                        }
+                    }
+                }
+            }
+
             if (tagName.isBlank() || htmlUrl.isBlank()) {
                 return@withContext null
             }
@@ -54,7 +70,7 @@ object UpdateChecker {
                 Log.d(TAG, "Update available: $tagName (current: $currentVersionName)")
                 AppUpdate(
                     versionName = tagName,
-                    downloadUrl = htmlUrl,
+                    downloadUrl = apkUrl,
                     releaseNotes = releaseBody
                 )
             } else {
