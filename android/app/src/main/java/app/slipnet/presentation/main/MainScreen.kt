@@ -205,6 +205,8 @@ fun MainScreen(
     onNavigateToAddChain: () -> Unit = {},
     onNavigateToEditChain: (Long) -> Unit = {},
     onNavigateToTerminal: () -> Unit = {},
+    onNavigateToAppSelector: () -> Unit = {},
+    onNavigateToDnsScanner: () -> Unit = {},
     viewModel: MainViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
