@@ -683,6 +683,11 @@ pub extern "system" fn Java_app_slipnet_tunnel_MeliBridge_nativeStartClient(
     listen_host: jni::objects::JString,
     encryption_key: jni::objects::JString,
 ) -> jni::sys::jboolean {
+    #[cfg(target_os = "android")]
+    {
+        crate::android::init_bridge_class(&mut env, "app/slipnet/tunnel/MeliBridge");
+    }
+
     let dom: String = match env.get_string(&domain) {
         Ok(s) => s.into(),
         Err(_) => return jni::sys::JNI_FALSE,

@@ -69,10 +69,10 @@ data class TerminalTab(
 data class SshTerminalUiState(
     val currentNavTab: TerminalNavTab = TerminalNavTab.VAULTS,
     val searchQuery: String = "",
-    val host: String = "45.38.249.16",
+    val host: String = "",
     val port: String = "22",
-    val username: String = "yasin",
-    val password: String = "yasin",
+    val username: String = "",
+    val password: String = "",
     val privateKey: String = "",
     val connectionState: TerminalConnectionState = TerminalConnectionState.Disconnected,
     val output: String = "",
@@ -82,17 +82,9 @@ data class SshTerminalUiState(
     val historyIndex: Int = -1,
     val selectedTheme: TerminalTheme = TerminalTheme.TERMIUS_NAVY,
     val fontSizeSp: Int = 12,
-    val savedHosts: List<SavedSshHost> = listOf(
-        SavedSshHost(name = "1", host = "104.252.175.11", port = "22", username = "root", osType = "ubuntu"),
-        SavedSshHost(name = "104.252.175.11", host = "104.252.175.11", port = "22", username = "root", osType = "ubuntu"),
-        SavedSshHost(name = "iran", host = "95.182.80.85", port = "22", username = "root", osType = "ubuntu"),
-        SavedSshHost(name = "turk", host = "185.220.101.5", port = "22", username = "root", osType = "ubuntu"),
-        SavedSshHost(name = "Amazon-1", host = "45.38.249.16", port = "22", username = "yasin", password = "yasin", osType = "amazon")
-    ),
-    val tabs: List<TerminalTab> = listOf(
-        TerminalTab(id = "tab-amazon", title = "Amazon-1", host = "45.38.249.16", username = "yasin", osType = "amazon")
-    ),
-    val activeTabId: String = "tab-amazon",
+    val savedHosts: List<SavedSshHost> = emptyList(),
+    val tabs: List<TerminalTab> = emptyList(),
+    val activeTabId: String = "",
     val isExtendedKeyboardVisible: Boolean = false,
     val customSnippets: List<String> = listOf(
         "sudo su",
@@ -250,6 +242,13 @@ class SshTerminalViewModel @Inject constructor() : ViewModel() {
         val state = _uiState.value
         if (state.connectionState is TerminalConnectionState.Connected ||
             state.connectionState is TerminalConnectionState.Connecting) return
+
+        if (state.host.isBlank()) {
+            _uiState.value = state.copy(
+                output = state.output + "\n[Please add or select an SSH host first]\n"
+            )
+            return
+        }
 
         _uiState.value = state.copy(
             connectionState = TerminalConnectionState.Connecting,

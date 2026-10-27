@@ -3163,39 +3163,83 @@ class ConfigImporter @Inject constructor() {
                     val ob = outbounds.optJSONObject(i) ?: continue
                     val tag = ob.optString("tag", "Proxy-$i")
                     val type = ob.optString("type", ob.optString("protocol", "")).lowercase()
-                    val server = ob.optString("server", ob.optString("server_address", ""))
-                    val port = ob.optInt("server_port", ob.optInt("port", 443))
+                    val settings = ob.optJSONObject("settings")
+                    val streamSettings = ob.optJSONObject("streamSettings")
+
+                    var server = ob.optString("server", ob.optString("server_address", ""))
+                    var port = ob.optInt("server_port", ob.optInt("port", 443))
+                    var uuid = ob.optString("uuid", ob.optString("id", ""))
+                    var password = ob.optString("password", "")
+                    var method = ob.optString("method", "2022-blake3-aes-128-gcm")
+
+                    // V2Ray / Xray settings.vnext format
+                    val vnext = settings?.optJSONArray("vnext")
+                    if (vnext != null && vnext.length() > 0) {
+                        val firstVnext = vnext.optJSONObject(0)
+                        if (firstVnext != null) {
+                            if (server.isBlank()) server = firstVnext.optString("address", "")
+                            if (port == 443) port = firstVnext.optInt("port", 443)
+                            val users = firstVnext.optJSONArray("users")
+                            if (users != null && users.length() > 0) {
+                                val userObj = users.optJSONObject(0)
+                                if (userObj != null && uuid.isBlank()) {
+                                    uuid = userObj.optString("id", "")
+                                }
+                            }
+                        }
+                    }
+
+                    // V2Ray / Xray settings.servers format
+                    val servers = settings?.optJSONArray("servers")
+                    if (servers != null && servers.length() > 0) {
+                        val firstServer = servers.optJSONObject(0)
+                        if (firstServer != null) {
+                            if (server.isBlank()) server = firstServer.optString("address", "")
+                            if (port == 443) port = firstServer.optInt("port", 443)
+                            if (password.isBlank()) password = firstServer.optString("password", "")
+                            if (method.isBlank()) method = firstServer.optString("method", "aes-256-gcm")
+                        }
+                    }
+
+                    val transport = streamSettings?.optString("network", "ws") ?: "ws"
+                    val wsSettings = streamSettings?.optJSONObject("wsSettings")
+                    val path = wsSettings?.optString("path", ob.optString("path", "/")) ?: "/"
+                    val sni = streamSettings?.optJSONObject("tlsSettings")?.optString("serverName", "")
+                        ?: streamSettings?.optJSONObject("realitySettings")?.optString("serverName", "") ?: ""
 
                     when (type) {
                         "vless" -> {
-                            val uuid = ob.optString("uuid", "")
                             profiles.add(
                                 ServerProfile(
-                                    name = tag,
+                                    name = "$tag (JSON)",
                                     domain = server,
                                     cdnPort = port,
                                     tunnelType = TunnelType.VLESS,
-                                    vlessUuid = uuid
+                                    vlessUuid = uuid,
+                                    vlessTransport = transport,
+                                    vlessWsPath = path,
+                                    vlessSni = sni
                                 )
                             )
                         }
                         "trojan" -> {
-                            val password = ob.optString("password", "")
                             profiles.add(
                                 ServerProfile(
-                                    name = tag,
+                                    name = "$tag (JSON)",
                                     domain = server,
                                     cdnPort = port,
                                     tunnelType = TunnelType.TROJAN,
-                                    socksPassword = password
+                                    socksPassword = password,
+                                    vlessTransport = transport,
+                                    vlessWsPath = path,
+                                    vlessSni = sni
                                 )
                             )
                         }
                         "hysteria2" -> {
-                            val password = ob.optString("password", "")
                             profiles.add(
                                 ServerProfile(
-                                    name = tag,
+                                    name = "$tag (JSON)",
                                     domain = server,
                                     cdnPort = port,
                                     tunnelType = TunnelType.HYSTERIA2,
@@ -3204,11 +3248,9 @@ class ConfigImporter @Inject constructor() {
                             )
                         }
                         "tuic" -> {
-                            val uuid = ob.optString("uuid", "")
-                            val password = ob.optString("password", "")
                             profiles.add(
                                 ServerProfile(
-                                    name = tag,
+                                    name = "$tag (JSON)",
                                     domain = server,
                                     cdnPort = port,
                                     tunnelType = TunnelType.TUIC,
@@ -3218,11 +3260,9 @@ class ConfigImporter @Inject constructor() {
                             )
                         }
                         "shadowsocks" -> {
-                            val method = ob.optString("method", "2022-blake3-aes-128-gcm")
-                            val password = ob.optString("password", "")
                             profiles.add(
                                 ServerProfile(
-                                    name = tag,
+                                    name = "$tag (JSON)",
                                     domain = server,
                                     cdnPort = port,
                                     tunnelType = TunnelType.SHADOWSOCKS,
@@ -3236,7 +3276,7 @@ class ConfigImporter @Inject constructor() {
                             val privKey = ob.optString("private_key", "")
                             profiles.add(
                                 ServerProfile(
-                                    name = tag,
+                                    name = "$tag (JSON)",
                                     domain = server,
                                     cdnPort = port,
                                     tunnelType = TunnelType.WIREGUARD,
@@ -3246,16 +3286,16 @@ class ConfigImporter @Inject constructor() {
                             )
                         }
                         "vmess" -> {
-                            val uuid = ob.optString("uuid", ob.optString("id", ""))
-                            val path = ob.optString("path", "/")
                             profiles.add(
                                 ServerProfile(
-                                    name = tag,
+                                    name = "$tag (JSON)",
                                     domain = server,
                                     cdnPort = port,
                                     tunnelType = TunnelType.VMESS,
                                     vlessUuid = uuid,
-                                    vlessWsPath = path
+                                    vlessWsPath = path,
+                                    vlessTransport = transport,
+                                    vlessSni = sni
                                 )
                             )
                         }

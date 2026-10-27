@@ -414,6 +414,13 @@ func (c *Client) Run(ctx context.Context) error {
 	// Ensure local DNS cache is loaded from file if persistence is enabled
 	c.ensureLocalDNSCacheLoaded()
 
+	// Launch async runtime (including SOCKS5 TCP listener) immediately so local probes don't time out
+	if err := c.StartAsyncRuntime(ctx); err != nil {
+		c.log.Errorf("<red>❌ Initial Async Runtime failed to launch: %v</red>", err)
+	} else {
+		c.InitVirtualStream0()
+	}
+
 	for {
 		select {
 		case <-ctx.Done():

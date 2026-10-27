@@ -1109,7 +1109,7 @@ class MainViewModel @Inject constructor(
                 if (profile.resolvers.isNotEmpty()) {
                     profile.resolvers.first().let { it.host to it.port }
                 } else {
-                    "45.38.249.16" to (if (profile.tunnelType == TunnelType.MELI || profile.tunnelType == TunnelType.MELI_SSH) 5309 else 53)
+                    "45.38.249.16" to 53
                 }
             }
             TunnelType.WIREGUARD, TunnelType.OPENVPN,

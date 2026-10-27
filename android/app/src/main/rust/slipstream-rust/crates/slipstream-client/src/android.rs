@@ -63,6 +63,18 @@ static JAVA_VM: OnceCell<jni::JavaVM> = OnceCell::new();
 /// This is needed because native threads can't find app classes via the system class loader.
 static BRIDGE_CLASS: OnceCell<jni::objects::GlobalRef> = OnceCell::new();
 
+/// Initialize the bridge class reference for callbacks and socket protection.
+pub fn init_bridge_class(env: &mut jni::JNIEnv, class_name: &str) {
+    if BRIDGE_CLASS.get().is_none() {
+        if let Ok(class) = env.find_class(class_name) {
+            if let Ok(global_ref) = env.new_global_ref(class) {
+                let _ = BRIDGE_CLASS.set(global_ref);
+                info!("Cached {} for callbacks and socket protection", class_name);
+            }
+        }
+    }
+}
+
 // ============================================================================
 // Public API for Rust code
 // ============================================================================

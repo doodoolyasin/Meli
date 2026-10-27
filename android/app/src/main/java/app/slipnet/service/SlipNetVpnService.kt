@@ -2976,7 +2976,7 @@ class SlipNetVpnService : VpnService() {
         val resolver = if (profile.resolvers.isNotEmpty()) {
             val r = profile.resolvers.first()
             "${r.host}:${r.port}"
-        } else "45.38.249.16:5309"
+        } else "45.38.249.16:53"
 
         Log.i(TAG, "Starting Meli Protocol Rust Client: domain=$domain, resolver=$resolver, port=$meliPort")
         val startResult = MeliBridge.startClient(
@@ -2998,7 +2998,7 @@ class SlipNetVpnService : VpnService() {
         }
 
         val actualPort = MeliBridge.getClientPort()
-        if (!waitForProxyReady(actualPort, maxAttempts = 50, delayMs = 150)) {
+        if (!waitForProxyReady(actualPort, maxAttempts = 100, delayMs = 200)) {
             val lastErr = MeliBridge.isRunning().let { if (!it) "Meli Rust client died" else "Port not listening" }
             Log.e(TAG, "Meli client failed to become ready on port $actualPort: $lastErr")
             connectionManager.onVpnError("Meli startup failed: $lastErr")

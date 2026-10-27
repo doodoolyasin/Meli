@@ -15,7 +15,7 @@ data class AppUpdate(
 
 object UpdateChecker {
     private const val TAG = "UpdateChecker"
-    private const val GITHUB_API = "https://api.github.com/repos/anonvector/SlipNet/releases/latest"
+    private const val GITHUB_API = "https://api.github.com/repos/doodoolyasin/Meli/releases/latest"
     private const val TIMEOUT_MS = 10_000
     // Only check once per 12 hours
     const val CHECK_INTERVAL_MS = 12 * 60 * 60 * 1000L

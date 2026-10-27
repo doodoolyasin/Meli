@@ -116,7 +116,7 @@ fun ProfileListItem(
             Column(
                 modifier = Modifier
                     .weight(1f)
-                    .padding(start = 12.dp, end = 8.dp, top = 10.dp, bottom = 10.dp)
+                    .padding(start = 10.dp, end = 6.dp, top = 6.dp, bottom = 6.dp)
             ) {
                 // Top Row: Remarks & Inline Actions (Share, Edit, Delete, More)
                 Row(
@@ -127,7 +127,7 @@ fun ProfileListItem(
                         text = profile.name,
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
-                        maxLines = 2,
+                        maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f)
                     )
@@ -137,7 +137,7 @@ fun ProfileListItem(
                         Icon(
                             imageVector = Icons.Default.PushPin,
                             contentDescription = "Pinned",
-                            modifier = Modifier.size(15.dp),
+                            modifier = Modifier.size(14.dp),
                             tint = MaterialTheme.colorScheme.primary
                         )
                     }
@@ -145,24 +145,24 @@ fun ProfileListItem(
                     // PattNG Inline Action Buttons
                     IconButton(
                         onClick = onExportClick,
-                        modifier = Modifier.size(32.dp)
+                        modifier = Modifier.size(28.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Default.Share,
                             contentDescription = "Share",
-                            modifier = Modifier.size(18.dp),
+                            modifier = Modifier.size(16.dp),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
 
                     IconButton(
                         onClick = onEditClick,
-                        modifier = Modifier.size(32.dp)
+                        modifier = Modifier.size(28.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Default.Edit,
                             contentDescription = "Edit",
-                            modifier = Modifier.size(18.dp),
+                            modifier = Modifier.size(16.dp),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
@@ -170,12 +170,12 @@ fun ProfileListItem(
                     IconButton(
                         onClick = onDeleteClick,
                         enabled = !isConnected,
-                        modifier = Modifier.size(32.dp)
+                        modifier = Modifier.size(28.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Default.Delete,
                             contentDescription = "Delete",
-                            modifier = Modifier.size(18.dp),
+                            modifier = Modifier.size(16.dp),
                             tint = if (!isConnected) MaterialTheme.colorScheme.onSurfaceVariant else Color.Gray.copy(alpha = 0.4f)
                         )
                     }
@@ -183,12 +183,12 @@ fun ProfileListItem(
                     Box {
                         IconButton(
                             onClick = { showExportMenu = true },
-                            modifier = Modifier.size(32.dp)
+                            modifier = Modifier.size(28.dp)
                         ) {
                             Icon(
                                 imageVector = Icons.Default.MoreVert,
                                 contentDescription = "More",
-                                modifier = Modifier.size(18.dp),
+                                modifier = Modifier.size(16.dp),
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }

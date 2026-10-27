@@ -520,21 +520,54 @@ private fun TermiusHostsScreen(
             }
         }
 
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 12.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            items(filteredHosts, key = { it.id }) { host ->
-                TermiusHostCard(
-                    host = host,
-                    termKeyBg = termKeyBg,
-                    onClick = { onHostClick(host) },
-                    onDelete = { onDeleteHost(host.id) }
-                )
+        if (filteredHosts.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(32.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Dns,
+                        contentDescription = null,
+                        modifier = Modifier.size(56.dp),
+                        tint = Color.Gray.copy(alpha = 0.5f)
+                    )
+                    Text(
+                        text = "No SSH Hosts Added Yet",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                    Text(
+                        text = "Tap '+ Add Host' above to configure your server connection.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.Gray,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
+                }
             }
-            item { Spacer(Modifier.height(80.dp)) }
+        } else {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(filteredHosts, key = { it.id }) { host ->
+                    TermiusHostCard(
+                        host = host,
+                        termKeyBg = termKeyBg,
+                        onClick = { onHostClick(host) },
+                        onDelete = { onDeleteHost(host.id) }
+                    )
+                }
+                item { Spacer(Modifier.height(80.dp)) }
+            }
         }
     }
 }

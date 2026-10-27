@@ -19,8 +19,8 @@ val SlipstreamSecondary = Color(0xFF03DAC6)
 val SlipstreamSecondaryDark = Color(0xFF00A896)
 
 // Status colors
-val ConnectedGreen = Color(0xFF4CAF50)
-val ConnectedGreenDark = Color(0xFF388E3C)
+val ConnectedGreen = Color(0xFF8B5CF6)
+val ConnectedGreenDark = Color(0xFF7C3AED)
 val DisconnectedRed = Color(0xFFF44336)
 val DisconnectedRedDark = Color(0xFFD32F2F)
 val ConnectingOrange = Color(0xFFFF9800)
@@ -40,15 +40,15 @@ val SurfaceVariantAmoled = Color(0xFF1A1A1A)
 
 // Traffic indicator colors
 val UploadBlue = Color(0xFF2196F3)
-val DownloadGreen = Color(0xFF4CAF50)
+val DownloadGreen = Color(0xFFA855F7)
 
-// PattNG UI signature colors
-val ColorFabActive = Color(0xFF2E7D32)
+// PattNG UI signature colors (Purple themed)
+val ColorFabActive = Color(0xFF7C3AED)
 val ColorFabInactiveDark = Color(0xFF374151)
 val ColorFabInactiveLight = Color(0xFF9E9E9E)
 val ColorConfigType = Color(0xFF00ACC1)
-val ColorPingGreen = Color(0xFF4CAF50)
+val ColorPingGreen = Color(0xFFA855F7)
 val ColorPingOrange = Color(0xFFFF9800)
 val ColorPingRed = Color(0xFFE53935)
-val ColorSelectionAccent = Color(0xFF00E676)
+val ColorSelectionAccent = Color(0xFF8B5CF6)
 

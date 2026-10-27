@@ -191,6 +191,14 @@ import kotlinx.coroutines.launch
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
 
+private enum class OverflowMenuPage {
+    MAIN,
+    DELETE,
+    EXPORT,
+    PING,
+    SORT
+}
+
 private fun Context.findActivity(): Activity? {
     var context = this
     while (context is ContextWrapper) {
@@ -249,6 +257,8 @@ fun MainScreen(
     var importText by remember { mutableStateOf("") }
     var showExportAllEncryptedDialog by remember { mutableStateOf(false) }
     var showAddMenu by remember { mutableStateOf(false) }
+    var showAddDropdown by remember { mutableStateOf(false) }
+    var overflowMenuPage by remember { mutableStateOf(OverflowMenuPage.MAIN) }
     var showDeleteAllDialog by remember { mutableStateOf(false) }
     var showDeleteDuplicatesDialog by remember { mutableStateOf(false) }
     var showDeleteOptionsDialog by remember { mutableStateOf(false) }
@@ -711,29 +721,11 @@ fun MainScreen(
                                     .height(50.dp)
                             )
                         } else {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                Text(
-                                    text = "AryanaNG",
-                                    style = MaterialTheme.typography.titleLarge,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Box(
-                                    modifier = Modifier
-                                        .clip(CircleShape)
-                                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.2f))
-                                        .padding(horizontal = 6.dp, vertical = 2.dp)
-                                ) {
-                                    Text(
-                                        text = "${uiState.profiles.size}",
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.primary
-                                    )
-                                }
-                            }
+                            Text(
+                                text = "AryanaNG",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold
+                            )
                         }
                     },
                     actions = {
@@ -741,134 +733,263 @@ fun MainScreen(
                             IconButton(onClick = { isSearchActive = true }) {
                                 Icon(Icons.Default.Search, contentDescription = "Search")
                             }
-                        }
-                        Box {
-                            IconButton(onClick = { showAddMenu = true }) {
-                                Icon(Icons.Default.Add, contentDescription = "Add")
-                            }
-                            DropdownMenu(
-                                expanded = showAddMenu,
-                                onDismissRequest = { showAddMenu = false }
-                            ) {
-                                DropdownMenuItem(
-                                    text = { Text("Import from QR code") },
-                                    leadingIcon = { Icon(Icons.Default.QrCode2, contentDescription = null) },
-                                    onClick = {
-                                        showAddMenu = false
-                                        val options = ScanOptions().apply {
-                                            setDesiredBarcodeFormats(ScanOptions.QR_CODE)
-                                            setPrompt("Scan Aryana QR Code")
-                                            setBeepEnabled(true)
-                                            setOrientationLocked(false)
+                            Box {
+                                IconButton(onClick = { showAddDropdown = true }) {
+                                    Icon(Icons.Default.Add, contentDescription = "Add")
+                                }
+                                DropdownMenu(
+                                    expanded = showAddDropdown,
+                                    onDismissRequest = { showAddDropdown = false }
+                                ) {
+                                    DropdownMenuItem(
+                                        text = { Text("Import from QR code") },
+                                        leadingIcon = { Icon(Icons.Default.QrCode2, contentDescription = null) },
+                                        onClick = {
+                                            showAddDropdown = false
+                                            val options = ScanOptions().apply {
+                                                setDesiredBarcodeFormats(ScanOptions.QR_CODE)
+                                                setPrompt("Scan Aryana QR Code")
+                                                setBeepEnabled(true)
+                                                setOrientationLocked(false)
+                                            }
+                                            qrScanLauncher.launch(options)
                                         }
-                                        qrScanLauncher.launch(options)
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("Import from clipboard") },
+                                        leadingIcon = { Icon(Icons.Default.ContentCopy, contentDescription = null) },
+                                        onClick = {
+                                            showAddDropdown = false
+                                            val clip = clipboardManager.getText()?.text
+                                            if (!clip.isNullOrBlank()) {
+                                                viewModel.parseImportConfig(clip)
+                                            } else {
+                                                scope.launch { snackbarHostState.showSnackbar("Clipboard is empty") }
+                                            }
+                                        }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("Import from local file") },
+                                        leadingIcon = { Icon(Icons.Default.FileDownload, contentDescription = null) },
+                                        onClick = {
+                                            showAddDropdown = false
+                                            importFileLauncher.launch(arrayOf("*/*"))
+                                        }
+                                    )
+                                    HorizontalDivider()
+                                    DropdownMenuItem(
+                                        text = { Text("Add new profile") },
+                                        leadingIcon = { Icon(Icons.Default.Add, contentDescription = null) },
+                                        onClick = {
+                                            showAddDropdown = false
+                                            showAddMenu = true
+                                        }
+                                    )
+                                }
+                            }
+                            Box {
+                                IconButton(onClick = {
+                                    overflowMenuPage = OverflowMenuPage.MAIN
+                                    showOverflowMenu = true
+                                }) {
+                                    Icon(Icons.Default.MoreVert, contentDescription = "More")
+                                }
+                                DropdownMenu(
+                                    expanded = showOverflowMenu,
+                                    onDismissRequest = {
+                                        showOverflowMenu = false
+                                        overflowMenuPage = OverflowMenuPage.MAIN
                                     }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text("Import from clipboard") },
-                                    leadingIcon = { Icon(Icons.Default.ContentCopy, contentDescription = null) },
-                                    onClick = {
-                                        showAddMenu = false
-                                        val clip = clipboardManager.getText()?.text
-                                        if (!clip.isNullOrBlank()) {
-                                            viewModel.parseImportConfig(clip)
-                                        } else {
-                                            scope.launch { snackbarHostState.showSnackbar("Clipboard is empty") }
+                                ) {
+                                    when (overflowMenuPage) {
+                                        OverflowMenuPage.MAIN -> {
+                                            DropdownMenuItem(
+                                                text = { Text("Restart service") },
+                                                leadingIcon = { Icon(Icons.Default.Refresh, contentDescription = null) },
+                                                onClick = {
+                                                    showOverflowMenu = false
+                                                    viewModel.restartService()
+                                                    scope.launch { snackbarHostState.showSnackbar("Restarting service...") }
+                                                }
+                                            )
+                                            DropdownMenuItem(
+                                                text = { Text("Delete configs") },
+                                                leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null) },
+                                                trailingIcon = { Text(" > ", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                                                onClick = { overflowMenuPage = OverflowMenuPage.DELETE },
+                                                enabled = uiState.profiles.isNotEmpty()
+                                            )
+                                            DropdownMenuItem(
+                                                text = { Text("Export config to clipboard") },
+                                                leadingIcon = { Icon(Icons.Default.ContentCopy, contentDescription = null) },
+                                                trailingIcon = { Text(" > ", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                                                onClick = { overflowMenuPage = OverflowMenuPage.EXPORT },
+                                                enabled = uiState.profiles.isNotEmpty()
+                                            )
+                                            HorizontalDivider()
+                                            DropdownMenuItem(
+                                                text = { Text("Ping") },
+                                                leadingIcon = { Icon(Icons.Default.NetworkPing, contentDescription = null) },
+                                                trailingIcon = { Text(" > ", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                                                onClick = { overflowMenuPage = OverflowMenuPage.PING },
+                                                enabled = uiState.profiles.isNotEmpty()
+                                            )
+                                            DropdownMenuItem(
+                                                text = { Text("Sort by") },
+                                                leadingIcon = { Icon(Icons.Default.Dns, contentDescription = null) },
+                                                trailingIcon = { Text(" > ", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                                                onClick = { overflowMenuPage = OverflowMenuPage.SORT },
+                                                enabled = uiState.profiles.isNotEmpty()
+                                            )
+                                        }
+                                        OverflowMenuPage.DELETE -> {
+                                            DropdownMenuItem(
+                                                text = { Text("Back", fontWeight = FontWeight.Bold) },
+                                                leadingIcon = { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null) },
+                                                onClick = { overflowMenuPage = OverflowMenuPage.MAIN }
+                                            )
+                                            HorizontalDivider()
+                                            DropdownMenuItem(
+                                                text = { Text("Delete invalid (-1 ms) configs") },
+                                                onClick = {
+                                                    showOverflowMenu = false
+                                                    viewModel.deleteProfilesMatching { p ->
+                                                        val res = uiState.pingResults[p.id]
+                                                        res != null && res is PingResult.Error
+                                                    }
+                                                    scope.launch { snackbarHostState.showSnackbar("Deleted invalid configs") }
+                                                }
+                                            )
+                                            DropdownMenuItem(
+                                                text = { Text("Delete valid configs") },
+                                                onClick = {
+                                                    showOverflowMenu = false
+                                                    viewModel.deleteProfilesMatching { p ->
+                                                        val res = uiState.pingResults[p.id]
+                                                        res != null && res is PingResult.Success && res.latencyMs > 0
+                                                    }
+                                                    scope.launch { snackbarHostState.showSnackbar("Deleted valid configs") }
+                                                }
+                                            )
+                                            val currentGroup = groupTabs.getOrNull(selectedCategoryIndex)?.first ?: ""
+                                            if (currentGroup.isNotBlank() && currentGroup != "All" && currentGroup != "Default") {
+                                                DropdownMenuItem(
+                                                    text = { Text("Delete this subscription configs") },
+                                                    onClick = {
+                                                        showOverflowMenu = false
+                                                        viewModel.deleteProfilesMatching { it.subscriptionGroup == currentGroup }
+                                                        scope.launch { snackbarHostState.showSnackbar("Deleted configs of $currentGroup") }
+                                                    }
+                                                )
+                                            }
+                                            DropdownMenuItem(
+                                                text = { Text("Delete all subscription configs") },
+                                                onClick = {
+                                                    showOverflowMenu = false
+                                                    viewModel.deleteProfilesMatching { it.subscriptionGroup.isNotBlank() }
+                                                    scope.launch { snackbarHostState.showSnackbar("Deleted all subscription configs") }
+                                                }
+                                            )
+                                        }
+                                        OverflowMenuPage.EXPORT -> {
+                                            DropdownMenuItem(
+                                                text = { Text("Back", fontWeight = FontWeight.Bold) },
+                                                leadingIcon = { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null) },
+                                                onClick = { overflowMenuPage = OverflowMenuPage.MAIN }
+                                            )
+                                            HorizontalDivider()
+                                            DropdownMenuItem(
+                                                text = { Text("Export invalid (-1 ms) configs") },
+                                                onClick = {
+                                                    showOverflowMenu = false
+                                                    val str = viewModel.exportProfilesToClipboard { p ->
+                                                        val res = uiState.pingResults[p.id]
+                                                        res != null && res is PingResult.Error
+                                                    }
+                                                    clipboardManager.setText(AnnotatedString(str))
+                                                    scope.launch { snackbarHostState.showSnackbar("Copied invalid configs to clipboard") }
+                                                }
+                                            )
+                                            DropdownMenuItem(
+                                                text = { Text("Export valid configs") },
+                                                onClick = {
+                                                    showOverflowMenu = false
+                                                    val str = viewModel.exportProfilesToClipboard { p ->
+                                                        val res = uiState.pingResults[p.id]
+                                                        res != null && res is PingResult.Success && res.latencyMs > 0
+                                                    }
+                                                    clipboardManager.setText(AnnotatedString(str))
+                                                    scope.launch { snackbarHostState.showSnackbar("Copied valid configs to clipboard") }
+                                                }
+                                            )
+                                            val currentGroup = groupTabs.getOrNull(selectedCategoryIndex)?.first ?: ""
+                                            if (currentGroup.isNotBlank() && currentGroup != "All" && currentGroup != "Default") {
+                                                DropdownMenuItem(
+                                                    text = { Text("Export this subscription configs") },
+                                                    onClick = {
+                                                        showOverflowMenu = false
+                                                        val str = viewModel.exportProfilesToClipboard { it.subscriptionGroup == currentGroup }
+                                                        clipboardManager.setText(AnnotatedString(str))
+                                                        scope.launch { snackbarHostState.showSnackbar("Copied configs of $currentGroup") }
+                                                    }
+                                                )
+                                            }
+                                            DropdownMenuItem(
+                                                text = { Text("Export all configs") },
+                                                onClick = {
+                                                    showOverflowMenu = false
+                                                    val str = viewModel.exportProfilesToClipboard { true }
+                                                    clipboardManager.setText(AnnotatedString(str))
+                                                    scope.launch { snackbarHostState.showSnackbar("Copied all configs to clipboard") }
+                                                }
+                                            )
+                                        }
+                                        OverflowMenuPage.PING -> {
+                                            DropdownMenuItem(
+                                                text = { Text("Back", fontWeight = FontWeight.Bold) },
+                                                leadingIcon = { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null) },
+                                                onClick = { overflowMenuPage = OverflowMenuPage.MAIN }
+                                            )
+                                            HorizontalDivider()
+                                            DropdownMenuItem(
+                                                text = { Text(if (uiState.isPingRunning) "Stop ping test" else "Real delay") },
+                                                onClick = {
+                                                    showOverflowMenu = false
+                                                    viewModel.pingAllProfiles()
+                                                }
+                                            )
+                                            DropdownMenuItem(
+                                                text = { Text("Tcping") },
+                                                onClick = {
+                                                    showOverflowMenu = false
+                                                    viewModel.pingAllProfilesSimple()
+                                                }
+                                            )
+                                        }
+                                        OverflowMenuPage.SORT -> {
+                                            DropdownMenuItem(
+                                                text = { Text("Back", fontWeight = FontWeight.Bold) },
+                                                leadingIcon = { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null) },
+                                                onClick = { overflowMenuPage = OverflowMenuPage.MAIN }
+                                            )
+                                            HorizontalDivider()
+                                            DropdownMenuItem(
+                                                text = { Text("Sort by test results") },
+                                                onClick = {
+                                                    showOverflowMenu = false
+                                                    viewModel.sortProfilesByPing()
+                                                }
+                                            )
+                                            DropdownMenuItem(
+                                                text = { Text("Sort by protocol") },
+                                                onClick = {
+                                                    showOverflowMenu = false
+                                                    viewModel.sortProfilesByProtocol()
+                                                }
+                                            )
                                         }
                                     }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text("Import from local file") },
-                                    leadingIcon = { Icon(Icons.Default.FileDownload, contentDescription = null) },
-                                    onClick = {
-                                        showAddMenu = false
-                                        importFileLauncher.launch(arrayOf("*/*"))
-                                    }
-                                )
-                                HorizontalDivider()
-                                DropdownMenuItem(
-                                    text = { Text("Add new profile") },
-                                    leadingIcon = { Icon(Icons.Default.Add, contentDescription = null) },
-                                    onClick = {
-                                        showAddMenu = false
-                                        onNavigateToAddProfile("")
-                                    }
-                                )
-                            }
-                        }
-                        Box {
-                            IconButton(onClick = { showOverflowMenu = true }) {
-                                Icon(Icons.Default.MoreVert, contentDescription = "More")
-                            }
-                            DropdownMenu(
-                                expanded = showOverflowMenu,
-                                onDismissRequest = { showOverflowMenu = false }
-                            ) {
-                                DropdownMenuItem(
-                                    text = { Text("Restart service") },
-                                    leadingIcon = { Icon(Icons.Default.Refresh, contentDescription = null) },
-                                    onClick = {
-                                        showOverflowMenu = false
-                                        viewModel.restartService()
-                                        scope.launch { snackbarHostState.showSnackbar("Restarting service...") }
-                                    }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text("Delete configs") },
-                                    leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null) },
-                                    onClick = {
-                                        showOverflowMenu = false
-                                        showDeleteOptionsDialog = true
-                                    },
-                                    enabled = uiState.profiles.isNotEmpty()
-                                )
-                                DropdownMenuItem(
-                                    text = { Text("Export config to clipboard") },
-                                    leadingIcon = { Icon(Icons.Default.ContentCopy, contentDescription = null) },
-                                    onClick = {
-                                        showOverflowMenu = false
-                                        showExportOptionsDialog = true
-                                    },
-                                    enabled = uiState.profiles.isNotEmpty()
-                                )
-                                HorizontalDivider()
-                                DropdownMenuItem(
-                                    text = { Text(if (uiState.isPingRunning) "Stop ping test" else "Ping (Real delay)") },
-                                    leadingIcon = { Icon(Icons.Default.NetworkPing, contentDescription = null) },
-                                    onClick = {
-                                        showOverflowMenu = false
-                                        viewModel.pingAllProfiles()
-                                    },
-                                    enabled = uiState.profiles.isNotEmpty()
-                                )
-                                DropdownMenuItem(
-                                    text = { Text("Ping (Tcping)") },
-                                    leadingIcon = { Icon(Icons.Default.NetworkPing, contentDescription = null) },
-                                    onClick = {
-                                        showOverflowMenu = false
-                                        viewModel.pingAllProfilesSimple()
-                                    },
-                                    enabled = uiState.profiles.isNotEmpty()
-                                )
-                                HorizontalDivider()
-                                DropdownMenuItem(
-                                    text = { Text("Sort by test results") },
-                                    leadingIcon = { Icon(Icons.Default.NetworkPing, contentDescription = null) },
-                                    onClick = {
-                                        showOverflowMenu = false
-                                        viewModel.sortProfilesByPing()
-                                    },
-                                    enabled = uiState.pingResults.isNotEmpty()
-                                )
-                                DropdownMenuItem(
-                                    text = { Text("Sort by protocol") },
-                                    leadingIcon = { Icon(Icons.Default.Dns, contentDescription = null) },
-                                    onClick = {
-                                        showOverflowMenu = false
-                                        viewModel.sortProfilesByProtocol()
-                                    },
-                                    enabled = uiState.profiles.isNotEmpty()
-                                )
+                                }
                             }
                         }
                     },
@@ -965,74 +1086,41 @@ fun MainScreen(
                     }
                 }
 
-                // Auto ping on first subscription entrance
-                var hasAutoPinged by remember { mutableStateOf(false) }
-                LaunchedEffect(selectedCategoryIndex) {
-                    if (!hasAutoPinged && uiState.profiles.isNotEmpty()) {
-                        hasAutoPinged = true
-                        viewModel.pingAllProfiles()
-                    }
-                }
-
-                // Subscription Info Card (Matching PattNG)
+                // Subscription Info Card (Shown only when in a real subscription group and configs exist)
                 val currentGroupName = groupTabs.getOrNull(selectedCategoryIndex)?.first ?: "All"
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 4.dp),
-                    shape = RoundedCornerShape(10.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
-                    )
-                ) {
-                    Column(
-                        modifier = Modifier.padding(12.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "Subscription: $currentGroupName",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 13.sp,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                            Text(
-                                text = "Expires: 2026-12-31",
-                                fontSize = 11.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-
-                        LinearProgressIndicator(
-                            progress = { 0.28f },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(6.dp)
-                                .clip(RoundedCornerShape(3.dp)),
-                            color = MaterialTheme.colorScheme.primary,
-                            trackColor = MaterialTheme.colorScheme.surfaceVariant
+                val subProfiles = displayedProfiles.filter { it.subscriptionGroup.isNotBlank() }
+                if (currentGroupName != "All" && currentGroupName != "Default" && subProfiles.isNotEmpty()) {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 4.dp),
+                        shape = RoundedCornerShape(10.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
                         )
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            Text(
-                                text = "Used: 14.2 GB / 50.0 GB",
-                                fontSize = 11.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Text(
-                                text = "${displayedProfiles.size} configs",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = MaterialTheme.colorScheme.primary
-                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "Subscription: $currentGroupName",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.sp,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                Text(
+                                    text = "${subProfiles.size} configs",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
                         }
                     }
                 }
@@ -3016,7 +3104,7 @@ private fun ConnectionStatusStrip(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(start = 22.dp),
+                            .padding(start = 22.dp, end = 88.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         // Live speed
