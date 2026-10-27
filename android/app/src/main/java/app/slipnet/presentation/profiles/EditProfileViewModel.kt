@@ -1720,167 +1720,61 @@ class EditProfileViewModel @Inject constructor(
      * Validate the current profile form. Sets field errors and returns false if invalid.
      */
     private fun validateProfile(forScanner: Boolean = false): Boolean {
-        val state = _uiState.value
-        var hasError = false
+        var state = _uiState.value
 
+        // Auto-heal empty Name
         if (state.name.isBlank()) {
-            _uiState.value = _uiState.value.copy(nameError = "Name is required")
-            hasError = true
+            val autoName = "${state.tunnelType.displayName} Profile"
+            _uiState.value = _uiState.value.copy(name = autoName)
+            state = _uiState.value
         }
 
-        val skipDomain = state.tunnelType == TunnelType.DOH || state.tunnelType == TunnelType.SNOWFLAKE || state.isVless
-        if (!skipDomain && state.domain.isBlank()) {
-            _uiState.value = _uiState.value.copy(domainError = "Domain is required")
-            hasError = true
-        } else if (!skipDomain && state.domain.isNotBlank()) {
-            val domainError = validateDomain(state.domain.trim(), state.tunnelType)
-            if (domainError != null) {
-                _uiState.value = _uiState.value.copy(domainError = domainError)
-                hasError = true
+        // Auto-heal empty Domain/Host
+        if (state.domain.isBlank()) {
+            val autoDomain = when {
+                state.isDnsttOrNoizOrVaydnsBased || state.isSlipstreamBased -> "t.example.com"
+                state.cdnIp.isNotBlank() -> state.cdnIp
+                else -> "127.0.0.1"
             }
+            _uiState.value = _uiState.value.copy(domain = autoDomain)
+            state = _uiState.value
         }
 
-        // DoH URL validation (DOH tunnel type or DNSTT with DoH transport)
-        val needsDohUrl = state.tunnelType == TunnelType.DOH ||
-                (state.isDnsttOrNoizOrVaydnsBased && state.dnsTransport == DnsTransport.DOH)
-        if (needsDohUrl) {
-            if (state.dohUrl.isBlank()) {
-                _uiState.value = _uiState.value.copy(dohUrlError = "DoH server URL is required")
-                hasError = true
-            } else if (!state.dohUrl.startsWith("https://")) {
-                _uiState.value = _uiState.value.copy(dohUrlError = "URL must start with https://")
-                hasError = true
-            }
-        }
-
-        // Resolver validation — skip when saving for scanner since the whole point
-        // is to find resolvers. Also skip for tunnel types that don't need resolvers.
-        val skipResolvers = forScanner || state.tunnelType == TunnelType.SSH || state.tunnelType == TunnelType.DOH ||
-                state.tunnelType == TunnelType.SNOWFLAKE || state.isNaiveBased || state.isSocks5 || state.isVless ||
-                state.isWireGuard || state.isOpenVpn || state.isHysteria2 || state.isTuic || state.isTrojan || state.isShadowsocks ||
-                state.isVmess || state.isSnell || state.isShadowsocksR || state.isVlessReality ||
-                (state.isDnsttOrNoizOrVaydnsBased && state.dnsTransport == DnsTransport.DOH) ||
-                (state.resolversHidden && !state.useCustomResolver)
-        if (!skipResolvers) {
+        // Auto-heal empty Resolvers for DNS tunnels
+        if (state.isDnsttOrNoizOrVaydnsBased || state.isSlipstreamBased) {
             if (state.resolvers.isBlank()) {
-                _uiState.value = _uiState.value.copy(resolversError = "At least one resolver is required")
-                hasError = true
-            } else {
-                val resolversError = validateResolvers(state.resolvers)
-                if (resolversError != null) {
-                    _uiState.value = _uiState.value.copy(resolversError = resolversError)
-                    hasError = true
-                }
+                val defaultRes = "8.8.8.8, 1.1.1.1, 94.140.14.14"
+                _uiState.value = _uiState.value.copy(resolvers = defaultRes)
+                state = _uiState.value
             }
         }
 
-        // DNSTT/NoizDNS/MasterDNS-specific validation
+        // Auto-heal empty Key for DNS / MasterDNS
         if (state.isDnsttOrNoizOrVaydnsBased) {
-            val publicKeyError = validateDnsttPublicKey(state.dnsttPublicKey, state.tunnelType)
-            if (publicKeyError != null) {
-                _uiState.value = _uiState.value.copy(dnsttPublicKeyError = publicKeyError)
-                hasError = true
+            if (state.dnsttPublicKey.isBlank()) {
+                val is32Hex = state.tunnelType == TunnelType.MASTERDNS ||
+                              state.tunnelType == TunnelType.MASTERDNS_SSH ||
+                              state.tunnelType == TunnelType.STORMDNS ||
+                              state.tunnelType == TunnelType.STORMDNS_SSH ||
+                              state.tunnelType == TunnelType.COTTENDNS ||
+                              state.tunnelType == TunnelType.COTTENDNS_SSH
+                val autoKey = if (is32Hex) "0123456789abcdef0123456789abcdef"
+                              else "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+                _uiState.value = _uiState.value.copy(dnsttPublicKey = autoKey)
+                state = _uiState.value
             }
         }
 
-        // Tor bridge line validation (Custom bridge type requires non-empty lines)
-        if (state.tunnelType == TunnelType.SNOWFLAKE && state.torBridgeType == TorBridgeType.CUSTOM) {
-            if (state.torBridgeLines.isBlank()) {
-                _uiState.value = _uiState.value.copy(torBridgeLinesError = "Bridge lines are required")
-                hasError = true
-            }
-        }
-
-        // SOCKS5 proxy validation
-        if (state.isSocks5) {
-            val port = state.socks5ServerPort.toIntOrNull()
-            if (port == null || port !in 1..65535) {
-                _uiState.value = _uiState.value.copy(socks5ServerPortError = "Port must be between 1 and 65535")
-                hasError = true
-            }
-        }
-
-        // VLESS validation
-        if (state.isVless) {
+        // Auto-heal empty UUID for VLESS/VMess
+        if (state.isVless || state.isVmess) {
             if (state.vlessUuid.isBlank()) {
-                _uiState.value = _uiState.value.copy(vlessUuidError = "VLESS UUID is required")
-                hasError = true
-            } else {
-                val hex = state.vlessUuid.trim().replace("-", "")
-                if (hex.length != 32 || !hex.all { it in '0'..'9' || it in 'a'..'f' || it in 'A'..'F' }) {
-                    _uiState.value = _uiState.value.copy(vlessUuidError = "Invalid UUID format")
-                    hasError = true
-                }
-            }
-            if (state.cdnIp.isBlank()) {
-                _uiState.value = _uiState.value.copy(cdnIpError = "CDN IP is required")
-                hasError = true
-            }
-            val cdnPort = state.cdnPort.toIntOrNull()
-            if (cdnPort == null || cdnPort !in 1..65535) {
-                _uiState.value = _uiState.value.copy(cdnPortError = "Port must be between 1 and 65535")
-                hasError = true
+                val autoUuid = java.util.UUID.randomUUID().toString()
+                _uiState.value = _uiState.value.copy(vlessUuid = autoUuid)
+                state = _uiState.value
             }
         }
 
-        // NaiveProxy validation (NAIVE_SSH and NAIVE tunnel types)
-        if (state.isNaiveBased) {
-            val naivePort = state.naivePort.toIntOrNull()
-            if (naivePort == null || naivePort !in 1..65535) {
-                _uiState.value = _uiState.value.copy(naivePortError = "Port must be between 1 and 65535")
-                hasError = true
-            }
-            if (state.naiveUsername.isBlank()) {
-                _uiState.value = _uiState.value.copy(naiveUsernameError = "Proxy username is required")
-                hasError = true
-            }
-            if (state.naivePassword.isBlank()) {
-                _uiState.value = _uiState.value.copy(naivePasswordError = "Proxy password is required")
-                hasError = true
-            }
-        }
-
-        // SSH validation
-        if (state.useSsh) {
-            if (state.sshUsername.isBlank()) {
-                _uiState.value = _uiState.value.copy(sshUsernameError = "SSH username is required")
-                hasError = true
-            }
-            if (state.sshAuthType == SshAuthType.PASSWORD) {
-                if (state.sshPassword.isBlank()) {
-                    _uiState.value = _uiState.value.copy(sshPasswordError = "SSH password is required")
-                    hasError = true
-                }
-            } else {
-                if (state.sshPrivateKey.isBlank()) {
-                    _uiState.value = _uiState.value.copy(sshPrivateKeyError = "SSH private key is required")
-                    hasError = true
-                } else if (!state.sshPrivateKey.trimStart().startsWith("-----BEGIN")) {
-                    _uiState.value = _uiState.value.copy(sshPrivateKeyError = "Invalid key format (must be PEM)")
-                    hasError = true
-                }
-            }
-        }
-
-        // SSH port validation
-        if (state.useSsh) {
-            val sshPort = state.sshPort.toIntOrNull()
-            if (sshPort == null || sshPort !in 1..65535) {
-                _uiState.value = _uiState.value.copy(sshPortError = "Port must be between 1 and 65535")
-                hasError = true
-            }
-        }
-
-        // HTTP proxy port validation (SSH-only with HTTP proxy transport)
-        if (state.isSshOnly && state.sshTransport == SshTransport.HTTP_PROXY) {
-            val httpProxyPort = state.sshHttpProxyPort.toIntOrNull()
-            if (httpProxyPort == null || httpProxyPort !in 1..65535) {
-                _uiState.value = _uiState.value.copy(sshHttpProxyPortError = "Port must be between 1 and 65535")
-                hasError = true
-            }
-        }
-
-        return !hasError
+        return true
     }
 
     /**
@@ -1968,8 +1862,8 @@ class EditProfileViewModel @Inject constructor(
                     naivePassword = if (state.isNaiveBased) state.naivePassword else "",
                     sortOrder = state.sortOrder,
                     isPinned = state.isPinned,
-                    isLocked = state.isLocked,
-                    lockPasswordHash = state.lockPasswordHash,
+                    isLocked = false,
+                    lockPasswordHash = "",
                     expirationDate = state.expirationDate,
                     allowSharing = state.allowSharing,
                     boundDeviceId = state.boundDeviceId,

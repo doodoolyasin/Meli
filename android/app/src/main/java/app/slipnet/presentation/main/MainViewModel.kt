@@ -954,6 +954,44 @@ class MainViewModel @Inject constructor(
         }
     }
 
+    fun sortProfilesByProtocol() {
+        val current = _uiState.value.profiles
+        val sorted = current.sortedBy { it.tunnelType.displayName }
+        if (sorted == current) return
+        _uiState.value = _uiState.value.copy(profiles = sorted)
+        viewModelScope.launch {
+            profileRepository.updateProfileOrder(sorted.map { it.id })
+        }
+    }
+
+    fun deleteProfilesMatching(predicate: (ServerProfile) -> Boolean) {
+        viewModelScope.launch {
+            val connectedId = (_uiState.value.connectionState as? ConnectionState.Connected)?.profile?.id
+            val targets = _uiState.value.profiles.filter(predicate)
+            for (p in targets) {
+                if (p.id != connectedId) {
+                    deleteProfileUseCase(p.id)
+                }
+            }
+        }
+    }
+
+    fun exportProfilesToClipboard(predicate: (ServerProfile) -> Boolean): String {
+        val targets = _uiState.value.profiles.filter(predicate)
+        return targets.joinToString("\n") { configExporter.exportStandardUri(it) }
+    }
+
+    fun restartService() {
+        viewModelScope.launch {
+            val active = _uiState.value.activeProfile
+            if (active != null) {
+                connectionManager.disconnect()
+                kotlinx.coroutines.delay(600)
+                connectProfile(active)
+            }
+        }
+    }
+
     /**
      * E2E test for DNS-tunneled profiles: starts a real tunnel with the first resolver,
      * performs a handshake and HTTP/SSH verification, then reports total latency.

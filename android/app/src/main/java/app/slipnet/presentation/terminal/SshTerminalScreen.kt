@@ -247,7 +247,7 @@ fun SshTerminalScreen(
                             OutlinedTextField(
                                 value = newHostName,
                                 onValueChange = { newHostName = it },
-                                label = { Text("Host Alias (e.g. امازون۱, iran)") },
+                                label = { Text("Host Alias (e.g. Amazon-1, iran)") },
                                 singleLine = true,
                                 modifier = Modifier.fillMaxWidth()
                             )
@@ -332,7 +332,7 @@ fun SshTerminalScreen(
                             OutlinedTextField(
                                 value = tabTitle,
                                 onValueChange = { tabTitle = it },
-                                label = { Text("Tab Title (e.g. امازون۱)") },
+                                label = { Text("Tab Title (e.g. Amazon-1)") },
                                 singleLine = true,
                                 modifier = Modifier.fillMaxWidth()
                             )
@@ -1042,17 +1042,17 @@ private fun TermiusSessionScreen(
             }
         }
 
-        // Interactive Command Input Line
+        // Termius Direct Keystroke Input Capture (Pressing Enter sends \r to SSH stdin, no Send button needed)
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(termSurface)
-                .padding(horizontal = 8.dp, vertical = 6.dp),
+                .padding(horizontal = 8.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "$ ",
-                color = Color(0xFF00FF66),
+                text = "❯ ",
+                color = Color(0xFF00E5FF),
                 fontFamily = FontFamily.Monospace,
                 fontWeight = FontWeight.Bold,
                 fontSize = 14.sp
@@ -1060,28 +1060,28 @@ private fun TermiusSessionScreen(
             OutlinedTextField(
                 value = uiState.currentCommand,
                 onValueChange = { viewModel.updateCommand(it) },
-                placeholder = { Text("Enter command...", fontSize = 12.sp, color = Color(0xFF6E7681)) },
+                placeholder = { Text("Type command & press Return (⏎)...", fontSize = 11.sp, color = Color(0xFF6E7681)) },
                 singleLine = true,
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-                keyboardActions = KeyboardActions(onSend = {
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(onDone = {
                     viewModel.sendCommand()
                 }),
                 textStyle = MaterialTheme.typography.bodySmall.copy(
                     fontFamily = FontFamily.Monospace,
                     color = Color.White
                 ),
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f),
+                shape = RoundedCornerShape(8.dp)
             )
             Spacer(Modifier.width(6.dp))
             IconButton(
                 onClick = { viewModel.sendCommand() },
-                enabled = uiState.currentCommand.isNotBlank()
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Color(0xFF2563EB))
             ) {
-                Icon(
-                    Icons.AutoMirrored.Filled.Send,
-                    contentDescription = "Send",
-                    tint = if (uiState.currentCommand.isNotBlank()) Color(0xFF00FF66) else Color.Gray
-                )
+                Text("⏎", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
             }
         }
     }

@@ -142,16 +142,6 @@ fun ProfileListItem(
                         )
                     }
 
-                    if (profile.isLocked) {
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Icon(
-                            imageVector = Icons.Default.Lock,
-                            contentDescription = "Locked",
-                            modifier = Modifier.size(15.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-
                     // PattNG Inline Action Buttons
                     IconButton(
                         onClick = onExportClick,
@@ -239,21 +229,24 @@ fun ProfileListItem(
                 Spacer(modifier = Modifier.height(4.dp))
 
                 // Subtitle: Endpoint / Host / Port Details
-                val subtitleText = if (profile.isLocked) {
-                    "Protected Config (ARYANA://)"
-                } else {
-                    val hostPart = if (profile.cdnIp.isNotBlank()) profile.cdnIp else profile.domain
-                    when (profile.tunnelType) {
-                        TunnelType.DOH -> DOH_SERVERS.firstOrNull { it.url == profile.dohUrl }?.name ?: profile.dohUrl
-                        TunnelType.SSH -> "$hostPart:${profile.sshPort}"
-                        TunnelType.SNOWFLAKE -> "Tor / Snowflake Network"
-                        TunnelType.VLESS, TunnelType.VLESS_REALITY -> "$hostPart:${profile.cdnPort} (${profile.vlessTransport.ifBlank { "tcp" }})"
-                        TunnelType.VMESS, TunnelType.TROJAN -> "$hostPart:${profile.cdnPort}"
-                        TunnelType.WIREGUARD -> "$hostPart:${profile.cdnPort} (UDP)"
-                        TunnelType.AETHER -> "$hostPart:${profile.cdnPort} (MASQUE)"
-                        TunnelType.WARP -> "$hostPart:${profile.cdnPort} (WARP)"
-                        else -> "$hostPart:${profile.cdnPort.takeIf { it > 0 } ?: 53}"
-                    }
+                val hostPart = if (profile.cdnIp.isNotBlank()) profile.cdnIp else profile.domain
+                val subtitleText = when (profile.tunnelType) {
+                    TunnelType.DOH -> DOH_SERVERS.firstOrNull { it.url == profile.dohUrl }?.name ?: profile.dohUrl
+                    TunnelType.SSH -> "$hostPart:${profile.sshPort}"
+                    TunnelType.SNOWFLAKE -> "Tor / Snowflake Network"
+                    TunnelType.VLESS -> "$hostPart:${profile.cdnPort} (vless+${profile.vlessTransport.ifBlank { "ws" }})"
+                    TunnelType.VLESS_REALITY -> "$hostPart:${profile.cdnPort} (vless+reality)"
+                    TunnelType.VMESS -> "$hostPart:${profile.cdnPort} (vmess)"
+                    TunnelType.TROJAN -> "$hostPart:${profile.cdnPort} (trojan)"
+                    TunnelType.WIREGUARD -> "$hostPart:${profile.cdnPort} (wireguard)"
+                    TunnelType.AETHER -> "$hostPart:${profile.cdnPort} (masque/aether)"
+                    TunnelType.WARP -> "$hostPart:${profile.cdnPort} (warp)"
+                    TunnelType.MASTERDNS, TunnelType.MASTERDNS_SSH -> "$hostPart (masterdns)"
+                    TunnelType.MELI, TunnelType.MELI_SSH -> "$hostPart (melidns)"
+                    TunnelType.STORMDNS, TunnelType.STORMDNS_SSH -> "$hostPart (stormdns)"
+                    TunnelType.SLIPSTREAM, TunnelType.SLIPSTREAM_SSH -> "$hostPart (slipstream)"
+                    TunnelType.DNSTT, TunnelType.DNSTT_SSH -> "$hostPart (dnstt)"
+                    else -> "$hostPart:${profile.cdnPort.takeIf { it > 0 } ?: 53}"
                 }
 
                 Text(

@@ -87,10 +87,10 @@ data class SshTerminalUiState(
         SavedSshHost(name = "104.252.175.11", host = "104.252.175.11", port = "22", username = "root", osType = "ubuntu"),
         SavedSshHost(name = "iran", host = "95.182.80.85", port = "22", username = "root", osType = "ubuntu"),
         SavedSshHost(name = "turk", host = "185.220.101.5", port = "22", username = "root", osType = "ubuntu"),
-        SavedSshHost(name = "امازون۱", host = "45.38.249.16", port = "22", username = "yasin", password = "yasin", osType = "amazon")
+        SavedSshHost(name = "Amazon-1", host = "45.38.249.16", port = "22", username = "yasin", password = "yasin", osType = "amazon")
     ),
     val tabs: List<TerminalTab> = listOf(
-        TerminalTab(id = "tab-amazon", title = "امازون۱", host = "45.38.249.16", username = "yasin", osType = "amazon")
+        TerminalTab(id = "tab-amazon", title = "Amazon-1", host = "45.38.249.16", username = "yasin", osType = "amazon")
     ),
     val activeTabId: String = "tab-amazon",
     val isExtendedKeyboardVisible: Boolean = false,
@@ -269,8 +269,24 @@ class SshTerminalViewModel @Inject constructor() : ViewModel() {
                     if (state.password.isNotBlank()) {
                         session.setPassword(state.password)
                     }
+                    session.userInfo = object : com.jcraft.jsch.UserInfo, com.jcraft.jsch.UIKeyboardInteractive {
+                        override fun getPassphrase(): String = ""
+                        override fun getPassword(): String = state.password
+                        override fun promptPassword(message: String?): Boolean = true
+                        override fun promptPassphrase(message: String?): Boolean = true
+                        override fun promptYesNo(message: String?): Boolean = true
+                        override fun showMessage(message: String?) {}
+                        override fun promptKeyboardInteractive(
+                            destination: String?,
+                            name: String?,
+                            instruction: String?,
+                            prompt: Array<out String>?,
+                            echo: BooleanArray?
+                        ): Array<String> = arrayOf(state.password)
+                    }
                     session.setConfig("StrictHostKeyChecking", "no")
                     session.setConfig("PreferredAuthentications", "password,publickey,keyboard-interactive")
+                    session.setConfig("server_host_key", "ssh-ed25519,ecdsa-sha2-nistp256,ecdsa-sha2-nistp384,ecdsa-sha2-nistp521,rsa-sha2-512,rsa-sha2-256,ssh-rsa")
                     session.setServerAliveInterval(15)
                     session.setServerAliveCountMax(4)
                     session.connect(15000)
