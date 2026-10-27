@@ -39,6 +39,12 @@ enum class TerminalTheme(
     MONOKAI("Monokai", 0xFF272822, 0xFFA6E22E, 0xFF3E3D32, 0xFF49483E)
 }
 
+enum class TerminalNavTab {
+    VAULTS,
+    CONNECTIONS,
+    SETTINGS
+}
+
 data class SavedSshHost(
     val id: String = UUID.randomUUID().toString(),
     val name: String,
@@ -46,7 +52,9 @@ data class SavedSshHost(
     val port: String = "22",
     val username: String = "root",
     val password: String = "",
-    val privateKey: String = ""
+    val privateKey: String = "",
+    val osType: String = "ubuntu", // "ubuntu", "amazon", "debian", "centos", "linux"
+    val group: String = ""
 )
 
 data class TerminalTab(
@@ -54,10 +62,13 @@ data class TerminalTab(
     val title: String,
     val host: String,
     val port: String = "22",
-    val username: String = "root"
+    val username: String = "root",
+    val osType: String = "amazon"
 )
 
 data class SshTerminalUiState(
+    val currentNavTab: TerminalNavTab = TerminalNavTab.VAULTS,
+    val searchQuery: String = "",
     val host: String = "45.38.249.16",
     val port: String = "22",
     val username: String = "yasin",
@@ -72,11 +83,14 @@ data class SshTerminalUiState(
     val selectedTheme: TerminalTheme = TerminalTheme.TERMIUS_NAVY,
     val fontSizeSp: Int = 12,
     val savedHosts: List<SavedSshHost> = listOf(
-        SavedSshHost(name = "امازون۱", host = "45.38.249.16", port = "22", username = "yasin", password = "yasin"),
-        SavedSshHost(name = "Aryana VPS", host = "95.182.80.85", port = "22", username = "root", password = "")
+        SavedSshHost(name = "1", host = "104.252.175.11", port = "22", username = "root", osType = "ubuntu"),
+        SavedSshHost(name = "104.252.175.11", host = "104.252.175.11", port = "22", username = "root", osType = "ubuntu"),
+        SavedSshHost(name = "iran", host = "95.182.80.85", port = "22", username = "root", osType = "ubuntu"),
+        SavedSshHost(name = "turk", host = "185.220.101.5", port = "22", username = "root", osType = "ubuntu"),
+        SavedSshHost(name = "امازون۱", host = "45.38.249.16", port = "22", username = "yasin", password = "yasin", osType = "amazon")
     ),
     val tabs: List<TerminalTab> = listOf(
-        TerminalTab(id = "tab-amazon", title = "امازون۱", host = "45.38.249.16", username = "yasin")
+        TerminalTab(id = "tab-amazon", title = "امازون۱", host = "45.38.249.16", username = "yasin", osType = "amazon")
     ),
     val activeTabId: String = "tab-amazon",
     val isExtendedKeyboardVisible: Boolean = false,
@@ -105,6 +119,14 @@ class SshTerminalViewModel @Inject constructor() : ViewModel() {
     @Volatile
     private var isReading = false
 
+    fun setNavTab(tab: TerminalNavTab) {
+        _uiState.value = _uiState.value.copy(currentNavTab = tab)
+    }
+
+    fun updateSearchQuery(query: String) {
+        _uiState.value = _uiState.value.copy(searchQuery = query)
+    }
+
     fun updateHost(value: String) { _uiState.value = _uiState.value.copy(host = value) }
     fun updatePort(value: String) { _uiState.value = _uiState.value.copy(port = value) }
     fun updateUsername(value: String) { _uiState.value = _uiState.value.copy(username = value) }
@@ -123,6 +145,19 @@ class SshTerminalViewModel @Inject constructor() : ViewModel() {
         _uiState.value = _uiState.value.copy(isExtendedKeyboardVisible = visible)
     }
 
+    fun selectHostAndConnect(saved: SavedSshHost) {
+        selectHost(saved)
+        // Add or switch to existing tab
+        val existing = _uiState.value.tabs.find { it.host == saved.host && it.username == saved.username }
+        if (existing != null) {
+            selectTab(existing)
+        } else {
+            addTab(title = saved.name, host = saved.host, username = saved.username, osType = saved.osType)
+        }
+        setNavTab(TerminalNavTab.CONNECTIONS)
+        connect()
+    }
+
     fun selectHost(saved: SavedSshHost) {
         _uiState.value = _uiState.value.copy(
             host = saved.host,
@@ -133,7 +168,7 @@ class SshTerminalViewModel @Inject constructor() : ViewModel() {
         )
     }
 
-    fun saveCurrentHost(label: String) {
+    fun saveCurrentHost(label: String, osType: String = "ubuntu", group: String = "") {
         val s = _uiState.value
         val newHost = SavedSshHost(
             name = label.ifBlank { "${s.username}@${s.host}" },
@@ -141,9 +176,17 @@ class SshTerminalViewModel @Inject constructor() : ViewModel() {
             port = s.port,
             username = s.username,
             password = s.password,
-            privateKey = s.privateKey
+            privateKey = s.privateKey,
+            osType = osType,
+            group = group
         )
         _uiState.value = s.copy(savedHosts = s.savedHosts + newHost)
+    }
+
+    fun deleteHost(id: String) {
+        _uiState.value = _uiState.value.copy(
+            savedHosts = _uiState.value.savedHosts.filter { it.id != id }
+        )
     }
 
     fun addCustomSnippet(snippet: String) {
@@ -152,8 +195,8 @@ class SshTerminalViewModel @Inject constructor() : ViewModel() {
         }
     }
 
-    fun addTab(title: String, host: String, username: String) {
-        val newTab = TerminalTab(title = title, host = host, username = username)
+    fun addTab(title: String, host: String, username: String, osType: String = "linux") {
+        val newTab = TerminalTab(title = title, host = host, username = username, osType = osType)
         _uiState.value = _uiState.value.copy(
             tabs = _uiState.value.tabs + newTab,
             activeTabId = newTab.id,

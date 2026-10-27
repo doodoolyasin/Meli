@@ -8,7 +8,10 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -40,15 +43,17 @@ fun SshTerminalScreen(
     viewModel: SshTerminalViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
-    var showConfigSheet by remember { mutableStateOf(false) }
-    var showThemesDialog by remember { mutableStateOf(false) }
+    var showActionBottomSheet by remember { mutableStateOf(false) }
+    var showNewHostDialog by remember { mutableStateOf(false) }
     var showSnippetsSheet by remember { mutableStateOf(false) }
     var showNewTabDialog by remember { mutableStateOf(false) }
-    var newTabTitle by remember { mutableStateOf("") }
-    var newTabHost by remember { mutableStateOf("") }
-    var newTabUser by remember { mutableStateOf("root") }
 
-    val outputScrollState = rememberScrollState()
+    var newHostName by remember { mutableStateOf("") }
+    var newHostIp by remember { mutableStateOf("") }
+    var newHostPort by remember { mutableStateOf("22") }
+    var newHostUser by remember { mutableStateOf("root") }
+    var newHostPass by remember { mutableStateOf("") }
+    var newHostOs by remember { mutableStateOf("ubuntu") }
 
     val currentTheme = uiState.selectedTheme
     val termBg = Color(currentTheme.bgHex)
@@ -56,191 +61,291 @@ fun SshTerminalScreen(
     val termSurface = Color(currentTheme.surfaceHex)
     val termKeyBg = Color(currentTheme.keyBgHex)
 
-    // Smooth auto-scroll when output updates
-    LaunchedEffect(uiState.output) {
-        if (uiState.isAutoScroll) {
-            outputScrollState.scrollTo(outputScrollState.maxValue)
-        }
-    }
-
     Scaffold(
         modifier = Modifier.imePadding(),
-        topBar = {
-            // Termius Header with Tabs
-            Surface(
-                color = termSurface,
-                shadowElevation = 4.dp
+        bottomBar = {
+            // Termius 3-Tab Bottom Navigation Bar (Vaults, Connections, Settings)
+            NavigationBar(
+                containerColor = termSurface,
+                tonalElevation = 8.dp
             ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .statusBarsPadding()
-                        .padding(horizontal = 8.dp, vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // Back button in rounded square
-                    IconButton(
-                        onClick = onNavigateBack,
-                        modifier = Modifier
-                            .size(36.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(termKeyBg)
-                    ) {
-                        Icon(
-                            Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back",
-                            tint = Color(0xFFE2E8F0),
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-
-                    Spacer(Modifier.width(8.dp))
-
-                    // Scrollable Session Tabs (Termius style)
-                    Row(
-                        modifier = Modifier
-                            .weight(1f)
-                            .horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        uiState.tabs.forEach { tab ->
-                            val isActive = tab.id == uiState.activeTabId
-                            var tabMenuExpanded by remember { mutableStateOf(false) }
-
-                            Row(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(if (isActive) Color(0xFF2D3748) else Color(0xFF1A202C))
-                                    .border(
-                                        width = 1.dp,
-                                        color = if (isActive) Color(0xFF4A5568) else Color.Transparent,
-                                        shape = RoundedCornerShape(8.dp)
-                                    )
-                                    .clickable { viewModel.selectTab(tab) }
-                                    .padding(start = 8.dp, end = 2.dp, top = 4.dp, bottom = 4.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                // Leaf / server icon
-                                Text("🌿", fontSize = 12.sp)
-                                Spacer(Modifier.width(6.dp))
-                                Text(
-                                    text = tab.title,
-                                    fontSize = 12.sp,
-                                    fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal,
-                                    color = if (isActive) Color.White else Color(0xFFA0AEC0),
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                                Spacer(Modifier.width(2.dp))
-                                Box {
-                                    IconButton(
-                                        onClick = { tabMenuExpanded = true },
-                                        modifier = Modifier.size(24.dp)
-                                    ) {
-                                        Icon(
-                                            Icons.Default.MoreVert,
-                                            contentDescription = "Tab options",
-                                            tint = Color(0xFFA0AEC0),
-                                            modifier = Modifier.size(16.dp)
-                                        )
-                                    }
-                                    DropdownMenu(
-                                        expanded = tabMenuExpanded,
-                                        onDismissRequest = { tabMenuExpanded = false }
-                                    ) {
-                                        DropdownMenuItem(
-                                            text = { Text("Reconnect") },
-                                            onClick = {
-                                                tabMenuExpanded = false
-                                                viewModel.connect()
-                                            },
-                                            leadingIcon = { Icon(Icons.Default.Refresh, contentDescription = null) }
-                                        )
-                                        DropdownMenuItem(
-                                            text = { Text("Disconnect") },
-                                            onClick = {
-                                                tabMenuExpanded = false
-                                                viewModel.disconnect()
-                                            },
-                                            leadingIcon = { Icon(Icons.Default.PowerSettingsNew, contentDescription = null) }
-                                        )
-                                        DropdownMenuItem(
-                                            text = { Text("Clear Output") },
-                                            onClick = {
-                                                tabMenuExpanded = false
-                                                viewModel.clearOutput()
-                                            },
-                                            leadingIcon = { Icon(Icons.Default.ClearAll, contentDescription = null) }
-                                        )
-                                        if (uiState.tabs.size > 1) {
-                                            HorizontalDivider()
-                                            DropdownMenuItem(
-                                                text = { Text("Close Tab", color = Color.Red) },
-                                                onClick = {
-                                                    tabMenuExpanded = false
-                                                    viewModel.closeTab(tab.id)
-                                                },
-                                                leadingIcon = { Icon(Icons.Default.Close, contentDescription = null, tint = Color.Red) }
-                                            )
-                                        }
-                                    }
-                                }
+                NavigationBarItem(
+                    selected = uiState.currentNavTab == TerminalNavTab.VAULTS,
+                    onClick = { viewModel.setNavTab(TerminalNavTab.VAULTS) },
+                    icon = { Icon(Icons.Default.VpnKey, contentDescription = "Vaults") },
+                    label = { Text("Vaults", fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = Color(0xFF00E5FF),
+                        selectedTextColor = Color(0xFF00E5FF),
+                        indicatorColor = Color(0xFF1E293B)
+                    )
+                )
+                NavigationBarItem(
+                    selected = uiState.currentNavTab == TerminalNavTab.CONNECTIONS,
+                    onClick = { viewModel.setNavTab(TerminalNavTab.CONNECTIONS) },
+                    icon = {
+                        BadgedBox(badge = {
+                            if (uiState.connectionState is TerminalConnectionState.Connected) {
+                                Badge(containerColor = Color(0xFF00FF66))
                             }
+                        }) {
+                            Icon(Icons.Default.Dns, contentDescription = "Connections")
                         }
-                    }
-
-                    Spacer(Modifier.width(8.dp))
-
-                    // Plus (+) button to add new tab
-                    IconButton(
-                        onClick = { showNewTabDialog = true },
-                        modifier = Modifier
-                            .size(36.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(termKeyBg)
-                    ) {
-                        Icon(
-                            Icons.Default.Add,
-                            contentDescription = "New Tab",
-                            tint = Color(0xFFE2E8F0),
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
+                    },
+                    label = { Text("Connections", fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = Color(0xFF00E5FF),
+                        selectedTextColor = Color(0xFF00E5FF),
+                        indicatorColor = Color(0xFF1E293B)
+                    )
+                )
+                NavigationBarItem(
+                    selected = uiState.currentNavTab == TerminalNavTab.SETTINGS,
+                    onClick = { viewModel.setNavTab(TerminalNavTab.SETTINGS) },
+                    icon = { Icon(Icons.Default.Settings, contentDescription = "Settings") },
+                    label = { Text("Settings", fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = Color(0xFF00E5FF),
+                        selectedTextColor = Color(0xFF00E5FF),
+                        indicatorColor = Color(0xFF1E293B)
+                    )
+                )
+            }
+        },
+        floatingActionButton = {
+            if (uiState.currentNavTab == TerminalNavTab.VAULTS) {
+                FloatingActionButton(
+                    onClick = { showActionBottomSheet = true },
+                    containerColor = Color(0xFF2563EB),
+                    contentColor = Color.White,
+                    shape = CircleShape,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = "Add Host", modifier = Modifier.size(26.dp))
                 }
             }
         }
     ) { padding ->
-        Column(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
                 .background(termBg)
         ) {
-            // New Tab Dialog
-            if (showNewTabDialog) {
+            when (uiState.currentNavTab) {
+                TerminalNavTab.VAULTS -> {
+                    TermiusHostsScreen(
+                        uiState = uiState,
+                        termBg = termBg,
+                        termSurface = termSurface,
+                        termKeyBg = termKeyBg,
+                        onNavigateBack = onNavigateBack,
+                        onSearchChange = { viewModel.updateSearchQuery(it) },
+                        onHostClick = { host -> viewModel.selectHostAndConnect(host) },
+                        onDeleteHost = { id -> viewModel.deleteHost(id) }
+                    )
+                }
+                TerminalNavTab.CONNECTIONS -> {
+                    TermiusSessionScreen(
+                        viewModel = viewModel,
+                        uiState = uiState,
+                        termBg = termBg,
+                        termText = termText,
+                        termSurface = termSurface,
+                        termKeyBg = termKeyBg,
+                        onNavigateBack = { viewModel.setNavTab(TerminalNavTab.VAULTS) },
+                        onNewTabClick = { showNewTabDialog = true },
+                        onSnippetsClick = { showSnippetsSheet = true }
+                    )
+                }
+                TerminalNavTab.SETTINGS -> {
+                    TermiusSettingsScreen(
+                        viewModel = viewModel,
+                        uiState = uiState,
+                        termSurface = termSurface,
+                        termKeyBg = termKeyBg,
+                        onNavigateBack = { viewModel.setNavTab(TerminalNavTab.VAULTS) }
+                    )
+                }
+            }
+
+            // Termius Bottom Sheet (FAB Action Menu: New Host, New Local, New Group, Quick Import)
+            if (showActionBottomSheet) {
+                ModalBottomSheet(
+                    onDismissRequest = { showActionBottomSheet = false },
+                    containerColor = termSurface
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp, vertical = 12.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        Text(
+                            text = "Add to Vault",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                        HorizontalDivider(color = Color(0xFF334155))
+
+                        TermiusSheetActionItem(
+                            icon = Icons.Default.Computer,
+                            title = "New host",
+                            subtitle = "Add remote SSH VPS or server instance",
+                            iconTint = Color(0xFF38BDF8)
+                        ) {
+                            showActionBottomSheet = false
+                            showNewHostDialog = true
+                        }
+
+                        TermiusSheetActionItem(
+                            icon = Icons.Default.Terminal,
+                            title = "New local",
+                            subtitle = "Local terminal session",
+                            iconTint = Color(0xFF4ADE80)
+                        ) {
+                            showActionBottomSheet = false
+                            viewModel.addTab("Local", "127.0.0.1", "local", "linux")
+                            viewModel.setNavTab(TerminalNavTab.CONNECTIONS)
+                        }
+
+                        TermiusSheetActionItem(
+                            icon = Icons.Default.Folder,
+                            title = "New group",
+                            subtitle = "Organize hosts into custom folders",
+                            iconTint = Color(0xFFFACC15)
+                        ) {
+                            showActionBottomSheet = false
+                        }
+
+                        TermiusSheetActionItem(
+                            icon = Icons.Default.CloudDownload,
+                            title = "Quick Import",
+                            subtitle = "Import SSH config, known_hosts or URI",
+                            iconTint = Color(0xFFA78BFA)
+                        ) {
+                            showActionBottomSheet = false
+                            showNewHostDialog = true
+                        }
+
+                        Spacer(Modifier.height(16.dp))
+                    }
+                }
+            }
+
+            // New Host Dialog
+            if (showNewHostDialog) {
                 AlertDialog(
-                    onDismissRequest = { showNewTabDialog = false },
-                    title = { Text("New SSH Session Tab") },
+                    onDismissRequest = { showNewHostDialog = false },
+                    title = { Text("New SSH Host") },
                     text = {
-                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Column(
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.verticalScroll(rememberScrollState())
+                        ) {
                             OutlinedTextField(
-                                value = newTabTitle,
-                                onValueChange = { newTabTitle = it },
-                                label = { Text("Tab Title (e.g. Amazon 1)") },
+                                value = newHostName,
+                                onValueChange = { newHostName = it },
+                                label = { Text("Host Alias (e.g. امازون۱, iran)") },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Row(modifier = Modifier.fillMaxWidth()) {
+                                OutlinedTextField(
+                                    value = newHostIp,
+                                    onValueChange = { newHostIp = it },
+                                    label = { Text("Hostname / IP") },
+                                    singleLine = true,
+                                    modifier = Modifier.weight(2f)
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                OutlinedTextField(
+                                    value = newHostPort,
+                                    onValueChange = { newHostPort = it },
+                                    label = { Text("Port") },
+                                    singleLine = true,
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                            OutlinedTextField(
+                                value = newHostUser,
+                                onValueChange = { newHostUser = it },
+                                label = { Text("Username (root, ubuntu, yasin)") },
                                 singleLine = true,
                                 modifier = Modifier.fillMaxWidth()
                             )
                             OutlinedTextField(
-                                value = newTabHost,
-                                onValueChange = { newTabHost = it },
+                                value = newHostPass,
+                                onValueChange = { newHostPass = it },
+                                label = { Text("Password (optional)") },
+                                visualTransformation = PasswordVisualTransformation(),
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("OS:", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                                listOf("ubuntu" to "Ubuntu", "amazon" to "Amazon", "linux" to "Linux").forEach { (type, name) ->
+                                    FilterChip(
+                                        selected = newHostOs == type,
+                                        onClick = { newHostOs = type },
+                                        label = { Text(name, fontSize = 11.sp) }
+                                    )
+                                }
+                            }
+                        }
+                    },
+                    confirmButton = {
+                        Button(onClick = {
+                            if (newHostIp.isNotBlank()) {
+                                viewModel.saveCurrentHost(
+                                    label = newHostName.ifBlank { newHostIp },
+                                    osType = newHostOs
+                                )
+                                showNewHostDialog = false
+                            }
+                        }) {
+                            Text("Save Host")
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showNewHostDialog = false }) { Text("Cancel") }
+                    }
+                )
+            }
+
+            // New Tab Dialog
+            if (showNewTabDialog) {
+                var tabTitle by remember { mutableStateOf("") }
+                var tabHost by remember { mutableStateOf("") }
+                var tabUser by remember { mutableStateOf("root") }
+
+                AlertDialog(
+                    onDismissRequest = { showNewTabDialog = false },
+                    title = { Text("Open Session Tab") },
+                    text = {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedTextField(
+                                value = tabTitle,
+                                onValueChange = { tabTitle = it },
+                                label = { Text("Tab Title (e.g. امازون۱)") },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            OutlinedTextField(
+                                value = tabHost,
+                                onValueChange = { tabHost = it },
                                 label = { Text("Host / IP") },
                                 singleLine = true,
                                 modifier = Modifier.fillMaxWidth()
                             )
                             OutlinedTextField(
-                                value = newTabUser,
-                                onValueChange = { newTabUser = it },
+                                value = tabUser,
+                                onValueChange = { tabUser = it },
                                 label = { Text("Username") },
                                 singleLine = true,
                                 modifier = Modifier.fillMaxWidth()
@@ -249,172 +354,23 @@ fun SshTerminalScreen(
                     },
                     confirmButton = {
                         Button(onClick = {
-                            if (newTabHost.isNotBlank()) {
+                            if (tabHost.isNotBlank()) {
                                 viewModel.addTab(
-                                    title = newTabTitle.ifBlank { newTabHost },
-                                    host = newTabHost,
-                                    username = newTabUser
+                                    title = tabTitle.ifBlank { tabHost },
+                                    host = tabHost,
+                                    username = tabUser
                                 )
                                 showNewTabDialog = false
                                 viewModel.connect()
                             }
                         }) {
-                            Text("Open Tab")
+                            Text("Connect")
                         }
                     },
                     dismissButton = {
-                        TextButton(onClick = { showNewTabDialog = false }) {
-                            Text("Cancel")
-                        }
+                        TextButton(onClick = { showNewTabDialog = false }) { Text("Cancel") }
                     }
                 )
-            }
-
-            // Theme & Font Size Dialog
-            if (showThemesDialog) {
-                AlertDialog(
-                    onDismissRequest = { showThemesDialog = false },
-                    title = { Text("Terminal Appearance & Theme") },
-                    text = {
-                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            Text("Color Theme:", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
-                            TerminalTheme.entries.forEach { theme ->
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clickable { viewModel.setTheme(theme) }
-                                ) {
-                                    RadioButton(
-                                        selected = uiState.selectedTheme == theme,
-                                        onClick = { viewModel.setTheme(theme) }
-                                    )
-                                    Spacer(Modifier.width(8.dp))
-                                    Text(theme.displayName, style = MaterialTheme.typography.bodyMedium)
-                                }
-                            }
-                            HorizontalDivider()
-                            Text("Font Size:", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                listOf(10, 11, 12, 14, 16).forEach { size ->
-                                    FilterChip(
-                                        selected = uiState.fontSizeSp == size,
-                                        onClick = { viewModel.setFontSize(size) },
-                                        label = { Text("${size}sp") }
-                                    )
-                                }
-                            }
-                        }
-                    },
-                    confirmButton = {
-                        TextButton(onClick = { showThemesDialog = false }) { Text("Done") }
-                    }
-                )
-            }
-
-            // Expandable Server Config Card
-            if (showConfigSheet) {
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(8.dp),
-                    colors = CardDefaults.cardColors(containerColor = termSurface),
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    Column(modifier = Modifier.padding(12.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "SSH Host Settings (Termius)",
-                                style = MaterialTheme.typography.labelMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                            if (uiState.savedHosts.isNotEmpty()) {
-                                var expandedHostDropdown by remember { mutableStateOf(false) }
-                                Box {
-                                    TextButton(onClick = { expandedHostDropdown = true }) {
-                                        Text("Saved Hosts ▼", fontSize = 11.sp)
-                                    }
-                                    DropdownMenu(
-                                        expanded = expandedHostDropdown,
-                                        onDismissRequest = { expandedHostDropdown = false }
-                                    ) {
-                                        uiState.savedHosts.forEach { saved ->
-                                            DropdownMenuItem(
-                                                text = { Text("${saved.name} (${saved.host})") },
-                                                onClick = {
-                                                    viewModel.selectHost(saved)
-                                                    expandedHostDropdown = false
-                                                }
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        Spacer(Modifier.height(8.dp))
-                        Row(modifier = Modifier.fillMaxWidth()) {
-                            OutlinedTextField(
-                                value = uiState.host,
-                                onValueChange = { viewModel.updateHost(it) },
-                                label = { Text("Host / IP", fontSize = 11.sp) },
-                                singleLine = true,
-                                modifier = Modifier.weight(2f)
-                            )
-                            Spacer(Modifier.width(8.dp))
-                            OutlinedTextField(
-                                value = uiState.port,
-                                onValueChange = { viewModel.updatePort(it) },
-                                label = { Text("Port", fontSize = 11.sp) },
-                                singleLine = true,
-                                modifier = Modifier.weight(1f)
-                            )
-                        }
-                        Spacer(Modifier.height(6.dp))
-                        Row(modifier = Modifier.fillMaxWidth()) {
-                            OutlinedTextField(
-                                value = uiState.username,
-                                onValueChange = { viewModel.updateUsername(it) },
-                                label = { Text("Username", fontSize = 11.sp) },
-                                singleLine = true,
-                                modifier = Modifier.weight(1f)
-                            )
-                            Spacer(Modifier.width(8.dp))
-                            OutlinedTextField(
-                                value = uiState.password,
-                                onValueChange = { viewModel.updatePassword(it) },
-                                label = { Text("Password", fontSize = 11.sp) },
-                                visualTransformation = PasswordVisualTransformation(),
-                                singleLine = true,
-                                modifier = Modifier.weight(1f)
-                            )
-                        }
-                        Spacer(Modifier.height(8.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Button(
-                                onClick = {
-                                    viewModel.connect()
-                                    showConfigSheet = false
-                                },
-                                modifier = Modifier.weight(1f),
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF238636))
-                            ) {
-                                Text("Connect")
-                            }
-                            OutlinedButton(
-                                onClick = {
-                                    viewModel.saveCurrentHost("${uiState.username}@${uiState.host}")
-                                }
-                            ) {
-                                Text("Save Host", fontSize = 11.sp)
-                            }
-                        }
-                    }
-                }
             }
 
             // Snippets Bottom Sheet
@@ -475,312 +431,760 @@ fun SshTerminalScreen(
                     }
                 }
             }
+        }
+    }
+}
 
-            // Terminal Console Output Window
+// ─────────────────────────────────────────────────────────────────────────────
+// SCREEN 1: Termius Hosts Vault (Matching img_5ace9f11faa2.jpg & img_638561f9a1a0.jpg)
+// ─────────────────────────────────────────────────────────────────────────────
+@Composable
+private fun TermiusHostsScreen(
+    uiState: SshTerminalUiState,
+    termBg: Color,
+    termSurface: Color,
+    termKeyBg: Color,
+    onNavigateBack: () -> Unit,
+    onSearchChange: (String) -> Unit,
+    onHostClick: (SavedSshHost) -> Unit,
+    onDeleteHost: (String) -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(termBg)
+    ) {
+        // Top Search Bar (Termius Style)
+        Surface(
+            color = termSurface,
+            shadowElevation = 2.dp
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .statusBarsPadding()
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(
+                    onClick = onNavigateBack,
+                    modifier = Modifier.size(36.dp)
+                ) {
+                    Icon(
+                        Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Back",
+                        tint = Color(0xFFE2E8F0)
+                    )
+                }
+
+                Spacer(Modifier.width(8.dp))
+
+                OutlinedTextField(
+                    value = uiState.searchQuery,
+                    onValueChange = onSearchChange,
+                    placeholder = { Text("Search", color = Color(0xFF94A3B8), fontSize = 14.sp) },
+                    singleLine = true,
+                    leadingIcon = {
+                        Icon(Icons.Default.Search, contentDescription = "Search", tint = Color(0xFF94A3B8))
+                    },
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(50.dp),
+                    shape = RoundedCornerShape(24.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Color(0xFF475569),
+                        unfocusedBorderColor = Color(0xFF334155),
+                        focusedContainerColor = Color(0xFF0F172A),
+                        unfocusedContainerColor = Color(0xFF0F172A),
+                        focusedTextColor = Color.White,
+                        unfocusedTextColor = Color.White
+                    )
+                )
+
+                Spacer(Modifier.width(8.dp))
+
+                IconButton(onClick = {}) {
+                    Icon(Icons.Default.FilterList, contentDescription = "Sort/Filter", tint = Color(0xFF94A3B8))
+                }
+            }
+        }
+
+        // Hosts List (Matching Cards in img_5ace9f11faa2.jpg)
+        val filteredHosts = remember(uiState.savedHosts, uiState.searchQuery) {
+            if (uiState.searchQuery.isBlank()) uiState.savedHosts else {
+                uiState.savedHosts.filter {
+                    it.name.contains(uiState.searchQuery, ignoreCase = true) ||
+                    it.host.contains(uiState.searchQuery, ignoreCase = true) ||
+                    it.username.contains(uiState.searchQuery, ignoreCase = true)
+                }
+            }
+        }
+
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            items(filteredHosts, key = { it.id }) { host ->
+                TermiusHostCard(
+                    host = host,
+                    termKeyBg = termKeyBg,
+                    onClick = { onHostClick(host) },
+                    onDelete = { onDeleteHost(host.id) }
+                )
+            }
+            item { Spacer(Modifier.height(80.dp)) }
+        }
+    }
+}
+
+@Composable
+private fun TermiusHostCard(
+    host: SavedSshHost,
+    termKeyBg: Color,
+    onClick: () -> Unit,
+    onDelete: () -> Unit
+) {
+    var expandedMenu by remember { mutableStateOf(false) }
+
+    Surface(
+        color = Color(0xFF1E293B),
+        shape = RoundedCornerShape(10.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() }
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // OS Logo / Avatar Icon
             Box(
                 modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-                    .padding(horizontal = 4.dp, vertical = 2.dp)
-                    .background(termBg)
+                    .size(42.dp)
+                    .clip(CircleShape)
+                    .background(
+                        when (host.osType.lowercase()) {
+                            "ubuntu" -> Color(0xFFE95420)
+                            "amazon" -> Color(0xFFFF9900)
+                            else -> Color(0xFF3B82F6)
+                        }
+                    ),
+                contentAlignment = Alignment.Center
             ) {
-                SelectionContainer {
-                    Text(
-                        text = if (uiState.output.isEmpty()) {
-                            "Termius SSH Engine: Connected to ${uiState.host}\nTap accessory bar below to execute shell commands.\n"
-                        } else {
-                            uiState.output
+                Text(
+                    text = when (host.osType.lowercase()) {
+                        "ubuntu" -> "ubuntu"
+                        "amazon" -> "aws"
+                        else -> "linux"
+                    },
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+            }
+
+            Spacer(Modifier.width(14.dp))
+
+            // Title and Subtitle (Termius layout: Name + "ssh, root, ubuntu")
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = host.name,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color.White
+                )
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    text = "ssh, ${host.username}, ${if (host.osType.isNotBlank()) host.osType else host.host}",
+                    fontSize = 12.sp,
+                    color = Color(0xFF94A3B8)
+                )
+            }
+
+            // More actions
+            Box {
+                IconButton(onClick = { expandedMenu = true }) {
+                    Icon(Icons.Default.MoreVert, contentDescription = "More", tint = Color(0xFF64748B))
+                }
+                DropdownMenu(
+                    expanded = expandedMenu,
+                    onDismissRequest = { expandedMenu = false }
+                ) {
+                    DropdownMenuItem(
+                        text = { Text("Connect Now") },
+                        onClick = {
+                            expandedMenu = false
+                            onClick()
                         },
-                        color = termText,
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = uiState.fontSizeSp.sp,
-                        lineHeight = (uiState.fontSizeSp + 4).sp,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(6.dp)
-                            .verticalScroll(outputScrollState)
+                        leadingIcon = { Icon(Icons.Default.PlayArrow, contentDescription = null, tint = Color(0xFF00FF66)) }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Delete Host", color = Color.Red) },
+                        onClick = {
+                            expandedMenu = false
+                            onDelete()
+                        },
+                        leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = Color.Red) }
                     )
                 }
             }
+        }
+    }
+}
 
-            // Termius Accessory Tool Row (Shown above keyboard - Mode A)
-            Surface(
-                color = termSurface,
-                modifier = Modifier.fillMaxWidth()
+// ─────────────────────────────────────────────────────────────────────────────
+// SCREEN 2: Termius Active SSH Terminal (Matching img_d4a38e622fc0.jpg)
+// ─────────────────────────────────────────────────────────────────────────────
+@Composable
+private fun TermiusSessionScreen(
+    viewModel: SshTerminalViewModel,
+    uiState: SshTerminalUiState,
+    termBg: Color,
+    termText: Color,
+    termSurface: Color,
+    termKeyBg: Color,
+    onNavigateBack: () -> Unit,
+    onNewTabClick: () -> Unit,
+    onSnippetsClick: () -> Unit
+) {
+    val outputScrollState = rememberScrollState()
+
+    LaunchedEffect(uiState.output) {
+        if (uiState.isAutoScroll) {
+            outputScrollState.scrollTo(outputScrollState.maxValue)
+        }
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(termBg)
+    ) {
+        // Session Tabs Header (Termius Style)
+        Surface(
+            color = termSurface,
+            shadowElevation = 3.dp
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .statusBarsPadding()
+                    .padding(horizontal = 8.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
+                IconButton(
+                    onClick = onNavigateBack,
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(termKeyBg)
+                ) {
+                    Icon(
+                        Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Back",
+                        tint = Color(0xFFE2E8F0),
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+
+                Spacer(Modifier.width(8.dp))
+
+                // Scrollable Session Tabs
                 Row(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState())
-                        .padding(horizontal = 6.dp, vertical = 4.dp),
+                        .weight(1f)
+                        .horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Touch / Pointer mode
-                    TermiusToolIcon(icon = Icons.Default.TouchApp, desc = "Pointer") {}
+                    uiState.tabs.forEach { tab ->
+                        val isActive = tab.id == uiState.activeTabId
+                        var tabMenuExpanded by remember { mutableStateOf(false) }
 
-                    // AI / Magic wand
-                    TermiusToolIcon(icon = Icons.Default.AutoAwesome, desc = "AI Assistant") {
-                        viewModel.sendCommand("curl -s wttr.in?0")
-                    }
-
-                    // *** Password autofill
-                    TermiusToolText(label = "***", desc = "Autofill Password") {
-                        if (uiState.password.isNotBlank()) {
-                            viewModel.sendCommand(uiState.password)
-                        }
-                    }
-
-                    // { } Snippets manager
-                    TermiusToolText(label = "{ }", desc = "Snippets") {
-                        showSnippetsSheet = true
-                    }
-
-                    // Folder / SFTP
-                    TermiusToolIcon(icon = Icons.Default.FolderOpen, desc = "SFTP") {
-                        viewModel.sendCommand("ls -lah")
-                    }
-
-                    // Shift / Tab
-                    TermiusToolText(label = "⇧ Tab", desc = "Shift Tab") {
-                        viewModel.sendTab()
-                    }
-
-                    // Ctrl key
-                    TermiusToolText(label = "Ctrl", desc = "Ctrl", isAccent = true) {
-                        viewModel.sendCtrlC()
-                    }
-
-                    // Gear / Settings
-                    TermiusToolIcon(icon = Icons.Default.Settings, desc = "Settings") {
-                        showConfigSheet = !showConfigSheet
-                    }
-
-                    // Appearance Palette
-                    TermiusToolIcon(icon = Icons.Default.Palette, desc = "Theme") {
-                        showThemesDialog = true
-                    }
-
-                    // Keyboard Switcher: Toggles the Extended Terminal Keypad (Mode B)
-                    Surface(
-                        color = if (uiState.isExtendedKeyboardVisible) Color(0xFF4F46E5) else termKeyBg,
-                        shape = RoundedCornerShape(6.dp),
-                        modifier = Modifier.clickable { viewModel.toggleExtendedKeyboard() }
-                    ) {
                         Row(
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(if (isActive) Color(0xFF2D3748) else Color(0xFF1A202C))
+                                .border(
+                                    width = 1.dp,
+                                    color = if (isActive) Color(0xFF4A5568) else Color.Transparent,
+                                    shape = RoundedCornerShape(8.dp)
+                                )
+                                .clickable { viewModel.selectTab(tab) }
+                                .padding(start = 8.dp, end = 2.dp, top = 4.dp, bottom = 4.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(
-                                if (uiState.isExtendedKeyboardVisible) Icons.Default.KeyboardHide else Icons.Default.Keyboard,
-                                contentDescription = "Toggle Terminal Keypad",
-                                tint = Color.White,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(Modifier.width(4.dp))
+                            Text("🌿", fontSize = 12.sp)
+                            Spacer(Modifier.width(6.dp))
                             Text(
-                                if (uiState.isExtendedKeyboardVisible) "Hide Keys" else "Keys",
-                                fontSize = 11.sp,
-                                color = Color.White,
-                                fontWeight = FontWeight.Bold
+                                text = tab.title,
+                                fontSize = 12.sp,
+                                fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal,
+                                color = if (isActive) Color.White else Color(0xFFA0AEC0),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
+                            Spacer(Modifier.width(2.dp))
+                            Box {
+                                IconButton(
+                                    onClick = { tabMenuExpanded = true },
+                                    modifier = Modifier.size(24.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Default.MoreVert,
+                                        contentDescription = "Options",
+                                        tint = Color(0xFFA0AEC0),
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                                DropdownMenu(
+                                    expanded = tabMenuExpanded,
+                                    onDismissRequest = { tabMenuExpanded = false }
+                                ) {
+                                    DropdownMenuItem(
+                                        text = { Text("Reconnect") },
+                                        onClick = {
+                                            tabMenuExpanded = false
+                                            viewModel.connect()
+                                        },
+                                        leadingIcon = { Icon(Icons.Default.Refresh, contentDescription = null) }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("Disconnect") },
+                                        onClick = {
+                                            tabMenuExpanded = false
+                                            viewModel.disconnect()
+                                        },
+                                        leadingIcon = { Icon(Icons.Default.PowerSettingsNew, contentDescription = null) }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("Clear Output") },
+                                        onClick = {
+                                            tabMenuExpanded = false
+                                            viewModel.clearOutput()
+                                        },
+                                        leadingIcon = { Icon(Icons.Default.ClearAll, contentDescription = null) }
+                                    )
+                                    if (uiState.tabs.size > 1) {
+                                        HorizontalDivider()
+                                        DropdownMenuItem(
+                                            text = { Text("Close Tab", color = Color.Red) },
+                                            onClick = {
+                                                tabMenuExpanded = false
+                                                viewModel.closeTab(tab.id)
+                                            },
+                                            leadingIcon = { Icon(Icons.Default.Close, contentDescription = null, tint = Color.Red) }
+                                        )
+                                    }
+                                }
+                            }
                         }
                     }
                 }
-            }
 
-            // Termius Extended Terminal Keypad (7 Rows from Screenshot 1 & 2)
-            AnimatedVisibility(
-                visible = uiState.isExtendedKeyboardVisible,
-                enter = expandVertically(),
-                exit = shrinkVertically()
-            ) {
-                Column(
+                Spacer(Modifier.width(8.dp))
+
+                IconButton(
+                    onClick = onNewTabClick,
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .background(termSurface)
-                        .padding(horizontal = 4.dp, vertical = 4.dp),
-                    verticalArrangement = Arrangement.spacedBy(3.dp)
+                        .size(36.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(termKeyBg)
                 ) {
-                    // Row 1: Home | Pg Up | Pg Dn | End | | | \ | ? | -
-                    TermiusKeyRow(listOf("Home", "Pg Up", "Pg Dn", "End", "|", "\\", "?", "-"), termKeyBg) { key ->
-                        when (key) {
-                            "Home" -> viewModel.sendHome()
-                            "Pg Up" -> viewModel.sendPageUp()
-                            "Pg Dn" -> viewModel.sendPageDown()
-                            "End" -> viewModel.sendEnd()
-                            else -> viewModel.sendChar(key)
-                        }
-                    }
+                    Icon(
+                        Icons.Default.Add,
+                        contentDescription = "New Tab",
+                        tint = Color(0xFFE2E8F0),
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+        }
 
-                    // Row 2: | : ; ! ~ @ $ *
-                    TermiusKeyRow(listOf("|", ":", ";", "!", "~", "@", "$", "*"), termKeyBg) { key ->
-                        viewModel.sendChar(key)
-                    }
+        // Terminal Console Output Window
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .padding(horizontal = 4.dp, vertical = 2.dp)
+                .background(termBg)
+        ) {
+            SelectionContainer {
+                Text(
+                    text = if (uiState.output.isEmpty()) {
+                        "Termius SSH Engine: Connected to ${uiState.host}\nTap accessory bar below to execute shell commands.\n"
+                    } else {
+                        uiState.output
+                    },
+                    color = termText,
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = uiState.fontSizeSp.sp,
+                    lineHeight = (uiState.fontSizeSp + 4).sp,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(6.dp)
+                        .verticalScroll(outputScrollState)
+                )
+            }
+        }
 
-                    // Row 3: ^ % = ` < > ( )
-                    TermiusKeyRow(listOf("^", "%", "=", "`", "<", ">", "(", ")"), termKeyBg) { key ->
-                        viewModel.sendChar(key)
-                    }
+        // Termius Accessory Tool Row (Shown above keyboard - Mode A)
+        Surface(
+            color = termSurface,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+                    .padding(horizontal = 6.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                TermiusToolIcon(icon = Icons.Default.TouchApp, desc = "Pointer") {}
 
-                    // Row 4: { } [ ] F1 F2 F3 F4
-                    TermiusKeyRow(listOf("{", "}", "[", "]", "F1", "F2", "F3", "F4"), termKeyBg) { key ->
-                        when (key) {
-                            "F1" -> viewModel.sendFn(1)
-                            "F2" -> viewModel.sendFn(2)
-                            "F3" -> viewModel.sendFn(3)
-                            "F4" -> viewModel.sendFn(4)
-                            else -> viewModel.sendChar(key)
-                        }
-                    }
+                TermiusToolIcon(icon = Icons.Default.AutoAwesome, desc = "AI Assistant") {
+                    viewModel.sendCommand("curl -s wttr.in?0")
+                }
 
-                    // Row 5: F5 F6 F7 F8 F9 F10 F11 F12
-                    TermiusKeyRow(listOf("F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12"), termKeyBg) { key ->
-                        val fnNum = key.removePrefix("F").toIntOrNull() ?: 1
-                        viewModel.sendFn(fnNum)
+                TermiusToolText(label = "***", desc = "Autofill Password") {
+                    if (uiState.password.isNotBlank()) {
+                        viewModel.sendCommand(uiState.password)
                     }
+                }
 
-                    // Row 6: ^_ ^W ^R ^XX ^C ^L ^S ^Z
-                    TermiusKeyRow(listOf("^_", "^W", "^R", "^XX", "^C", "^L", "^S", "^Z"), termKeyBg) { key ->
-                        when (key) {
-                            "^W" -> viewModel.sendCtrl('w')
-                            "^R" -> viewModel.sendCtrl('r')
-                            "^XX" -> { viewModel.sendCtrl('x'); viewModel.sendCtrl('x') }
-                            "^C" -> viewModel.sendCtrlC()
-                            "^L" -> viewModel.sendCtrl('l')
-                            "^S" -> viewModel.sendCtrl('s')
-                            "^Z" -> viewModel.sendCtrlZ()
-                            else -> viewModel.sendChar(key)
-                        }
-                    }
+                TermiusToolText(label = "{ }", desc = "Snippets") {
+                    onSnippetsClick()
+                }
 
-                    // Row 7: ^X ^G ^N ^P ESC TAB ▲ ▼
-                    TermiusKeyRow(listOf("^X", "^G", "^N", "^P", "ESC", "TAB", "▲", "▼"), termKeyBg) { key ->
-                        when (key) {
-                            "^X" -> viewModel.sendCtrl('x')
-                            "^G" -> viewModel.sendCtrl('g')
-                            "^N" -> viewModel.sendCtrl('n')
-                            "^P" -> viewModel.sendCtrl('p')
-                            "ESC" -> viewModel.sendEsc()
-                            "TAB" -> viewModel.sendTab()
-                            "▲" -> viewModel.sendArrowUp()
-                            "▼" -> viewModel.sendArrowDown()
-                            else -> viewModel.sendChar(key)
-                        }
-                    }
+                TermiusToolIcon(icon = Icons.Default.FolderOpen, desc = "SFTP") {
+                    viewModel.sendCommand("ls -lah")
+                }
 
-                    // Navigation bar with arrows and dismiss
+                TermiusToolText(label = "⇧ Tab", desc = "Shift Tab") {
+                    viewModel.sendTab()
+                }
+
+                TermiusToolText(label = "Ctrl", desc = "Ctrl", isAccent = true) {
+                    viewModel.sendCtrlC()
+                }
+
+                Surface(
+                    color = if (uiState.isExtendedKeyboardVisible) Color(0xFF4F46E5) else termKeyBg,
+                    shape = RoundedCornerShape(6.dp),
+                    modifier = Modifier.clickable { viewModel.toggleExtendedKeyboard() }
+                ) {
                     Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 2.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
+                        Icon(
+                            if (uiState.isExtendedKeyboardVisible) Icons.Default.KeyboardHide else Icons.Default.Keyboard,
+                            contentDescription = "Toggle Keys",
+                            tint = Color.White,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(Modifier.width(4.dp))
+                        Text(
+                            if (uiState.isExtendedKeyboardVisible) "Hide Keys" else "Keys",
+                            fontSize = 11.sp,
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+        }
+
+        // Extended Terminal Keypad (7 Rows)
+        AnimatedVisibility(
+            visible = uiState.isExtendedKeyboardVisible,
+            enter = expandVertically(),
+            exit = shrinkVertically()
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(termSurface)
+                    .padding(horizontal = 4.dp, vertical = 4.dp),
+                verticalArrangement = Arrangement.spacedBy(3.dp)
+            ) {
+                TermiusKeyRow(listOf("Home", "Pg Up", "Pg Dn", "End", "|", "\\", "?", "-"), termKeyBg) { key ->
+                    when (key) {
+                        "Home" -> viewModel.sendHome()
+                        "Pg Up" -> viewModel.sendPageUp()
+                        "Pg Dn" -> viewModel.sendPageDown()
+                        "End" -> viewModel.sendEnd()
+                        else -> viewModel.sendChar(key)
+                    }
+                }
+
+                TermiusKeyRow(listOf("|", ":", ";", "!", "~", "@", "$", "*"), termKeyBg) { key ->
+                    viewModel.sendChar(key)
+                }
+
+                TermiusKeyRow(listOf("^", "%", "=", "`", "<", ">", "(", ")"), termKeyBg) { key ->
+                    viewModel.sendChar(key)
+                }
+
+                TermiusKeyRow(listOf("{", "}", "[", "]", "F1", "F2", "F3", "F4"), termKeyBg) { key ->
+                    when (key) {
+                        "F1" -> viewModel.sendFn(1)
+                        "F2" -> viewModel.sendFn(2)
+                        "F3" -> viewModel.sendFn(3)
+                        "F4" -> viewModel.sendFn(4)
+                        else -> viewModel.sendChar(key)
+                    }
+                }
+
+                TermiusKeyRow(listOf("F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12"), termKeyBg) { key ->
+                    val fnNum = key.removePrefix("F").toIntOrNull() ?: 1
+                    viewModel.sendFn(fnNum)
+                }
+
+                TermiusKeyRow(listOf("^_", "^W", "^R", "^XX", "^C", "^L", "^S", "^Z"), termKeyBg) { key ->
+                    when (key) {
+                        "^W" -> viewModel.sendCtrl('w')
+                        "^R" -> viewModel.sendCtrl('r')
+                        "^XX" -> { viewModel.sendCtrl('x'); viewModel.sendCtrl('x') }
+                        "^C" -> viewModel.sendCtrlC()
+                        "^L" -> viewModel.sendCtrl('l')
+                        "^S" -> viewModel.sendCtrl('s')
+                        "^Z" -> viewModel.sendCtrlZ()
+                        else -> viewModel.sendChar(key)
+                    }
+                }
+
+                TermiusKeyRow(listOf("^X", "^G", "^N", "^P", "ESC", "TAB", "▲", "▼"), termKeyBg) { key ->
+                    when (key) {
+                        "^X" -> viewModel.sendCtrl('x')
+                        "^G" -> viewModel.sendCtrl('g')
+                        "^N" -> viewModel.sendCtrl('n')
+                        "^P" -> viewModel.sendCtrl('p')
+                        "ESC" -> viewModel.sendEsc()
+                        "TAB" -> viewModel.sendTab()
+                        "▲" -> viewModel.sendArrowUp()
+                        "▼" -> viewModel.sendArrowDown()
+                        else -> viewModel.sendChar(key)
+                    }
+                }
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 2.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(
+                        onClick = { viewModel.setExtendedKeyboardVisible(false) },
+                        modifier = Modifier
+                            .size(32.dp)
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(termKeyBg)
+                    ) {
+                        Icon(Icons.Default.KeyboardHide, contentDescription = "Dismiss", tint = Color(0xFFA0AEC0))
+                    }
+
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         IconButton(
-                            onClick = { viewModel.setExtendedKeyboardVisible(false) },
+                            onClick = { viewModel.sendArrowLeft() },
                             modifier = Modifier
                                 .size(32.dp)
                                 .clip(RoundedCornerShape(6.dp))
                                 .background(termKeyBg)
                         ) {
-                            Icon(Icons.Default.KeyboardHide, contentDescription = "Dismiss", tint = Color(0xFFA0AEC0))
+                            Text("◀", color = Color(0xFF00E5FF), fontSize = 13.sp)
                         }
-
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            IconButton(
-                                onClick = { viewModel.sendArrowLeft() },
-                                modifier = Modifier
-                                    .size(32.dp)
-                                    .clip(RoundedCornerShape(6.dp))
-                                    .background(termKeyBg)
-                            ) {
-                                Text("◀", color = Color(0xFF00E5FF), fontSize = 13.sp)
-                            }
-                            IconButton(
-                                onClick = { viewModel.sendArrowUp() },
-                                modifier = Modifier
-                                    .size(32.dp)
-                                    .clip(RoundedCornerShape(6.dp))
-                                    .background(termKeyBg)
-                            ) {
-                                Text("▲", color = Color(0xFF00E5FF), fontSize = 13.sp)
-                            }
-                            IconButton(
-                                onClick = { viewModel.sendArrowDown() },
-                                modifier = Modifier
-                                    .size(32.dp)
-                                    .clip(RoundedCornerShape(6.dp))
-                                    .background(termKeyBg)
-                            ) {
-                                Text("▼", color = Color(0xFF00E5FF), fontSize = 13.sp)
-                            }
-                            IconButton(
-                                onClick = { viewModel.sendArrowRight() },
-                                modifier = Modifier
-                                    .size(32.dp)
-                                    .clip(RoundedCornerShape(6.dp))
-                                    .background(termKeyBg)
-                            ) {
-                                Text("▶", color = Color(0xFF00E5FF), fontSize = 13.sp)
-                            }
-                        }
-
                         IconButton(
-                            onClick = { viewModel.sendEnter() },
+                            onClick = { viewModel.sendArrowUp() },
                             modifier = Modifier
                                 .size(32.dp)
                                 .clip(RoundedCornerShape(6.dp))
-                                .background(Color(0xFF238636))
+                                .background(termKeyBg)
                         ) {
-                            Text("⏎", color = Color.White, fontSize = 14.sp)
+                            Text("▲", color = Color(0xFF00E5FF), fontSize = 13.sp)
                         }
+                        IconButton(
+                            onClick = { viewModel.sendArrowDown() },
+                            modifier = Modifier
+                                .size(32.dp)
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(termKeyBg)
+                        ) {
+                            Text("▼", color = Color(0xFF00E5FF), fontSize = 13.sp)
+                        }
+                        IconButton(
+                            onClick = { viewModel.sendArrowRight() },
+                            modifier = Modifier
+                                .size(32.dp)
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(termKeyBg)
+                        ) {
+                            Text("▶", color = Color(0xFF00E5FF), fontSize = 13.sp)
+                        }
+                    }
+
+                    IconButton(
+                        onClick = { viewModel.sendEnter() },
+                        modifier = Modifier
+                            .size(32.dp)
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(Color(0xFF238636))
+                    ) {
+                        Text("⏎", color = Color.White, fontSize = 14.sp)
                     }
                 }
             }
+        }
 
-            // Interactive Command Input Line
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(termSurface)
-                    .padding(horizontal = 8.dp, vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "$ ",
-                    color = Color(0xFF00FF66),
+        // Interactive Command Input Line
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(termSurface)
+                .padding(horizontal = 8.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "$ ",
+                color = Color(0xFF00FF66),
+                fontFamily = FontFamily.Monospace,
+                fontWeight = FontWeight.Bold,
+                fontSize = 14.sp
+            )
+            OutlinedTextField(
+                value = uiState.currentCommand,
+                onValueChange = { viewModel.updateCommand(it) },
+                placeholder = { Text("Enter command...", fontSize = 12.sp, color = Color(0xFF6E7681)) },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+                keyboardActions = KeyboardActions(onSend = {
+                    viewModel.sendCommand()
+                }),
+                textStyle = MaterialTheme.typography.bodySmall.copy(
                     fontFamily = FontFamily.Monospace,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 14.sp
+                    color = Color.White
+                ),
+                modifier = Modifier.weight(1f)
+            )
+            Spacer(Modifier.width(6.dp))
+            IconButton(
+                onClick = { viewModel.sendCommand() },
+                enabled = uiState.currentCommand.isNotBlank()
+            ) {
+                Icon(
+                    Icons.AutoMirrored.Filled.Send,
+                    contentDescription = "Send",
+                    tint = if (uiState.currentCommand.isNotBlank()) Color(0xFF00FF66) else Color.Gray
                 )
-                OutlinedTextField(
-                    value = uiState.currentCommand,
-                    onValueChange = { viewModel.updateCommand(it) },
-                    placeholder = { Text("Enter command...", fontSize = 12.sp, color = Color(0xFF6E7681)) },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-                    keyboardActions = KeyboardActions(onSend = {
-                        viewModel.sendCommand()
-                    }),
-                    textStyle = MaterialTheme.typography.bodySmall.copy(
-                        fontFamily = FontFamily.Monospace,
-                        color = Color.White
-                    ),
-                    modifier = Modifier.weight(1f)
-                )
-                Spacer(Modifier.width(6.dp))
-                IconButton(
-                    onClick = { viewModel.sendCommand() },
-                    enabled = uiState.currentCommand.isNotBlank()
-                ) {
-                    Icon(
-                        Icons.AutoMirrored.Filled.Send,
-                        contentDescription = "Send",
-                        tint = if (uiState.currentCommand.isNotBlank()) Color(0xFF00FF66) else Color.Gray
-                    )
+            }
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SCREEN 3: Termius Settings
+// ─────────────────────────────────────────────────────────────────────────────
+@Composable
+private fun TermiusSettingsScreen(
+    viewModel: SshTerminalViewModel,
+    uiState: SshTerminalUiState,
+    termSurface: Color,
+    termKeyBg: Color,
+    onNavigateBack: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .statusBarsPadding()
+            .padding(16.dp)
+            .verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Text(
+            text = "Terminal Settings",
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold,
+            color = Color.White
+        )
+
+        Card(
+            colors = CardDefaults.cardColors(containerColor = termSurface),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("Color Theme", fontWeight = FontWeight.SemiBold, color = Color.White)
+                TerminalTheme.entries.forEach { theme ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { viewModel.setTheme(theme) },
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(
+                            selected = uiState.selectedTheme == theme,
+                            onClick = { viewModel.setTheme(theme) }
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(theme.displayName, color = Color.White)
+                    }
                 }
             }
+        }
+
+        Card(
+            colors = CardDefaults.cardColors(containerColor = termSurface),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("Font Size", fontWeight = FontWeight.SemiBold, color = Color.White)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(10, 11, 12, 14, 16).forEach { size ->
+                        FilterChip(
+                            selected = uiState.fontSizeSp == size,
+                            onClick = { viewModel.setFontSize(size) },
+                            label = { Text("${size}sp") }
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TermiusSheetActionItem(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String,
+    subtitle: String,
+    iconTint: Color,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() }
+            .padding(vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(40.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(Color(0xFF1E293B)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(icon, contentDescription = null, tint = iconTint, modifier = Modifier.size(22.dp))
+        }
+        Spacer(Modifier.width(16.dp))
+        Column {
+            Text(title, fontWeight = FontWeight.SemiBold, color = Color.White, fontSize = 15.sp)
+            Text(subtitle, color = Color(0xFF94A3B8), fontSize = 12.sp)
         }
     }
 }
