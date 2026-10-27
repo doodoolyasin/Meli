@@ -365,6 +365,13 @@ class ConfigExporter @Inject constructor() {
                 AllowedIPs = 0.0.0.0/0
                 """.trimIndent()
             }
+            TunnelType.AETHER -> {
+                "masque://$host:${profile.cdnPort}?peer_pub=${profile.dnsttPublicKey}&sni=$sni#$nameEnc"
+            }
+            TunnelType.WARP -> {
+                val priv = profile.sshPrivateKey.ifBlank { "none" }
+                "warp://$priv@$host:${profile.cdnPort}?peer_pub=${profile.dnsttPublicKey}&reserved=${profile.vlessWsPath}#$nameEnc"
+            }
             else -> exportSingleProfile(profile)
         }
     }

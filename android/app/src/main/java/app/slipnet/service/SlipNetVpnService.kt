@@ -327,6 +327,8 @@ class SlipNetVpnService : VpnService() {
                 try { NaiveSocksBridge.stop() } catch (_: Exception) {}
                 try { TorSocksBridge.stop() } catch (_: Exception) {}
                 try { Socks5ProxyBridge.stopAll() } catch (_: Exception) {}
+                try { MasterDnsBridge.stopClient() } catch (_: Exception) {}
+                try { VlessBridge.stop() } catch (_: Exception) {}
                 try { DnsttBridge.stopClient() } catch (_: Exception) {}
                 try { VaydnsBridge.stopClient() } catch (_: Exception) {}
                 try { SlipstreamBridge.stopClient() } catch (_: Exception) {}
@@ -560,7 +562,8 @@ class SlipNetVpnService : VpnService() {
                     TunnelType.BALE -> connectBale(profile, dnsServer, remoteDns)
                     TunnelType.PINGTUNNEL, TunnelType.SPOOF_TUNNEL, TunnelType.GOLDEN_GRE, TunnelType.PAQET,
                     TunnelType.WIREGUARD, TunnelType.OPENVPN, TunnelType.HYSTERIA2, TunnelType.TUIC, TunnelType.TROJAN, TunnelType.SHADOWSOCKS,
-                    TunnelType.VMESS, TunnelType.SNELL, TunnelType.SHADOWSOCKSR, TunnelType.VLESS_REALITY -> connectSocks5(profile, dnsServer, remoteDns)
+                    TunnelType.VMESS, TunnelType.SNELL, TunnelType.SHADOWSOCKSR, TunnelType.VLESS_REALITY,
+                    TunnelType.AETHER, TunnelType.WARP -> connectSocks5(profile, dnsServer, remoteDns)
                     else -> connectSocks5(profile, dnsServer, remoteDns)
                 }
 
@@ -5196,7 +5199,8 @@ class SlipNetVpnService : VpnService() {
                 VlessBridge.stop()
             }
             TunnelType.BALE, TunnelType.PINGTUNNEL, TunnelType.SPOOF_TUNNEL, TunnelType.GOLDEN_GRE, TunnelType.PAQET,
-            TunnelType.WIREGUARD, TunnelType.OPENVPN, TunnelType.HYSTERIA2, TunnelType.TUIC, TunnelType.TROJAN, TunnelType.SHADOWSOCKS -> {
+            TunnelType.WIREGUARD, TunnelType.OPENVPN, TunnelType.HYSTERIA2, TunnelType.TUIC, TunnelType.TROJAN, TunnelType.SHADOWSOCKS,
+            TunnelType.VMESS, TunnelType.SNELL, TunnelType.SHADOWSOCKSR, TunnelType.VLESS_REALITY, TunnelType.AETHER, TunnelType.WARP -> {
                 Log.d(TAG, "Stopping SOCKS5-compatible bridge")
                 Socks5ProxyBridge.stopAll()
             }

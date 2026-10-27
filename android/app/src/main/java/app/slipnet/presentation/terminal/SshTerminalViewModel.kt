@@ -30,12 +30,13 @@ enum class TerminalTheme(
     val displayName: String,
     val bgHex: Long,
     val textHex: Long,
-    val surfaceHex: Long
+    val surfaceHex: Long,
+    val keyBgHex: Long
 ) {
-    TERMIUS_DARK("Termius Dark", 0xFF0D1117, 0xFF39FF14, 0xFF161B22),
-    DRACULA("Dracula", 0xFF282A36, 0xFF50FA7B, 0xFF44475A),
-    MONOKAI("Monokai", 0xFF272822, 0xFFA6E22E, 0xFF3E3D32),
-    SOLARIZED_DARK("Solarized Dark", 0xFF002B36, 0xFF2AA198, 0xFF073642)
+    TERMIUS_NAVY("Termius Slate", 0xFF161E2E, 0xFF39FF14, 0xFF1F293D, 0xFF28334E),
+    TERMIUS_CYAN("Termius Cyan", 0xFF101726, 0xFF00E5FF, 0xFF1A2234, 0xFF232E45),
+    DRACULA("Dracula", 0xFF282A36, 0xFF50FA7B, 0xFF44475A, 0xFF383A59),
+    MONOKAI("Monokai", 0xFF272822, 0xFFA6E22E, 0xFF3E3D32, 0xFF49483E)
 }
 
 data class SavedSshHost(
@@ -48,6 +49,14 @@ data class SavedSshHost(
     val privateKey: String = ""
 )
 
+data class TerminalTab(
+    val id: String = UUID.randomUUID().toString(),
+    val title: String,
+    val host: String,
+    val port: String = "22",
+    val username: String = "root"
+)
+
 data class SshTerminalUiState(
     val host: String = "45.38.249.16",
     val port: String = "22",
@@ -55,17 +64,32 @@ data class SshTerminalUiState(
     val password: String = "yasin",
     val privateKey: String = "",
     val connectionState: TerminalConnectionState = TerminalConnectionState.Disconnected,
-    val output: String = "Aryana Core Terminal (Termius Suite)\nConnecting secure SSH interactive shell...\n",
+    val output: String = "",
     val currentCommand: String = "",
     val isAutoScroll: Boolean = true,
     val history: List<String> = emptyList(),
     val historyIndex: Int = -1,
-    val selectedTheme: TerminalTheme = TerminalTheme.TERMIUS_DARK,
+    val selectedTheme: TerminalTheme = TerminalTheme.TERMIUS_NAVY,
     val fontSizeSp: Int = 12,
     val savedHosts: List<SavedSshHost> = listOf(
-        SavedSshHost(name = "Default VPS (Aryana)", host = "45.38.249.16", port = "22", username = "yasin", password = "yasin")
+        SavedSshHost(name = "امازون۱", host = "45.38.249.16", port = "22", username = "yasin", password = "yasin"),
+        SavedSshHost(name = "Aryana VPS", host = "95.182.80.85", port = "22", username = "root", password = "")
     ),
-    val customSnippets: List<String> = emptyList()
+    val tabs: List<TerminalTab> = listOf(
+        TerminalTab(id = "tab-amazon", title = "امازون۱", host = "45.38.249.16", username = "yasin")
+    ),
+    val activeTabId: String = "tab-amazon",
+    val isExtendedKeyboardVisible: Boolean = false,
+    val customSnippets: List<String> = listOf(
+        "sudo su",
+        "systemctl status sing-box",
+        "systemctl restart sing-box",
+        "docker ps",
+        "journalctl -u sing-box -f",
+        "curl -s ifconfig.me",
+        "htop",
+        "cat /etc/os-release"
+    )
 )
 
 @HiltViewModel
@@ -90,6 +114,14 @@ class SshTerminalViewModel @Inject constructor() : ViewModel() {
     fun toggleAutoScroll() { _uiState.value = _uiState.value.copy(isAutoScroll = !_uiState.value.isAutoScroll) }
     fun setTheme(theme: TerminalTheme) { _uiState.value = _uiState.value.copy(selectedTheme = theme) }
     fun setFontSize(size: Int) { _uiState.value = _uiState.value.copy(fontSizeSp = size) }
+
+    fun toggleExtendedKeyboard() {
+        _uiState.value = _uiState.value.copy(isExtendedKeyboardVisible = !_uiState.value.isExtendedKeyboardVisible)
+    }
+
+    fun setExtendedKeyboardVisible(visible: Boolean) {
+        _uiState.value = _uiState.value.copy(isExtendedKeyboardVisible = visible)
+    }
 
     fun selectHost(saved: SavedSshHost) {
         _uiState.value = _uiState.value.copy(
@@ -118,6 +150,33 @@ class SshTerminalViewModel @Inject constructor() : ViewModel() {
         if (snippet.isNotBlank() && !_uiState.value.customSnippets.contains(snippet)) {
             _uiState.value = _uiState.value.copy(customSnippets = _uiState.value.customSnippets + snippet)
         }
+    }
+
+    fun addTab(title: String, host: String, username: String) {
+        val newTab = TerminalTab(title = title, host = host, username = username)
+        _uiState.value = _uiState.value.copy(
+            tabs = _uiState.value.tabs + newTab,
+            activeTabId = newTab.id,
+            host = host,
+            username = username
+        )
+    }
+
+    fun closeTab(tabId: String) {
+        val remaining = _uiState.value.tabs.filter { it.id != tabId }
+        val newActive = remaining.lastOrNull()?.id ?: ""
+        _uiState.value = _uiState.value.copy(
+            tabs = remaining,
+            activeTabId = newActive
+        )
+    }
+
+    fun selectTab(tab: TerminalTab) {
+        _uiState.value = _uiState.value.copy(
+            activeTabId = tab.id,
+            host = tab.host,
+            username = tab.username
+        )
     }
 
     fun historyUp() {
@@ -242,7 +301,10 @@ class SshTerminalViewModel @Inject constructor() : ViewModel() {
     }
 
     fun sendCommand(cmd: String = _uiState.value.currentCommand) {
-        if (shellChannel?.isConnected != true || shellInput == null) return
+        if (shellChannel?.isConnected != true || shellInput == null) {
+            connect()
+            return
+        }
         val commandToSend = cmd
         if (commandToSend.isNotBlank()) {
             val updatedHistory = (_uiState.value.history + commandToSend).takeLast(50)
@@ -278,11 +340,42 @@ class SshTerminalViewModel @Inject constructor() : ViewModel() {
         }
     }
 
+    fun sendChar(s: String) {
+        sendRawBytes(s.toByteArray(Charsets.UTF_8))
+    }
+
     fun sendEsc() = sendRawBytes(byteArrayOf(27))
     fun sendTab() = sendRawBytes(byteArrayOf(9))
     fun sendCtrlC() = sendRawBytes(byteArrayOf(3))
     fun sendCtrlD() = sendRawBytes(byteArrayOf(4))
     fun sendCtrlZ() = sendRawBytes(byteArrayOf(26))
+    fun sendCtrl(c: Char) {
+        val code = (c.uppercaseChar().code - 64).toByte()
+        sendRawBytes(byteArrayOf(code))
+    }
+    fun sendHome() = sendRawBytes(byteArrayOf(27, 91, 72))
+    fun sendEnd() = sendRawBytes(byteArrayOf(27, 91, 70))
+    fun sendPageUp() = sendRawBytes(byteArrayOf(27, 91, 53, 126))
+    fun sendPageDown() = sendRawBytes(byteArrayOf(27, 91, 54, 126))
+    fun sendFn(n: Int) {
+        val seq = when (n) {
+            1 -> byteArrayOf(27, 79, 80)
+            2 -> byteArrayOf(27, 79, 81)
+            3 -> byteArrayOf(27, 79, 82)
+            4 -> byteArrayOf(27, 79, 83)
+            5 -> byteArrayOf(27, 91, 49, 53, 126)
+            6 -> byteArrayOf(27, 91, 49, 55, 126)
+            7 -> byteArrayOf(27, 91, 49, 56, 126)
+            8 -> byteArrayOf(27, 91, 49, 57, 126)
+            9 -> byteArrayOf(27, 91, 50, 48, 126)
+            10 -> byteArrayOf(27, 91, 50, 49, 126)
+            11 -> byteArrayOf(27, 91, 50, 51, 126)
+            12 -> byteArrayOf(27, 91, 50, 52, 126)
+            else -> return
+        }
+        sendRawBytes(seq)
+    }
+
     fun sendArrowUp() = sendRawBytes(byteArrayOf(27, 91, 65))
     fun sendArrowDown() = sendRawBytes(byteArrayOf(27, 91, 66))
     fun sendArrowRight() = sendRawBytes(byteArrayOf(27, 91, 67))

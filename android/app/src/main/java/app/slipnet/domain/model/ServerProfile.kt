@@ -164,8 +164,23 @@ data class ServerProfile(
     // DNS-tunnel payload encryption method (MasterDNS / StormDNS): 0 = none,
     // 1 = XOR, 2 = ChaCha20, 3/4/5 = AES-128/192/256-GCM. Must match the
     // server's DATA_ENCRYPTION_METHOD.
-    val tunnelEncryptionMethod: Int = 1
+    val tunnelEncryptionMethod: Int = 1,
+    val subscriptionId: String = ""
 ) {
+    val subscriptionGroup: String
+        get() {
+            if (subscriptionId.isNotBlank()) return subscriptionId
+            if (name.startsWith("[") && name.contains("]")) {
+                val group = name.substringAfter("[").substringBefore("]").trim()
+                if (group.isNotBlank()) return group
+            }
+            if (name.contains("/")) {
+                val group = name.substringBefore("/").trim()
+                if (group.isNotBlank() && group.length <= 20) return group
+            }
+            return ""
+        }
+
     val isExpired: Boolean get() = expirationDate > 0 && System.currentTimeMillis() > expirationDate
 }
 
@@ -230,11 +245,15 @@ enum class TunnelType(val value: String, val displayName: String) {
     VMESS("vmess", "VMess (V2Ray / iOS)"),
     SNELL("snell", "Snell (Surge iOS)"),
     SHADOWSOCKSR("ssr", "ShadowsocksR (iOS)"),
-    VLESS_REALITY("vless_reality", "VLESS-Reality (Vision)");
+    VLESS_REALITY("vless_reality", "VLESS-Reality (Vision)"),
+    AETHER("aether", "Aether (MASQUE / Cloudflare)"),
+    WARP("warp", "WARP (WireGuard / Gool)");
 
     companion object {
         fun fromValue(value: String): TunnelType {
             if (value.equals("meli", ignoreCase = true)) return MELI
+            if (value.equals("aether", ignoreCase = true) || value.equals("masque", ignoreCase = true)) return AETHER
+            if (value.equals("warp", ignoreCase = true) || value.equals("gool", ignoreCase = true)) return WARP
             if (value.equals("wireguard", ignoreCase = true) || value.equals("awg", ignoreCase = true) || value.equals("wg", ignoreCase = true)) return WIREGUARD
             if (value.equals("openvpn", ignoreCase = true) || value.equals("ovpn", ignoreCase = true)) return OPENVPN
             if (value.equals("hysteria2", ignoreCase = true) || value.equals("hy2", ignoreCase = true)) return HYSTERIA2

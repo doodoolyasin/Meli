@@ -505,12 +505,12 @@ fun MainScreen(
                             }
                             Spacer(Modifier.height(10.dp))
                             Text(
-                                text = "آریانا (Aryana Core)",
+                                text = "Aryana Core",
                                 style = MaterialTheme.typography.titleLarge,
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
-                                text = "محیط ضد فیلترینگ و اینترنت ملی",
+                                text = "Censorship-Resistant Tunnel Engine",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -522,8 +522,109 @@ fun MainScreen(
                     NavigationDrawerItem(
                         label = {
                             Column {
-                                Text("ترمینال SSH (Termius)", fontWeight = FontWeight.Bold)
-                                Text("شل لینوکس و ابزارهای مانیتورینگ", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text("Per-App Proxy", fontWeight = FontWeight.SemiBold)
+                                Text("Bypass or route specific applications", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        },
+                        selected = false,
+                        onClick = {
+                            scope.launch { drawerState.close() }
+                            onNavigateToAppSelector()
+                        },
+                        icon = { Icon(Icons.Default.Apps, contentDescription = null) },
+                        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                    )
+
+                    NavigationDrawerItem(
+                        label = {
+                            Column {
+                                Text("DNS & Latency Scanner", fontWeight = FontWeight.SemiBold)
+                                Text("Test clean resolvers and latency", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        },
+                        selected = false,
+                        onClick = {
+                            scope.launch { drawerState.close() }
+                            onNavigateToDnsScanner()
+                        },
+                        icon = { Icon(Icons.Default.Speed, contentDescription = null) },
+                        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                    )
+
+                    NavigationDrawerItem(
+                        label = {
+                            Column {
+                                Text("Live Diagnostics", fontWeight = FontWeight.SemiBold)
+                                Text("Real-time engine debug logs", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        },
+                        selected = false,
+                        onClick = {
+                            scope.launch { drawerState.close() }
+                            showLogSheet = true
+                        },
+                        icon = { Icon(Icons.Default.BugReport, contentDescription = null, tint = Color(0xFF00E5FF)) },
+                        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                    )
+
+                    NavigationDrawerItem(
+                        label = {
+                            Column {
+                                Text("Settings", fontWeight = FontWeight.SemiBold)
+                                Text("Routing, DNS and core options", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        },
+                        selected = false,
+                        onClick = {
+                            scope.launch { drawerState.close() }
+                            onNavigateToSettings()
+                        },
+                        icon = { Icon(Icons.Default.Settings, contentDescription = null) },
+                        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                    )
+
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 6.dp))
+
+                    NavigationDrawerItem(
+                        label = {
+                            Column {
+                                Text("Backup & Share (ARYANA://)", fontWeight = FontWeight.SemiBold)
+                                Text("Encrypted profile export", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        },
+                        selected = false,
+                        onClick = {
+                            scope.launch { drawerState.close() }
+                            showExportAllEncryptedDialog = true
+                        },
+                        icon = { Icon(Icons.Default.Share, contentDescription = null) },
+                        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                    )
+
+                    NavigationDrawerItem(
+                        label = {
+                            Column {
+                                Text("About Aryana", fontWeight = FontWeight.SemiBold)
+                                Text("Version and engine info", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        },
+                        selected = false,
+                        onClick = {
+                            scope.launch { drawerState.close() }
+                            showAboutDialog = true
+                        },
+                        icon = { Icon(Icons.Default.Info, contentDescription = null) },
+                        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                    )
+
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 6.dp))
+
+                    // SSH Terminal (Termius Suite) at the very bottom
+                    NavigationDrawerItem(
+                        label = {
+                            Column {
+                                Text("SSH Terminal (Termius)", fontWeight = FontWeight.Bold, color = Color(0xFF00FF66))
+                                Text("Interactive shell, hosts & snippets", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         },
                         selected = false,
@@ -538,76 +639,6 @@ fun MainScreen(
                                 tint = Color(0xFF00FF66)
                             )
                         },
-                        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
-                    )
-
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-
-                    NavigationDrawerItem(
-                        label = { Text("اسکنر دی‌ان‌اس و پینگ E2E") },
-                        selected = false,
-                        onClick = {
-                            scope.launch { drawerState.close() }
-                            onNavigateToSettings()
-                        },
-                        icon = { Icon(Icons.Default.Speed, contentDescription = null) },
-                        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
-                    )
-
-                    NavigationDrawerItem(
-                        label = { Text("پروکسی تفکیکی برنامه‌ها") },
-                        selected = false,
-                        onClick = {
-                            scope.launch { drawerState.close() }
-                            onNavigateToSettings()
-                        },
-                        icon = { Icon(Icons.Default.Apps, contentDescription = null) },
-                        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
-                    )
-
-                    NavigationDrawerItem(
-                        label = { Text("گزارش عیب‌یابی و لاگ لایو") },
-                        selected = false,
-                        onClick = {
-                            scope.launch { drawerState.close() }
-                            showLogSheet = true
-                        },
-                        icon = { Icon(Icons.Default.BugReport, contentDescription = null, tint = Color(0xFF00E5FF)) },
-                        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
-                    )
-
-                    NavigationDrawerItem(
-                        label = { Text("تنظیمات هسته و تونل") },
-                        selected = false,
-                        onClick = {
-                            scope.launch { drawerState.close() }
-                            onNavigateToSettings()
-                        },
-                        icon = { Icon(Icons.Default.Settings, contentDescription = null) },
-                        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
-                    )
-
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-
-                    NavigationDrawerItem(
-                        label = { Text("خروجی امن (پروتکل aryana://)") },
-                        selected = false,
-                        onClick = {
-                            scope.launch { drawerState.close() }
-                            showExportAllEncryptedDialog = true
-                        },
-                        icon = { Icon(Icons.Default.Share, contentDescription = null) },
-                        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
-                    )
-
-                    NavigationDrawerItem(
-                        label = { Text("درباره آریانا") },
-                        selected = false,
-                        onClick = {
-                            scope.launch { drawerState.close() }
-                            showAboutDialog = true
-                        },
-                        icon = { Icon(Icons.Default.Info, contentDescription = null) },
                         modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
                     )
                 }
@@ -926,35 +957,39 @@ fun MainScreen(
                 .padding(paddingValues)
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
-                val displayedProfiles = remember(uiState.profiles, selectedCategoryIndex, searchQuery) {
+                // Dynamic Subscription Groups (PattNG Architecture)
+                val subGroups = remember(uiState.profiles) {
+                    uiState.profiles
+                        .map { it.subscriptionGroup.trim() }
+                        .filter { it.isNotBlank() }
+                        .distinct()
+                }
+
+                val groupTabs = remember(uiState.profiles, uiState.chains, subGroups) {
+                    val list = mutableListOf<Pair<String, Int>>()
+                    list.add("All" to uiState.profiles.size)
+                    val defaultCount = uiState.profiles.count { it.subscriptionGroup.isBlank() }
+                    if (defaultCount > 0 || subGroups.isNotEmpty()) {
+                        list.add("Default" to defaultCount)
+                    }
+                    subGroups.forEach { subId ->
+                        val count = uiState.profiles.count { it.subscriptionGroup == subId }
+                        list.add(subId to count)
+                    }
+                    if (uiState.chains.isNotEmpty()) {
+                        list.add("Chains" to uiState.chains.size)
+                    }
+                    list
+                }
+
+                val displayedProfiles = remember(uiState.profiles, selectedCategoryIndex, searchQuery, groupTabs) {
+                    val currentGroup = groupTabs.getOrNull(selectedCategoryIndex)?.first ?: "All"
                     uiState.profiles.filter { profile ->
-                        val matchesCat = when (selectedCategoryIndex) {
-                            1 -> profile.tunnelType in listOf(
-                                TunnelType.MASTERDNS, TunnelType.MASTERDNS_SSH,
-                                TunnelType.STORMDNS, TunnelType.STORMDNS_SSH,
-                                TunnelType.DNSTT, TunnelType.DNSTT_SSH,
-                                TunnelType.NOIZDNS, TunnelType.NOIZDNS_SSH,
-                                TunnelType.VAYDNS, TunnelType.VAYDNS_SSH,
-                                TunnelType.SOAR, TunnelType.SOAR_SSH,
-                                TunnelType.COTTENDNS, TunnelType.COTTENDNS_SSH,
-                                TunnelType.SLIPSTREAM, TunnelType.SLIPSTREAM_SSH
-                            )
-                            2 -> profile.tunnelType in listOf(TunnelType.MELI, TunnelType.MELI_SSH)
-                            3 -> profile.tunnelType in listOf(
-                                TunnelType.VLESS, TunnelType.VLESS_REALITY,
-                                TunnelType.VMESS, TunnelType.TROJAN,
-                                TunnelType.SHADOWSOCKS, TunnelType.SHADOWSOCKSR,
-                                TunnelType.SNELL
-                            )
-                            4 -> profile.tunnelType in listOf(
-                                TunnelType.WIREGUARD, TunnelType.OPENVPN,
-                                TunnelType.HYSTERIA2, TunnelType.TUIC,
-                                TunnelType.BALE, TunnelType.PAQET,
-                                TunnelType.SOCKS5, TunnelType.SSH,
-                                TunnelType.DOH, TunnelType.SNOWFLAKE,
-                                TunnelType.NAIVE, TunnelType.NAIVE_SSH
-                            )
-                            else -> true
+                        val matchesGroup = when (currentGroup) {
+                            "All" -> true
+                            "Default" -> profile.subscriptionGroup.isBlank()
+                            "Chains" -> true
+                            else -> profile.subscriptionGroup == currentGroup
                         }
                         val matchesQuery = if (searchQuery.isBlank()) true else {
                             profile.name.contains(searchQuery, ignoreCase = true) ||
@@ -962,20 +997,11 @@ fun MainScreen(
                             profile.cdnIp.contains(searchQuery, ignoreCase = true) ||
                             profile.tunnelType.displayName.contains(searchQuery, ignoreCase = true)
                         }
-                        matchesCat && matchesQuery
+                        matchesGroup && matchesQuery
                     }
                 }
 
                 // ── PattNG Group Category Pills ──────────────────────────
-                val categoryTabs = listOf(
-                    "همه" to uiState.profiles.size,
-                    "DNS تانل" to uiState.profiles.count { it.tunnelType in listOf(TunnelType.MASTERDNS, TunnelType.MASTERDNS_SSH, TunnelType.STORMDNS, TunnelType.STORMDNS_SSH, TunnelType.DNSTT, TunnelType.DNSTT_SSH, TunnelType.NOIZDNS, TunnelType.NOIZDNS_SSH, TunnelType.VAYDNS, TunnelType.VAYDNS_SSH, TunnelType.SOAR, TunnelType.SOAR_SSH, TunnelType.COTTENDNS, TunnelType.COTTENDNS_SSH, TunnelType.SLIPSTREAM, TunnelType.SLIPSTREAM_SSH) },
-                    "پروتکل ملی" to uiState.profiles.count { it.tunnelType in listOf(TunnelType.MELI, TunnelType.MELI_SSH) },
-                    "V2Ray / Reality" to uiState.profiles.count { it.tunnelType in listOf(TunnelType.VLESS, TunnelType.VLESS_REALITY, TunnelType.VMESS, TunnelType.TROJAN, TunnelType.SHADOWSOCKS, TunnelType.SHADOWSOCKSR, TunnelType.SNELL) },
-                    "VPN مدرن" to uiState.profiles.count { it.tunnelType in listOf(TunnelType.WIREGUARD, TunnelType.OPENVPN, TunnelType.HYSTERIA2, TunnelType.TUIC, TunnelType.BALE, TunnelType.PAQET, TunnelType.SOCKS5, TunnelType.SSH, TunnelType.DOH, TunnelType.SNOWFLAKE, TunnelType.NAIVE, TunnelType.NAIVE_SSH) },
-                    "زنجیره‌ها" to uiState.chains.size
-                )
-
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -984,12 +1010,12 @@ fun MainScreen(
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    categoryTabs.forEachIndexed { index, (label, count) ->
+                    groupTabs.forEachIndexed { index, (label, count) ->
                         FilterChip(
                             selected = selectedCategoryIndex == index,
                             onClick = {
                                 selectedCategoryIndex = index
-                                if (index == 5) selectedTab = 1 else selectedTab = 0
+                                if (label == "Chains") selectedTab = 1 else selectedTab = 0
                             },
                             label = {
                                 Row(verticalAlignment = Alignment.CenterVertically) {

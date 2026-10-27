@@ -1110,13 +1110,20 @@ class VpnRepositoryImpl @Inject constructor(
                 NaiveSocksBridge.stop()
                 NaiveBridge.stop()
             }
-            TunnelType.SOCKS5, TunnelType.BALE, TunnelType.PINGTUNNEL, TunnelType.SPOOF_TUNNEL, TunnelType.GOLDEN_GRE, TunnelType.PAQET -> {
+            TunnelType.SOCKS5, TunnelType.BALE, TunnelType.PINGTUNNEL, TunnelType.SPOOF_TUNNEL, TunnelType.GOLDEN_GRE, TunnelType.PAQET,
+            TunnelType.WIREGUARD, TunnelType.OPENVPN, TunnelType.HYSTERIA2, TunnelType.TUIC, TunnelType.TROJAN, TunnelType.SHADOWSOCKS,
+            TunnelType.VMESS, TunnelType.SNELL, TunnelType.SHADOWSOCKSR, TunnelType.VLESS_REALITY, TunnelType.AETHER, TunnelType.WARP -> {
                 Log.d(TAG, "Stopping SOCKS5-compatible proxy bridge")
-                Socks5ProxyBridge.stop()
+                Socks5ProxyBridge.stopAll()
             }
-            TunnelType.MASTERDNS, TunnelType.STORMDNS -> {
-                Log.d(TAG, "Stopping MasterDNS / StormDNS proxy bridge")
+            TunnelType.MASTERDNS, TunnelType.MASTERDNS_SSH,
+            TunnelType.STORMDNS, TunnelType.STORMDNS_SSH,
+            TunnelType.COTTENDNS, TunnelType.COTTENDNS_SSH,
+            TunnelType.SOAR, TunnelType.SOAR_SSH,
+            TunnelType.MELI, TunnelType.MELI_SSH -> {
+                Log.d(TAG, "Stopping MasterDNS / StormDNS / Cotten / Soar / Meli proxy bridge")
                 MasterDnsBridge.stopClient()
+                SshTunnelBridge.stop()
             }
             TunnelType.NOOSHDAROO, TunnelType.QWDTT -> {
                 Log.d(TAG, "Stopping DNS-based proxy bridge")

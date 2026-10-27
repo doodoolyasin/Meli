@@ -52,6 +52,12 @@ fun NavGraph(
                 },
                 onNavigateToTerminal = {
                     navController.navigate(NavRoutes.SshTerminal.route)
+                },
+                onNavigateToAppSelector = {
+                    navController.navigate(NavRoutes.AppSelector.route)
+                },
+                onNavigateToDnsScanner = {
+                    navController.navigate(NavRoutes.DnsScanner.createRoute())
                 }
             )
         }

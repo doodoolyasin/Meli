@@ -341,6 +341,19 @@ class ConfigImporter @Inject constructor() {
                 continue
             }
 
+            // Handle Aether / WARP / MASQUE URIs (PattNG)
+            if (trimmedLine.startsWith("warp://", ignoreCase = true) ||
+                trimmedLine.startsWith("aether://", ignoreCase = true) ||
+                trimmedLine.startsWith("masque://", ignoreCase = true)) {
+                val result = parseAetherUri(trimmedLine, index + 1)
+                when (result) {
+                    is ProfileParseResult.Success -> profiles.add(result.profile)
+                    is ProfileParseResult.Warning -> warnings.add(result.message)
+                    is ProfileParseResult.Error -> warnings.add(result.message)
+                }
+                continue
+            }
+
             // Handle Aryana military-grade encrypted format (aryana:// or ARYANA://)
             if (trimmedLine.startsWith(SCHEME_ARYANA, ignoreCase = true) ||
                 trimmedLine.startsWith("aryana-enc://", ignoreCase = true)) {
@@ -2563,6 +2576,39 @@ class ConfigImporter @Inject constructor() {
             )
         } catch (e: Exception) {
             ProfileParseResult.Error("Line $lineNum: Failed to parse MasterDNS URI: ${e.message}")
+        }
+    }
+
+    private fun parseAetherUri(uriString: String, lineNum: Int): ProfileParseResult {
+        return try {
+            val uri = android.net.Uri.parse(uriString)
+            val scheme = uri.scheme?.lowercase() ?: "warp"
+            val tunnelType = if (scheme == "masque" || scheme == "aether") TunnelType.AETHER else TunnelType.WARP
+            val name = uri.fragment?.takeIf { it.isNotBlank() }?.let {
+                try { java.net.URLDecoder.decode(it, "UTF-8") } catch (_: Exception) { it }
+            } ?: if (tunnelType == TunnelType.AETHER) "Aether MASQUE" else "WARP Cloudflare"
+
+            val host = uri.host ?: "162.159.192.1"
+            val port = if (uri.port > 0) uri.port else if (tunnelType == TunnelType.AETHER) 443 else 2408
+            val privateKey = uri.userInfo ?: ""
+            val peerPublicKey = uri.getQueryParameter("peer_pub") ?: uri.getQueryParameter("public_key") ?: "bmXOC+F1FxEMF9dyiK2H5/1SUtzH0JuVo51h2wPfgyo="
+            val reserved = uri.getQueryParameter("reserved") ?: ""
+
+            ProfileParseResult.Success(
+                ServerProfile(
+                    name = name,
+                    domain = host,
+                    cdnIp = host,
+                    cdnPort = port,
+                    tunnelType = tunnelType,
+                    sshPrivateKey = privateKey,
+                    dnsttPublicKey = peerPublicKey,
+                    vlessSni = uri.getQueryParameter("sni") ?: "engage.cloudflareclient.com",
+                    vlessWsPath = reserved
+                )
+            )
+        } catch (e: Exception) {
+            ProfileParseResult.Error("Line $lineNum: Failed to parse Aether/WARP URI: ${e.message}")
         }
     }
 

@@ -208,7 +208,7 @@ fun ProfileListItem(
                             onDismissRequest = { showExportMenu = false }
                         ) {
                             DropdownMenuItem(
-                                text = { Text(if (profile.isPinned) "برداشتن سنجاق" else "سنجاق به بالا") },
+                                text = { Text(if (profile.isPinned) "Unpin" else "Pin to Top") },
                                 onClick = {
                                     showExportMenu = false
                                     onPinClick()
@@ -216,7 +216,7 @@ fun ProfileListItem(
                                 leadingIcon = { Icon(Icons.Default.PushPin, contentDescription = null) }
                             )
                             DropdownMenuItem(
-                                text = { Text("اشتراک QR Code") },
+                                text = { Text("Share QR Code") },
                                 onClick = {
                                     showExportMenu = false
                                     onShareQrClick()
@@ -224,7 +224,7 @@ fun ProfileListItem(
                                 leadingIcon = { Icon(Icons.Default.QrCode2, contentDescription = null) }
                             )
                             DropdownMenuItem(
-                                text = { Text("تست پینگ زنده") },
+                                text = { Text("Test Latency (Ping)") },
                                 onClick = {
                                     showExportMenu = false
                                     onPingClick()
@@ -240,16 +240,18 @@ fun ProfileListItem(
 
                 // Subtitle: Endpoint / Host / Port Details
                 val subtitleText = if (profile.isLocked) {
-                    "پیکربندی محافظت‌شده (رمزنگاری اختصاصی)"
+                    "Protected Config (ARYANA://)"
                 } else {
                     val hostPart = if (profile.cdnIp.isNotBlank()) profile.cdnIp else profile.domain
                     when (profile.tunnelType) {
                         TunnelType.DOH -> DOH_SERVERS.firstOrNull { it.url == profile.dohUrl }?.name ?: profile.dohUrl
                         TunnelType.SSH -> "$hostPart:${profile.sshPort}"
-                        TunnelType.SNOWFLAKE -> "شبکه Tor / Snowflake"
+                        TunnelType.SNOWFLAKE -> "Tor / Snowflake Network"
                         TunnelType.VLESS, TunnelType.VLESS_REALITY -> "$hostPart:${profile.cdnPort} (${profile.vlessTransport.ifBlank { "tcp" }})"
                         TunnelType.VMESS, TunnelType.TROJAN -> "$hostPart:${profile.cdnPort}"
                         TunnelType.WIREGUARD -> "$hostPart:${profile.cdnPort} (UDP)"
+                        TunnelType.AETHER -> "$hostPart:${profile.cdnPort} (MASQUE)"
+                        TunnelType.WARP -> "$hostPart:${profile.cdnPort} (WARP)"
                         else -> "$hostPart:${profile.cdnPort.takeIf { it > 0 } ?: 53}"
                     }
                 }
@@ -343,7 +345,7 @@ fun ProfileListItem(
                         }
                         is PingResult.Skipped, null -> {
                             Text(
-                                text = if (isConnected) "متصل" else "",
+                                text = if (isConnected) "Connected" else "",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = if (isConnected) ColorPingGreen else Color.Transparent
                             )
