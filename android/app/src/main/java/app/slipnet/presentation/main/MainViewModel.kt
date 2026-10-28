@@ -985,10 +985,6 @@ class MainViewModel @Inject constructor(
         }
     }
 
-    fun clearPingResults() {
-        _uiState.value = _uiState.value.copy(pingResults = emptyMap())
-    }
-
     fun deleteProfilesMatching(predicate: (ServerProfile) -> Boolean) {
         viewModelScope.launch {
             val connectedId = (_uiState.value.connectionState as? ConnectionState.Connected)?.profile?.id
