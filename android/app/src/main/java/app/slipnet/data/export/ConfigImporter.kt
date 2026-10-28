@@ -191,10 +191,28 @@ class ConfigImporter @Inject constructor() {
         }
 
         // Handle full JSON configurations (Sing-box, Xray outbounds, WhiteDNS JSON)
-        if ((trimmedInput.startsWith("{") && trimmedInput.endsWith("}")) ||
-            (trimmedInput.startsWith("[") && trimmedInput.endsWith("]"))) {
-            val jsonResult = parseUniversalJson(trimmedInput)
+        var jsonCandidate = trimmedInput
+            .removePrefix("\uFEFF")
+            .trim()
+
+        if (jsonCandidate.startsWith("```")) {
+            val firstNl = jsonCandidate.indexOf('\n')
+            if (firstNl != -1) jsonCandidate = jsonCandidate.substring(firstNl + 1)
+            if (jsonCandidate.endsWith("```")) {
+                jsonCandidate = jsonCandidate.removeSuffix("```").trim()
+            }
+        }
+
+        if ((jsonCandidate.startsWith("{") && jsonCandidate.endsWith("}")) ||
+            (jsonCandidate.startsWith("[") && jsonCandidate.endsWith("]")) ||
+            jsonCandidate.contains("\"outbounds\"")) {
+            val startIdx = jsonCandidate.indexOf('{').takeIf { it >= 0 } ?: jsonCandidate.indexOf('[')
+            val endIdx = jsonCandidate.lastIndexOf('}').takeIf { it >= 0 } ?: jsonCandidate.lastIndexOf(']')
+            val toParse = if (startIdx in 0..endIdx) jsonCandidate.substring(startIdx, endIdx + 1) else jsonCandidate
+            val jsonResult = parseUniversalJson(toParse)
             if (jsonResult is ImportResult.Success && jsonResult.profiles.isNotEmpty()) {
+                return jsonResult
+            } else if (jsonResult is ImportResult.Error && (jsonCandidate.startsWith("{") || jsonCandidate.contains("\"outbounds\""))) {
                 return jsonResult
             }
         }
@@ -3155,6 +3173,7 @@ class ConfigImporter @Inject constructor() {
     private fun parseUniversalJson(jsonStr: String): ImportResult {
         return try {
             val root = org.json.JSONObject(jsonStr)
+            val rootRemarks = root.optString("remarks", root.optString("description", "")).trim()
             val profiles = mutableListOf<ServerProfile>()
 
             val outbounds = root.optJSONArray("outbounds")
@@ -3163,6 +3182,9 @@ class ConfigImporter @Inject constructor() {
                     val ob = outbounds.optJSONObject(i) ?: continue
                     val tag = ob.optString("tag", "Proxy-$i")
                     val type = ob.optString("type", ob.optString("protocol", "")).lowercase()
+                    if (type == "freedom" || type == "blackhole" || type == "dns" || tag.equals("direct", ignoreCase = true) || tag.equals("block", ignoreCase = true)) {
+                        continue
+                    }
                     val settings = ob.optJSONObject("settings")
                     val streamSettings = ob.optJSONObject("streamSettings")
 
@@ -3178,7 +3200,7 @@ class ConfigImporter @Inject constructor() {
                         val firstVnext = vnext.optJSONObject(0)
                         if (firstVnext != null) {
                             if (server.isBlank()) server = firstVnext.optString("address", "")
-                            if (port == 443) port = firstVnext.optInt("port", 443)
+                            port = firstVnext.optInt("port", port)
                             val users = firstVnext.optJSONArray("users")
                             if (users != null && users.length() > 0) {
                                 val userObj = users.optJSONObject(0)
@@ -3195,9 +3217,10 @@ class ConfigImporter @Inject constructor() {
                         val firstServer = servers.optJSONObject(0)
                         if (firstServer != null) {
                             if (server.isBlank()) server = firstServer.optString("address", "")
-                            if (port == 443) port = firstServer.optInt("port", 443)
+                            port = firstServer.optInt("port", port)
                             if (password.isBlank()) password = firstServer.optString("password", "")
-                            if (method.isBlank()) method = firstServer.optString("method", "aes-256-gcm")
+                            val m = firstServer.optString("method", "")
+                            if (m.isNotBlank()) method = m
                         }
                     }
 
@@ -3207,13 +3230,22 @@ class ConfigImporter @Inject constructor() {
                     val sni = streamSettings?.optJSONObject("tlsSettings")?.optString("serverName", "")
                         ?: streamSettings?.optJSONObject("realitySettings")?.optString("serverName", "") ?: ""
 
+                    val profileName = when {
+                        rootRemarks.isNotBlank() && i == 0 -> rootRemarks
+                        rootRemarks.isNotBlank() -> "$rootRemarks ($tag)"
+                        tag.isNotBlank() && tag != "proxy" -> tag
+                        else -> "$type-$port"
+                    }
+
                     when (type) {
                         "vless" -> {
                             profiles.add(
                                 ServerProfile(
-                                    name = "$tag (JSON)",
+                                    name = profileName,
                                     domain = server,
+                                    cdnIp = server,
                                     cdnPort = port,
+                                    socks5ServerPort = port,
                                     tunnelType = TunnelType.VLESS,
                                     vlessUuid = uuid,
                                     vlessTransport = transport,
@@ -3225,9 +3257,11 @@ class ConfigImporter @Inject constructor() {
                         "trojan" -> {
                             profiles.add(
                                 ServerProfile(
-                                    name = "$tag (JSON)",
+                                    name = profileName,
                                     domain = server,
+                                    cdnIp = server,
                                     cdnPort = port,
+                                    socks5ServerPort = port,
                                     tunnelType = TunnelType.TROJAN,
                                     socksPassword = password,
                                     vlessTransport = transport,
@@ -3239,9 +3273,11 @@ class ConfigImporter @Inject constructor() {
                         "hysteria2" -> {
                             profiles.add(
                                 ServerProfile(
-                                    name = "$tag (JSON)",
+                                    name = profileName,
                                     domain = server,
+                                    cdnIp = server,
                                     cdnPort = port,
+                                    socks5ServerPort = port,
                                     tunnelType = TunnelType.HYSTERIA2,
                                     socksPassword = password
                                 )
@@ -3250,21 +3286,25 @@ class ConfigImporter @Inject constructor() {
                         "tuic" -> {
                             profiles.add(
                                 ServerProfile(
-                                    name = "$tag (JSON)",
+                                    name = profileName,
                                     domain = server,
+                                    cdnIp = server,
                                     cdnPort = port,
+                                    socks5ServerPort = port,
                                     tunnelType = TunnelType.TUIC,
                                     vlessUuid = uuid,
                                     socksPassword = password
                                 )
                             )
                         }
-                        "shadowsocks" -> {
+                        "shadowsocks", "ss" -> {
                             profiles.add(
                                 ServerProfile(
-                                    name = "$tag (JSON)",
+                                    name = profileName,
                                     domain = server,
+                                    cdnIp = server,
                                     cdnPort = port,
+                                    socks5ServerPort = port,
                                     tunnelType = TunnelType.SHADOWSOCKS,
                                     socksUsername = method,
                                     socksPassword = password
@@ -3276,9 +3316,11 @@ class ConfigImporter @Inject constructor() {
                             val privKey = ob.optString("private_key", "")
                             profiles.add(
                                 ServerProfile(
-                                    name = "$tag (JSON)",
+                                    name = profileName,
                                     domain = server,
+                                    cdnIp = server,
                                     cdnPort = port,
+                                    socks5ServerPort = port,
                                     tunnelType = TunnelType.WIREGUARD,
                                     dnsttPublicKey = pubKey,
                                     sshPrivateKey = privKey
@@ -3288,9 +3330,11 @@ class ConfigImporter @Inject constructor() {
                         "vmess" -> {
                             profiles.add(
                                 ServerProfile(
-                                    name = "$tag (JSON)",
+                                    name = profileName,
                                     domain = server,
+                                    cdnIp = server,
                                     cdnPort = port,
+                                    socks5ServerPort = port,
                                     tunnelType = TunnelType.VMESS,
                                     vlessUuid = uuid,
                                     vlessWsPath = path,

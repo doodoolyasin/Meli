@@ -84,6 +84,7 @@ class SniFragmentForwarder(private val instanceId: String = "default") {
     // explicitly-aggressive strategy, where throughput was already traded
     // away). Non-zero = explicit override. Set < 0 to force-disable.
     var tcpMaxSeg: Int = 0
+    var vpnService: android.net.VpnService? = null
 
     private var serverSocket: ServerSocket? = null
     private var acceptorThread: Thread? = null
@@ -157,6 +158,7 @@ class SniFragmentForwarder(private val instanceId: String = "default") {
 
             // Connect to CDN
             val remote = Socket()
+            vpnService?.protect(remote)
             remote.connect(InetSocketAddress(connectIp, connectPort), TCP_CONNECT_TIMEOUT_MS)
             remote.tcpNoDelay = true
             remote.soTimeout = 60_000

@@ -3355,8 +3355,8 @@ class SlipNetVpnService : VpnService() {
         Socks5ProxyBridge.debugLogging = preferencesDataStore.debugLogging.first()
         val bridgeResult = withContext(Dispatchers.IO) {
             Socks5ProxyBridge.start(
-                remoteHost = profile.domain,
-                remotePort = profile.socks5ServerPort,
+                remoteHost = profile.domain.ifBlank { profile.cdnIp },
+                remotePort = if (profile.socks5ServerPort > 0) profile.socks5ServerPort else if (profile.cdnPort > 0) profile.cdnPort else 1080,
                 remoteUsername = profile.socksUsername,
                 remotePassword = profile.socksPassword,
                 listenPort = proxyPort,
@@ -3420,9 +3420,9 @@ class SlipNetVpnService : VpnService() {
                 VlessBridge.start(
                     listenPort = proxyPort,
                     listenHost = proxyHost,
-                    cdnIp = profile.cdnIp,
-                    cdnPort = profile.cdnPort,
-                    serverDomain = profile.domain,
+                    cdnIp = profile.cdnIp.ifBlank { profile.domain },
+                    cdnPort = if (profile.cdnPort > 0) profile.cdnPort else 443,
+                    serverDomain = profile.domain.ifBlank { profile.cdnIp },
                     vlessUuid = profile.vlessUuid,
                     security = profile.vlessSecurity,
                     transport = profile.vlessTransport,
@@ -3488,9 +3488,9 @@ class SlipNetVpnService : VpnService() {
             VlessBridge.start(
                 listenPort = proxyPort,
                 listenHost = proxyHost,
-                cdnIp = profile.cdnIp,
-                cdnPort = profile.cdnPort,
-                serverDomain = profile.domain,
+                cdnIp = profile.cdnIp.ifBlank { profile.domain },
+                cdnPort = if (profile.cdnPort > 0) profile.cdnPort else 443,
+                serverDomain = profile.domain.ifBlank { profile.cdnIp },
                 vlessUuid = profile.vlessUuid,
                 transport = profile.vlessTransport,
                 wsPath = profile.vlessWsPath,

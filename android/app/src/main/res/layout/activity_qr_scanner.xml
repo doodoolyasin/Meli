@@ -9,6 +9,9 @@
         android:id="@+id/barcode_scanner"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
+        app:zxing_framing_rect_width="260dp"
+        app:zxing_framing_rect_height="260dp"
+        app:zxing_use_texture_view="true"
         app:zxing_scanner_layout="@layout/zxing_barcode_scanner" />
 
     <ImageButton

@@ -975,6 +975,20 @@ class MainViewModel @Inject constructor(
         }
     }
 
+    fun sortProfilesByName() {
+        val current = _uiState.value.profiles
+        val sorted = current.sortedBy { it.name.lowercase() }
+        if (sorted == current) return
+        _uiState.value = _uiState.value.copy(profiles = sorted)
+        viewModelScope.launch {
+            profileRepository.updateProfileOrder(sorted.map { it.id })
+        }
+    }
+
+    fun clearPingResults() {
+        _uiState.value = _uiState.value.copy(pingResults = emptyMap())
+    }
+
     fun deleteProfilesMatching(predicate: (ServerProfile) -> Boolean) {
         viewModelScope.launch {
             val connectedId = (_uiState.value.connectionState as? ConnectionState.Connected)?.profile?.id
@@ -1073,6 +1087,19 @@ class MainViewModel @Inject constructor(
     private suspend fun pingProfileTcp(profile: ServerProfile): PingResult {
         val target = getTcpTarget(profile) ?: return PingResult.Error("No target")
 
+        val isDnsProfile = profile.tunnelType in listOf(
+            TunnelType.MASTERDNS, TunnelType.MASTERDNS_SSH,
+            TunnelType.STORMDNS, TunnelType.STORMDNS_SSH,
+            TunnelType.COTTENDNS, TunnelType.COTTENDNS_SSH,
+            TunnelType.SOAR, TunnelType.SOAR_SSH,
+            TunnelType.MELI, TunnelType.MELI_SSH,
+            TunnelType.QWDTT, TunnelType.QWDTT_SSH,
+            TunnelType.NOOSHDAROO, TunnelType.NOOSHDAROO_SSH
+        )
+        if (isDnsProfile) {
+            return pingDnsUdp(target.first, target.second)
+        }
+
         return withContext(Dispatchers.IO) {
             try {
                 val socket = Socket()
@@ -1090,6 +1117,40 @@ class MainViewModel @Inject constructor(
                 }
                 PingResult.Error(msg)
             }
+        }
+    }
+
+    private suspend fun pingDnsUdp(host: String, port: Int = 53): PingResult = withContext(Dispatchers.IO) {
+        var socket: java.net.DatagramSocket? = null
+        try {
+            val start = System.nanoTime()
+            socket = java.net.DatagramSocket()
+            socket.soTimeout = 2500
+            val query = byteArrayOf(
+                0x12, 0x34, 0x01, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                0x01, 'm'.code.toByte(),
+                0x0c, 'd'.code.toByte(), 'h'.code.toByte(), 'a'.code.toByte(), 'f'.code.toByte(),
+                'h'.code.toByte(), 'd'.code.toByte(), 't'.code.toByte(), 'j'.code.toByte(),
+                'd'.code.toByte(), 't'.code.toByte(), 'i'.code.toByte(),
+                0x04, 's'.code.toByte(), 'i'.code.toByte(), 't'.code.toByte(), 'e'.code.toByte(),
+                0x00, 0x00, 0x01, 0x00, 0x01
+            )
+            val ip = java.net.InetAddress.getByName(host)
+            val packet = java.net.DatagramPacket(query, query.size, ip, port)
+            socket.send(packet)
+            val recvBuf = ByteArray(512)
+            val recvPacket = java.net.DatagramPacket(recvBuf, recvBuf.size)
+            socket.receive(recvPacket)
+            val elapsed = (System.nanoTime() - start) / 1_000_000
+            PingResult.Success(elapsed)
+        } catch (e: Exception) {
+            val msg = when (e) {
+                is java.net.SocketTimeoutException -> "Timeout"
+                else -> e.message?.take(20) ?: "Failed"
+            }
+            PingResult.Error(msg)
+        } finally {
+            try { socket?.close() } catch (_: Exception) {}
         }
     }
 
