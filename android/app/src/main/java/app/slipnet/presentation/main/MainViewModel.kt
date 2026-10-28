@@ -720,7 +720,7 @@ class MainViewModel @Inject constructor(
                 if (result is ImportResult.Success && result.profiles.isNotEmpty()) {
                     val group = groupName.ifBlank { "Subscription" }
                     for (p in result.profiles) {
-                        saveProfileUseCase(p.copy(subscriptionGroup = group))
+                        saveProfileUseCase(p.copy(subscriptionId = group))
                     }
                     withContext(Dispatchers.Main) { onDone(result.profiles.size, null) }
                 } else if (result is ImportResult.Error) {
@@ -745,8 +745,8 @@ class MainViewModel @Inject constructor(
             preferencesDataStore.setGeoBypassEnabled(bypassIran)
             preferencesDataStore.setGeoBypassCountry("IR")
             when (routingMode) {
-                "Global" -> preferencesDataStore.setDomainRoutingMode(app.slipnet.data.local.datastore.DomainRoutingMode.PROXY)
-                "Direct" -> preferencesDataStore.setDomainRoutingMode(app.slipnet.data.local.datastore.DomainRoutingMode.DIRECT)
+                "Global" -> preferencesDataStore.setDomainRoutingMode(app.slipnet.data.local.datastore.DomainRoutingMode.BYPASS)
+                "Direct" -> preferencesDataStore.setDomainRoutingMode(app.slipnet.data.local.datastore.DomainRoutingMode.ONLY_VPN)
                 else -> preferencesDataStore.setDomainRoutingMode(app.slipnet.data.local.datastore.DomainRoutingMode.BYPASS)
             }
         }
