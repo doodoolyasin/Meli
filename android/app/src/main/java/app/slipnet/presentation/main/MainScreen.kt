@@ -1,5 +1,14 @@
 package app.slipnet.presentation.main
 
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.material3.VerticalDivider
+import androidx.compose.ui.unit.DpOffset
+import androidx.compose.material.icons.filled.GridView
+import androidx.compose.material3.surfaceColorAtElevation
 import app.slipnet.BuildConfig
 import app.slipnet.domain.model.TunnelType
 import android.app.Activity
@@ -202,6 +211,10 @@ private enum class OverflowMenuPage {
     SORT
 }
 
+private enum class AddSubmenuType {
+    PROTOCOLS
+}
+
 private fun Context.findActivity(): Activity? {
     var context = this
     while (context is ContextWrapper) {
@@ -236,7 +249,9 @@ fun MainScreen(
     val deepLinkUri by mainActivity?.deepLinkUri?.collectAsState() ?: remember { mutableStateOf(null) }
     LaunchedEffect(deepLinkUri) {
         deepLinkUri?.let { uri ->
-            viewModel.parseImportConfig(uri)
+            viewModel.parseAndDirectImport(uri) { success, msg ->
+                scope.launch { snackbarHostState.showSnackbar(msg) }
+            }
             mainActivity?.consumeDeepLink()
         }
     }
@@ -265,11 +280,8 @@ fun MainScreen(
     var showExportAllEncryptedDialog by remember { mutableStateOf(false) }
     var showAddMenu by remember { mutableStateOf(false) }
     var showAddDropdown by remember { mutableStateOf(false) }
-    var expandedAddProtocols by remember { mutableStateOf(false) }
-    var expandedDelete by remember { mutableStateOf(false) }
-    var expandedExport by remember { mutableStateOf(false) }
-    var expandedPing by remember { mutableStateOf(false) }
-    var expandedSort by remember { mutableStateOf(false) }
+    var activeAddSubmenu by remember { mutableStateOf<AddSubmenuType?>(null) }
+    var activeOverflowSubmenu by remember { mutableStateOf<OverflowMenuPage?>(null) }
     var showDeleteAllDialog by remember { mutableStateOf(false) }
     var showDeleteDuplicatesDialog by remember { mutableStateOf(false) }
     var showDeleteOptionsDialog by remember { mutableStateOf(false) }
@@ -278,6 +290,14 @@ fun MainScreen(
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     var searchQuery by remember { mutableStateOf("") }
     var isSearchActive by remember { mutableStateOf(false) }
+    val searchFocusRequester = remember { FocusRequester() }
+    LaunchedEffect(isSearchActive) {
+        if (isSearchActive) {
+            try {
+                searchFocusRequester.requestFocus()
+            } catch (_: Exception) {}
+        }
+    }
     var selectedCategoryIndex by remember { mutableIntStateOf(0) }
 
     val subGroups = remember(uiState.profiles) {
@@ -350,7 +370,9 @@ fun MainScreen(
             try {
                 context.contentResolver.openInputStream(it)?.use { inputStream ->
                     val json = inputStream.bufferedReader().readText()
-                    viewModel.parseImportConfig(json)
+                    viewModel.parseAndDirectImport(json) { success, msg ->
+                        scope.launch { snackbarHostState.showSnackbar(msg) }
+                    }
                 }
             } catch (_: Exception) {}
         }
@@ -360,12 +382,10 @@ fun MainScreen(
         contract = ScanContract()
     ) { result ->
         val contents = result.contents
-        if (contents != null) {
-            if (contents.startsWith("slipnet://") || contents.startsWith("slipnet-enc://") || contents.startsWith("vless://")) {
-                viewModel.parseImportConfig(contents)
-            } else {
+        if (!contents.isNullOrBlank()) {
+            viewModel.parseAndDirectImport(contents) { success, msg ->
                 scope.launch {
-                    snackbarHostState.showSnackbar("Invalid QR code: not an Aryana config")
+                    snackbarHostState.showSnackbar(msg)
                 }
             }
         }
@@ -724,22 +744,59 @@ fun MainScreen(
                     },
                     title = {
                         if (isSearchActive) {
-                            OutlinedTextField(
-                                value = searchQuery,
-                                onValueChange = { searchQuery = it },
-                                placeholder = { Text("Search servers, IP, protocol...", fontSize = 12.sp) },
-                                singleLine = true,
-                                trailingIcon = {
-                                    if (searchQuery.isNotEmpty()) {
-                                        IconButton(onClick = { searchQuery = "" }) {
-                                            Icon(Icons.Default.Close, contentDescription = "Clear", modifier = Modifier.size(18.dp))
-                                        }
-                                    }
-                                },
+                            Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .height(50.dp)
-                            )
+                                    .height(42.dp)
+                                    .background(
+                                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                                        RoundedCornerShape(21.dp)
+                                    )
+                                    .padding(horizontal = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    Icons.Default.Search,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Box(modifier = Modifier.weight(1f)) {
+                                    if (searchQuery.isEmpty()) {
+                                        Text(
+                                            "Search profiles, IP, protocol...",
+                                            fontSize = 13.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                                        )
+                                    }
+                                    BasicTextField(
+                                        value = searchQuery,
+                                        onValueChange = { searchQuery = it },
+                                        singleLine = true,
+                                        textStyle = MaterialTheme.typography.bodyMedium.copy(
+                                            color = MaterialTheme.colorScheme.onSurface,
+                                            fontSize = 13.sp
+                                        ),
+                                        cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .focusRequester(searchFocusRequester)
+                                    )
+                                }
+                                if (searchQuery.isNotEmpty()) {
+                                    IconButton(
+                                        onClick = { searchQuery = "" },
+                                        modifier = Modifier.size(24.dp)
+                                    ) {
+                                        Icon(
+                                            Icons.Default.Close,
+                                            contentDescription = "Clear",
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
+                                }
+                            }
                         } else {
                             Text(
                                 text = "AryanaNG",
@@ -755,7 +812,7 @@ fun MainScreen(
                             }
                             Box {
                                 IconButton(onClick = {
-                                    expandedAddProtocols = false
+                                    activeAddSubmenu = null
                                     showAddDropdown = true
                                 }) {
                                     Icon(Icons.Default.Add, contentDescription = "Add")
@@ -764,114 +821,144 @@ fun MainScreen(
                                     expanded = showAddDropdown,
                                     onDismissRequest = {
                                         showAddDropdown = false
-                                        expandedAddProtocols = false
+                                        activeAddSubmenu = null
                                     },
-                                    modifier = Modifier.widthIn(min = 210.dp, max = 280.dp)
+                                    offset = DpOffset(0.dp, (-50).dp)
                                 ) {
-                                    DropdownMenuItem(
-                                        modifier = Modifier.heightIn(min = 36.dp),
-                                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
-                                        text = { Text("Import from QR code", fontSize = 13.sp) },
-                                        leadingIcon = { Icon(Icons.Default.QrCode2, contentDescription = null, modifier = Modifier.size(18.dp)) },
-                                        onClick = {
-                                            showAddDropdown = false
-                                            val options = ScanOptions().apply {
-                                                setDesiredBarcodeFormats(ScanOptions.QR_CODE)
-                                                setPrompt("Scan QR code")
-                                                setBeepEnabled(true)
-                                                setOrientationLocked(false)
-                                            }
-                                            qrScanLauncher.launch(options)
-                                        }
-                                    )
-                                    DropdownMenuItem(
-                                        modifier = Modifier.heightIn(min = 36.dp),
-                                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
-                                        text = { Text("Import from clipboard", fontSize = 13.sp) },
-                                        leadingIcon = { Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(18.dp)) },
-                                        onClick = {
-                                            showAddDropdown = false
-                                            val clip = clipboardManager.getText()?.text
-                                            if (!clip.isNullOrBlank()) {
-                                                viewModel.parseImportConfig(clip)
-                                            } else {
-                                                scope.launch { snackbarHostState.showSnackbar("Clipboard is empty") }
-                                            }
-                                        }
-                                    )
-                                    DropdownMenuItem(
-                                        modifier = Modifier.heightIn(min = 36.dp),
-                                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
-                                        text = { Text("Import from local file", fontSize = 13.sp) },
-                                        leadingIcon = { Icon(Icons.Default.FileDownload, contentDescription = null, modifier = Modifier.size(18.dp)) },
-                                        onClick = {
-                                            showAddDropdown = false
-                                            importFileLauncher.launch(arrayOf("*/*"))
-                                        }
-                                    )
-                                    HorizontalDivider()
-                                    DropdownMenuItem(
-                                        modifier = Modifier.heightIn(min = 36.dp),
-                                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
-                                        text = {
-                                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                                Text(if (expandedAddProtocols) "v " else "> ", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                                                Text("Add profile manually", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                                            }
-                                        },
-                                        leadingIcon = { Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp)) },
-                                        onClick = {
-                                            expandedAddProtocols = !expandedAddProtocols
-                                        }
-                                    )
-                                    if (expandedAddProtocols) {
-                                        val protocolList = listOf(
-                                            "Policy group" to { showRoutingSettingsDialog = true },
-                                            "Proxy chain" to { onNavigateToAddChain() },
-                                            "VMess" to { onNavigateToAddProfile(TunnelType.VMESS.value) },
-                                            "VLESS" to { onNavigateToAddProfile("vless") },
-                                            "Shadowsocks" to { onNavigateToAddProfile(TunnelType.SHADOWSOCKS.value) },
-                                            "Socks" to { onNavigateToAddProfile("socks5") },
-                                            "Http" to { onNavigateToAddProfile("naive") },
-                                            "Trojan" to { onNavigateToAddProfile(TunnelType.TROJAN.value) },
-                                            "WireGuard" to { onNavigateToAddProfile(TunnelType.WIREGUARD.value) },
-                                            "Hysteria 2" to { onNavigateToAddProfile(TunnelType.HYSTERIA2.value) },
-                                            "TUIC" to { onNavigateToAddProfile(TunnelType.TUIC.value) },
-                                            "SSH" to { onNavigateToAddProfile("ssh") },
-                                            "---" to {},
-                                            "MasterDNS" to { onNavigateToAddProfile(TunnelType.MASTERDNS.value) },
-                                            "Meli" to { onNavigateToAddProfile(TunnelType.MELI.value) },
-                                            "DNSTT" to { onNavigateToAddProfile("dnstt") },
-                                            "Slipstream" to { onNavigateToAddProfile("slipstream") },
-                                            "StormDNS" to { onNavigateToAddProfile(TunnelType.STORMDNS.value) },
-                                            "VayDNS" to { onNavigateToAddProfile(TunnelType.VAYDNS.value) },
-                                            "NoizDNS" to { onNavigateToAddProfile(TunnelType.NOIZDNS.value) }
-                                        )
-                                        for ((label, action) in protocolList) {
-                                            if (label == "---") {
-                                                HorizontalDivider(modifier = Modifier.padding(vertical = 2.dp))
-                                            } else {
-                                                DropdownMenuItem(
-                                                    modifier = Modifier.heightIn(min = 32.dp),
-                                                    contentPadding = PaddingValues(start = 28.dp, end = 10.dp, top = 1.dp, bottom = 1.dp),
-                                                    text = { Text(label, fontSize = 12.sp) },
-                                                    onClick = {
-                                                        showAddDropdown = false
-                                                        expandedAddProtocols = false
-                                                        action()
-                                                    }
+                                    Row(modifier = Modifier.height(IntrinsicSize.Min)) {
+                                        // Left Submenu (Cascading Left)
+                                        if (activeAddSubmenu == AddSubmenuType.PROTOCOLS) {
+                                            Column(
+                                                modifier = Modifier
+                                                    .width(220.dp)
+                                                    .heightIn(max = 480.dp)
+                                                    .verticalScroll(rememberScrollState())
+                                            ) {
+                                                val protocolList = listOf(
+                                                    "Policy group" to { showRoutingSettingsDialog = true },
+                                                    "Proxy chain" to { onNavigateToAddChain() },
+                                                    "VMess" to { onNavigateToAddProfile(TunnelType.VMESS.value) },
+                                                    "VLESS" to { onNavigateToAddProfile("vless") },
+                                                    "Shadowsocks" to { onNavigateToAddProfile(TunnelType.SHADOWSOCKS.value) },
+                                                    "Socks" to { onNavigateToAddProfile("socks5") },
+                                                    "Http" to { onNavigateToAddProfile("naive") },
+                                                    "Trojan" to { onNavigateToAddProfile(TunnelType.TROJAN.value) },
+                                                    "WireGuard" to { onNavigateToAddProfile(TunnelType.WIREGUARD.value) },
+                                                    "Hysteria 2" to { onNavigateToAddProfile(TunnelType.HYSTERIA2.value) },
+                                                    "TUIC" to { onNavigateToAddProfile(TunnelType.TUIC.value) },
+                                                    "SSH Tunnel" to { onNavigateToAddProfile("ssh") },
+                                                    "---" to {},
+                                                    "MasterDNS" to { onNavigateToAddProfile(TunnelType.MASTERDNS.value) },
+                                                    "Meli Protocol" to { onNavigateToAddProfile(TunnelType.MELI.value) },
+                                                    "DNSTT" to { onNavigateToAddProfile("dnstt") },
+                                                    "Slipstream" to { onNavigateToAddProfile("slipstream") },
+                                                    "StormDNS" to { onNavigateToAddProfile(TunnelType.STORMDNS.value) },
+                                                    "VayDNS" to { onNavigateToAddProfile(TunnelType.VAYDNS.value) },
+                                                    "NoizDNS" to { onNavigateToAddProfile(TunnelType.NOIZDNS.value) },
+                                                    "Nooshdaroo" to { onNavigateToAddProfile(TunnelType.NOOSHDAROO.value) },
+                                                    "CottenDNS" to { onNavigateToAddProfile(TunnelType.COTTENDNS.value) },
+                                                    "qWDTT" to { onNavigateToAddProfile(TunnelType.QWDTT.value) },
+                                                    "Soar" to { onNavigateToAddProfile(TunnelType.SOAR.value) }
                                                 )
+                                                for ((label, action) in protocolList) {
+                                                    if (label == "---") {
+                                                        HorizontalDivider(modifier = Modifier.padding(vertical = 2.dp))
+                                                    } else {
+                                                        DropdownMenuItem(
+                                                            modifier = Modifier.heightIn(min = 34.dp),
+                                                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 2.dp),
+                                                            text = { Text(label, fontSize = 12.sp, fontWeight = FontWeight.Medium) },
+                                                            onClick = {
+                                                                showAddDropdown = false
+                                                                activeAddSubmenu = null
+                                                                action()
+                                                            }
+                                                        )
+                                                    }
+                                                }
                                             }
+                                            VerticalDivider(
+                                                modifier = Modifier.fillMaxHeight(),
+                                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
+                                            )
+                                        }
+
+                                        // Right Parent Menu Column
+                                        Column(modifier = Modifier.width(200.dp)) {
+                                            DropdownMenuItem(
+                                                modifier = Modifier.heightIn(min = 36.dp),
+                                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
+                                                text = { Text("Import from QR code", fontSize = 13.sp) },
+                                                leadingIcon = { Icon(Icons.Default.QrCode2, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                                                onClick = {
+                                                    showAddDropdown = false
+                                                    activeAddSubmenu = null
+                                                    val options = ScanOptions().apply {
+                                                        setDesiredBarcodeFormats(ScanOptions.QR_CODE)
+                                                        setPrompt("Scan QR code")
+                                                        setBeepEnabled(true)
+                                                        setOrientationLocked(true)
+                                                        setCaptureActivity(QrScannerActivity::class.java)
+                                                    }
+                                                    qrScanLauncher.launch(options)
+                                                }
+                                            )
+                                            DropdownMenuItem(
+                                                modifier = Modifier.heightIn(min = 36.dp),
+                                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
+                                                text = { Text("Import from clipboard", fontSize = 13.sp) },
+                                                leadingIcon = { Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                                                onClick = {
+                                                    showAddDropdown = false
+                                                    activeAddSubmenu = null
+                                                    val clip = clipboardManager.getText()?.text
+                                                    if (!clip.isNullOrBlank()) {
+                                                        viewModel.parseAndDirectImport(clip) { success, msg ->
+                                                            scope.launch { snackbarHostState.showSnackbar(msg) }
+                                                        }
+                                                    } else {
+                                                        scope.launch { snackbarHostState.showSnackbar("Clipboard is empty") }
+                                                    }
+                                                }
+                                            )
+                                            DropdownMenuItem(
+                                                modifier = Modifier.heightIn(min = 36.dp),
+                                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
+                                                text = { Text("Import from local file", fontSize = 13.sp) },
+                                                leadingIcon = { Icon(Icons.Default.FileDownload, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                                                onClick = {
+                                                    showAddDropdown = false
+                                                    activeAddSubmenu = null
+                                                    importFileLauncher.launch(arrayOf("*/*"))
+                                                }
+                                            )
+                                            HorizontalDivider()
+                                            DropdownMenuItem(
+                                                modifier = Modifier.heightIn(min = 36.dp),
+                                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
+                                                text = {
+                                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                                        Text(
+                                                            "< ",
+                                                            fontSize = 13.sp,
+                                                            fontWeight = FontWeight.Bold,
+                                                            color = if (activeAddSubmenu == AddSubmenuType.PROTOCOLS) MaterialTheme.colorScheme.primary else Color.Gray
+                                                        )
+                                                        Text("Add profile manually", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                                                    }
+                                                },
+                                                leadingIcon = { Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                                                onClick = {
+                                                    activeAddSubmenu = if (activeAddSubmenu == AddSubmenuType.PROTOCOLS) null else AddSubmenuType.PROTOCOLS
+                                                }
+                                            )
                                         }
                                     }
                                 }
                             }
                             Box {
                                 IconButton(onClick = {
-                                    expandedDelete = false
-                                    expandedExport = false
-                                    expandedPing = false
-                                    expandedSort = false
+                                    activeOverflowSubmenu = null
                                     showOverflowMenu = true
                                 }) {
                                     Icon(Icons.Default.MoreVert, contentDescription = "More")
@@ -880,250 +967,303 @@ fun MainScreen(
                                     expanded = showOverflowMenu,
                                     onDismissRequest = {
                                         showOverflowMenu = false
-                                        expandedDelete = false
-                                        expandedExport = false
-                                        expandedPing = false
-                                        expandedSort = false
+                                        activeOverflowSubmenu = null
                                     },
-                                    modifier = Modifier.widthIn(min = 210.dp, max = 280.dp)
+                                    offset = DpOffset(0.dp, (-50).dp)
                                 ) {
-                                    // 1. Restart service
-                                    DropdownMenuItem(
-                                        modifier = Modifier.heightIn(min = 36.dp),
-                                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
-                                        text = { Text("Restart service", fontSize = 13.sp) },
-                                        leadingIcon = { Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp)) },
-                                        onClick = {
-                                            showOverflowMenu = false
-                                            viewModel.restartService()
-                                            scope.launch { snackbarHostState.showSnackbar("Restarting service...") }
-                                        }
-                                    )
-
-                                    // 2. Delete configs (> on left)
-                                    DropdownMenuItem(
-                                        modifier = Modifier.heightIn(min = 36.dp),
-                                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
-                                        text = {
-                                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                                Text(if (expandedDelete) "v " else "> ", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                                                Text("Delete configs", fontSize = 13.sp)
-                                            }
-                                        },
-                                        leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(18.dp)) },
-                                        onClick = { expandedDelete = !expandedDelete },
-                                        enabled = uiState.profiles.isNotEmpty()
-                                    )
-                                    if (expandedDelete) {
-                                        DropdownMenuItem(
-                                            modifier = Modifier.heightIn(min = 32.dp),
-                                            contentPadding = PaddingValues(start = 28.dp, end = 10.dp, top = 1.dp, bottom = 1.dp),
-                                            text = { Text("Delete invalid (-1 ms) configs", fontSize = 12.sp) },
-                                            onClick = {
-                                                showOverflowMenu = false
-                                                viewModel.deleteProfilesMatching { p ->
-                                                    val res = uiState.pingResults[p.id]
-                                                    res != null && res is PingResult.Error
+                                    Row(modifier = Modifier.height(IntrinsicSize.Min)) {
+                                        // Left Submenu (Cascading Left)
+                                        if (activeOverflowSubmenu != null) {
+                                            Column(
+                                                modifier = Modifier
+                                                    .width(230.dp)
+                                                    .heightIn(max = 480.dp)
+                                                    .verticalScroll(rememberScrollState())
+                                            ) {
+                                                when (activeOverflowSubmenu) {
+                                                    OverflowMenuPage.DELETE -> {
+                                                        DropdownMenuItem(
+                                                            modifier = Modifier.heightIn(min = 34.dp),
+                                                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 2.dp),
+                                                            text = { Text("Delete invalid (-1 ms)", fontSize = 12.sp) },
+                                                            onClick = {
+                                                                showOverflowMenu = false
+                                                                activeOverflowSubmenu = null
+                                                                viewModel.deleteProfilesMatching { p ->
+                                                                    val res = uiState.pingResults[p.id]
+                                                                    res != null && res is PingResult.Error
+                                                                }
+                                                                scope.launch { snackbarHostState.showSnackbar("Deleted invalid configs") }
+                                                            }
+                                                        )
+                                                        DropdownMenuItem(
+                                                            modifier = Modifier.heightIn(min = 34.dp),
+                                                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 2.dp),
+                                                            text = { Text("Delete valid configs", fontSize = 12.sp) },
+                                                            onClick = {
+                                                                showOverflowMenu = false
+                                                                activeOverflowSubmenu = null
+                                                                viewModel.deleteProfilesMatching { p ->
+                                                                    val res = uiState.pingResults[p.id]
+                                                                    res != null && res is PingResult.Success && res.latencyMs > 0
+                                                                }
+                                                                scope.launch { snackbarHostState.showSnackbar("Deleted valid configs") }
+                                                            }
+                                                        )
+                                                        val currentGroup = groupTabs.getOrNull(selectedCategoryIndex)?.first ?: ""
+                                                        if (currentGroup.isNotBlank() && currentGroup != "All" && currentGroup != "Default") {
+                                                            DropdownMenuItem(
+                                                                modifier = Modifier.heightIn(min = 34.dp),
+                                                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 2.dp),
+                                                                text = { Text("Delete this subscription", fontSize = 12.sp) },
+                                                                onClick = {
+                                                                    showOverflowMenu = false
+                                                                    activeOverflowSubmenu = null
+                                                                    viewModel.deleteProfilesMatching { it.subscriptionGroup == currentGroup }
+                                                                    scope.launch { snackbarHostState.showSnackbar("Deleted configs of $currentGroup") }
+                                                                }
+                                                            )
+                                                        }
+                                                        DropdownMenuItem(
+                                                            modifier = Modifier.heightIn(min = 34.dp),
+                                                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 2.dp),
+                                                            text = { Text("Delete all subscription configs", fontSize = 12.sp) },
+                                                            onClick = {
+                                                                showOverflowMenu = false
+                                                                activeOverflowSubmenu = null
+                                                                viewModel.deleteProfilesMatching { it.subscriptionGroup.isNotBlank() }
+                                                                scope.launch { snackbarHostState.showSnackbar("Deleted all subscription configs") }
+                                                            }
+                                                        )
+                                                    }
+                                                    OverflowMenuPage.EXPORT -> {
+                                                        DropdownMenuItem(
+                                                            modifier = Modifier.heightIn(min = 34.dp),
+                                                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 2.dp),
+                                                            text = { Text("Export invalid (-1 ms)", fontSize = 12.sp) },
+                                                            onClick = {
+                                                                showOverflowMenu = false
+                                                                activeOverflowSubmenu = null
+                                                                val str = viewModel.exportProfilesToClipboard { p ->
+                                                                    val res = uiState.pingResults[p.id]
+                                                                    res != null && res is PingResult.Error
+                                                                }
+                                                                clipboardManager.setText(AnnotatedString(str))
+                                                                scope.launch { snackbarHostState.showSnackbar("Copied invalid configs to clipboard") }
+                                                            }
+                                                        )
+                                                        DropdownMenuItem(
+                                                            modifier = Modifier.heightIn(min = 34.dp),
+                                                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 2.dp),
+                                                            text = { Text("Export valid configs", fontSize = 12.sp) },
+                                                            onClick = {
+                                                                showOverflowMenu = false
+                                                                activeOverflowSubmenu = null
+                                                                val str = viewModel.exportProfilesToClipboard { p ->
+                                                                    val res = uiState.pingResults[p.id]
+                                                                    res != null && res is PingResult.Success && res.latencyMs > 0
+                                                                }
+                                                                clipboardManager.setText(AnnotatedString(str))
+                                                                scope.launch { snackbarHostState.showSnackbar("Copied valid configs to clipboard") }
+                                                            }
+                                                        )
+                                                        val currentGroup = groupTabs.getOrNull(selectedCategoryIndex)?.first ?: ""
+                                                        if (currentGroup.isNotBlank() && currentGroup != "All" && currentGroup != "Default") {
+                                                            DropdownMenuItem(
+                                                                modifier = Modifier.heightIn(min = 34.dp),
+                                                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 2.dp),
+                                                                text = { Text("Export this subscription", fontSize = 12.sp) },
+                                                                onClick = {
+                                                                    showOverflowMenu = false
+                                                                    activeOverflowSubmenu = null
+                                                                    val str = viewModel.exportProfilesToClipboard { it.subscriptionGroup == currentGroup }
+                                                                    clipboardManager.setText(AnnotatedString(str))
+                                                                    scope.launch { snackbarHostState.showSnackbar("Copied configs of $currentGroup") }
+                                                                }
+                                                            )
+                                                        }
+                                                        DropdownMenuItem(
+                                                            modifier = Modifier.heightIn(min = 34.dp),
+                                                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 2.dp),
+                                                            text = { Text("Export all configs", fontSize = 12.sp) },
+                                                            onClick = {
+                                                                showOverflowMenu = false
+                                                                activeOverflowSubmenu = null
+                                                                val str = viewModel.exportProfilesToClipboard { true }
+                                                                clipboardManager.setText(AnnotatedString(str))
+                                                                scope.launch { snackbarHostState.showSnackbar("Copied all configs to clipboard") }
+                                                            }
+                                                        )
+                                                    }
+                                                    OverflowMenuPage.PING -> {
+                                                        DropdownMenuItem(
+                                                            modifier = Modifier.heightIn(min = 34.dp),
+                                                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 2.dp),
+                                                            text = { Text(if (uiState.isPingRunning) "Stop ping test" else "Real delay", fontSize = 12.sp) },
+                                                            onClick = {
+                                                                showOverflowMenu = false
+                                                                activeOverflowSubmenu = null
+                                                                viewModel.pingAllProfiles()
+                                                            }
+                                                        )
+                                                        DropdownMenuItem(
+                                                            modifier = Modifier.heightIn(min = 34.dp),
+                                                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 2.dp),
+                                                            text = { Text("Tcping", fontSize = 12.sp) },
+                                                            onClick = {
+                                                                showOverflowMenu = false
+                                                                activeOverflowSubmenu = null
+                                                                viewModel.pingAllProfilesSimple()
+                                                            }
+                                                        )
+                                                        DropdownMenuItem(
+                                                            modifier = Modifier.heightIn(min = 34.dp),
+                                                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 2.dp),
+                                                            text = { Text("Clear test results", fontSize = 12.sp) },
+                                                            onClick = {
+                                                                showOverflowMenu = false
+                                                                activeOverflowSubmenu = null
+                                                                viewModel.clearPingResults()
+                                                            }
+                                                        )
+                                                    }
+                                                    OverflowMenuPage.SORT -> {
+                                                        DropdownMenuItem(
+                                                            modifier = Modifier.heightIn(min = 34.dp),
+                                                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 2.dp),
+                                                            text = { Text("Sort by test results", fontSize = 12.sp) },
+                                                            onClick = {
+                                                                showOverflowMenu = false
+                                                                activeOverflowSubmenu = null
+                                                                viewModel.sortProfilesByPing()
+                                                            }
+                                                        )
+                                                        DropdownMenuItem(
+                                                            modifier = Modifier.heightIn(min = 34.dp),
+                                                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 2.dp),
+                                                            text = { Text("Sort by profile name", fontSize = 12.sp) },
+                                                            onClick = {
+                                                                showOverflowMenu = false
+                                                                activeOverflowSubmenu = null
+                                                                viewModel.sortProfilesByName()
+                                                            }
+                                                        )
+                                                        DropdownMenuItem(
+                                                            modifier = Modifier.heightIn(min = 34.dp),
+                                                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 2.dp),
+                                                            text = { Text("Sort by protocol", fontSize = 12.sp) },
+                                                            onClick = {
+                                                                showOverflowMenu = false
+                                                                activeOverflowSubmenu = null
+                                                                viewModel.sortProfilesByProtocol()
+                                                            }
+                                                        )
+                                                    }
+                                                    else -> {}
                                                 }
-                                                scope.launch { snackbarHostState.showSnackbar("Deleted invalid configs") }
                                             }
-                                        )
-                                        DropdownMenuItem(
-                                            modifier = Modifier.heightIn(min = 32.dp),
-                                            contentPadding = PaddingValues(start = 28.dp, end = 10.dp, top = 1.dp, bottom = 1.dp),
-                                            text = { Text("Delete valid configs", fontSize = 12.sp) },
-                                            onClick = {
-                                                showOverflowMenu = false
-                                                viewModel.deleteProfilesMatching { p ->
-                                                    val res = uiState.pingResults[p.id]
-                                                    res != null && res is PingResult.Success && res.latencyMs > 0
-                                                }
-                                                scope.launch { snackbarHostState.showSnackbar("Deleted valid configs") }
-                                            }
-                                        )
-                                        val currentGroup = groupTabs.getOrNull(selectedCategoryIndex)?.first ?: ""
-                                        if (currentGroup.isNotBlank() && currentGroup != "All" && currentGroup != "Default") {
-                                            DropdownMenuItem(
-                                                modifier = Modifier.heightIn(min = 32.dp),
-                                                contentPadding = PaddingValues(start = 28.dp, end = 10.dp, top = 1.dp, bottom = 1.dp),
-                                                text = { Text("Delete this subscription configs", fontSize = 12.sp) },
-                                                onClick = {
-                                                    showOverflowMenu = false
-                                                    viewModel.deleteProfilesMatching { it.subscriptionGroup == currentGroup }
-                                                    scope.launch { snackbarHostState.showSnackbar("Deleted configs of $currentGroup") }
-                                                }
+                                            VerticalDivider(
+                                                modifier = Modifier.fillMaxHeight(),
+                                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
                                             )
                                         }
-                                        DropdownMenuItem(
-                                            modifier = Modifier.heightIn(min = 32.dp),
-                                            contentPadding = PaddingValues(start = 28.dp, end = 10.dp, top = 1.dp, bottom = 1.dp),
-                                            text = { Text("Delete all subscription configs", fontSize = 12.sp) },
-                                            onClick = {
-                                                showOverflowMenu = false
-                                                viewModel.deleteProfilesMatching { it.subscriptionGroup.isNotBlank() }
-                                                scope.launch { snackbarHostState.showSnackbar("Deleted all subscription configs") }
-                                            }
-                                        )
-                                    }
 
-                                    // 3. Export config to clipboard (> on left)
-                                    DropdownMenuItem(
-                                        modifier = Modifier.heightIn(min = 36.dp),
-                                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
-                                        text = {
-                                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                                Text(if (expandedExport) "v " else "> ", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                                                Text("Export config to clipboard", fontSize = 13.sp)
-                                            }
-                                        },
-                                        leadingIcon = { Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(18.dp)) },
-                                        onClick = { expandedExport = !expandedExport },
-                                        enabled = uiState.profiles.isNotEmpty()
-                                    )
-                                    if (expandedExport) {
-                                        DropdownMenuItem(
-                                            modifier = Modifier.heightIn(min = 32.dp),
-                                            contentPadding = PaddingValues(start = 28.dp, end = 10.dp, top = 1.dp, bottom = 1.dp),
-                                            text = { Text("Export invalid (-1 ms) configs", fontSize = 12.sp) },
-                                            onClick = {
-                                                showOverflowMenu = false
-                                                val str = viewModel.exportProfilesToClipboard { p ->
-                                                    val res = uiState.pingResults[p.id]
-                                                    res != null && res is PingResult.Error
-                                                }
-                                                clipboardManager.setText(AnnotatedString(str))
-                                                scope.launch { snackbarHostState.showSnackbar("Copied invalid configs to clipboard") }
-                                            }
-                                        )
-                                        DropdownMenuItem(
-                                            modifier = Modifier.heightIn(min = 32.dp),
-                                            contentPadding = PaddingValues(start = 28.dp, end = 10.dp, top = 1.dp, bottom = 1.dp),
-                                            text = { Text("Export valid configs", fontSize = 12.sp) },
-                                            onClick = {
-                                                showOverflowMenu = false
-                                                val str = viewModel.exportProfilesToClipboard { p ->
-                                                    val res = uiState.pingResults[p.id]
-                                                    res != null && res is PingResult.Success && res.latencyMs > 0
-                                                }
-                                                clipboardManager.setText(AnnotatedString(str))
-                                                scope.launch { snackbarHostState.showSnackbar("Copied valid configs to clipboard") }
-                                            }
-                                        )
-                                        val currentGroup = groupTabs.getOrNull(selectedCategoryIndex)?.first ?: ""
-                                        if (currentGroup.isNotBlank() && currentGroup != "All" && currentGroup != "Default") {
+                                        // Right Parent Menu Column
+                                        Column(modifier = Modifier.width(200.dp)) {
                                             DropdownMenuItem(
-                                                modifier = Modifier.heightIn(min = 32.dp),
-                                                contentPadding = PaddingValues(start = 28.dp, end = 10.dp, top = 1.dp, bottom = 1.dp),
-                                                text = { Text("Export this subscription configs", fontSize = 12.sp) },
+                                                modifier = Modifier.heightIn(min = 36.dp),
+                                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
+                                                text = { Text("Restart service", fontSize = 13.sp) },
+                                                leadingIcon = { Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp)) },
                                                 onClick = {
                                                     showOverflowMenu = false
-                                                    val str = viewModel.exportProfilesToClipboard { it.subscriptionGroup == currentGroup }
-                                                    clipboardManager.setText(AnnotatedString(str))
-                                                    scope.launch { snackbarHostState.showSnackbar("Copied configs of $currentGroup") }
+                                                    activeOverflowSubmenu = null
+                                                    viewModel.restartService()
+                                                    scope.launch { snackbarHostState.showSnackbar("Restarting service...") }
                                                 }
                                             )
+                                            DropdownMenuItem(
+                                                modifier = Modifier.heightIn(min = 36.dp),
+                                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
+                                                text = {
+                                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                                        Text(
+                                                            "< ",
+                                                            fontSize = 13.sp,
+                                                            fontWeight = FontWeight.Bold,
+                                                            color = if (activeOverflowSubmenu == OverflowMenuPage.DELETE) MaterialTheme.colorScheme.primary else Color.Gray
+                                                        )
+                                                        Text("Delete configs", fontSize = 13.sp)
+                                                    }
+                                                },
+                                                leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                                                onClick = {
+                                                    activeOverflowSubmenu = if (activeOverflowSubmenu == OverflowMenuPage.DELETE) null else OverflowMenuPage.DELETE
+                                                },
+                                                enabled = uiState.profiles.isNotEmpty()
+                                            )
+                                            DropdownMenuItem(
+                                                modifier = Modifier.heightIn(min = 36.dp),
+                                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
+                                                text = {
+                                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                                        Text(
+                                                            "< ",
+                                                            fontSize = 13.sp,
+                                                            fontWeight = FontWeight.Bold,
+                                                            color = if (activeOverflowSubmenu == OverflowMenuPage.EXPORT) MaterialTheme.colorScheme.primary else Color.Gray
+                                                        )
+                                                        Text("Export config to clipboard", fontSize = 13.sp)
+                                                    }
+                                                },
+                                                leadingIcon = { Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                                                onClick = {
+                                                    activeOverflowSubmenu = if (activeOverflowSubmenu == OverflowMenuPage.EXPORT) null else OverflowMenuPage.EXPORT
+                                                },
+                                                enabled = uiState.profiles.isNotEmpty()
+                                            )
+                                            HorizontalDivider()
+                                            DropdownMenuItem(
+                                                modifier = Modifier.heightIn(min = 36.dp),
+                                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
+                                                text = {
+                                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                                        Text(
+                                                            "< ",
+                                                            fontSize = 13.sp,
+                                                            fontWeight = FontWeight.Bold,
+                                                            color = if (activeOverflowSubmenu == OverflowMenuPage.PING) MaterialTheme.colorScheme.primary else Color.Gray
+                                                        )
+                                                        Text("Ping", fontSize = 13.sp)
+                                                    }
+                                                },
+                                                leadingIcon = { Icon(Icons.Default.NetworkPing, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                                                onClick = {
+                                                    activeOverflowSubmenu = if (activeOverflowSubmenu == OverflowMenuPage.PING) null else OverflowMenuPage.PING
+                                                },
+                                                enabled = uiState.profiles.isNotEmpty()
+                                            )
+                                            DropdownMenuItem(
+                                                modifier = Modifier.heightIn(min = 36.dp),
+                                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
+                                                text = {
+                                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                                        Text(
+                                                            "< ",
+                                                            fontSize = 13.sp,
+                                                            fontWeight = FontWeight.Bold,
+                                                            color = if (activeOverflowSubmenu == OverflowMenuPage.SORT) MaterialTheme.colorScheme.primary else Color.Gray
+                                                        )
+                                                        Text("Sort by", fontSize = 13.sp)
+                                                    }
+                                                },
+                                                leadingIcon = { Icon(Icons.Default.Dns, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                                                onClick = {
+                                                    activeOverflowSubmenu = if (activeOverflowSubmenu == OverflowMenuPage.SORT) null else OverflowMenuPage.SORT
+                                                },
+                                                enabled = uiState.profiles.isNotEmpty()
+                                            )
                                         }
-                                        DropdownMenuItem(
-                                            modifier = Modifier.heightIn(min = 32.dp),
-                                            contentPadding = PaddingValues(start = 28.dp, end = 10.dp, top = 1.dp, bottom = 1.dp),
-                                            text = { Text("Export all configs", fontSize = 12.sp) },
-                                            onClick = {
-                                                showOverflowMenu = false
-                                                val str = viewModel.exportProfilesToClipboard { true }
-                                                clipboardManager.setText(AnnotatedString(str))
-                                                scope.launch { snackbarHostState.showSnackbar("Copied all configs to clipboard") }
-                                            }
-                                        )
-                                    }
-
-                                    HorizontalDivider()
-
-                                    // 4. Ping (> on left)
-                                    DropdownMenuItem(
-                                        modifier = Modifier.heightIn(min = 36.dp),
-                                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
-                                        text = {
-                                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                                Text(if (expandedPing) "v " else "> ", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                                                Text("Ping", fontSize = 13.sp)
-                                            }
-                                        },
-                                        leadingIcon = { Icon(Icons.Default.NetworkPing, contentDescription = null, modifier = Modifier.size(18.dp)) },
-                                        onClick = { expandedPing = !expandedPing },
-                                        enabled = uiState.profiles.isNotEmpty()
-                                    )
-                                    if (expandedPing) {
-                                        DropdownMenuItem(
-                                            modifier = Modifier.heightIn(min = 32.dp),
-                                            contentPadding = PaddingValues(start = 28.dp, end = 10.dp, top = 1.dp, bottom = 1.dp),
-                                            text = { Text(if (uiState.isPingRunning) "Stop ping test" else "Real delay", fontSize = 12.sp) },
-                                            onClick = {
-                                                showOverflowMenu = false
-                                                viewModel.pingAllProfiles()
-                                            }
-                                        )
-                                        DropdownMenuItem(
-                                            modifier = Modifier.heightIn(min = 32.dp),
-                                            contentPadding = PaddingValues(start = 28.dp, end = 10.dp, top = 1.dp, bottom = 1.dp),
-                                            text = { Text("Tcping", fontSize = 12.sp) },
-                                            onClick = {
-                                                showOverflowMenu = false
-                                                viewModel.pingAllProfilesSimple()
-                                            }
-                                        )
-                                        DropdownMenuItem(
-                                            modifier = Modifier.heightIn(min = 32.dp),
-                                            contentPadding = PaddingValues(start = 28.dp, end = 10.dp, top = 1.dp, bottom = 1.dp),
-                                            text = { Text("Clear test results", fontSize = 12.sp) },
-                                            onClick = {
-                                                showOverflowMenu = false
-                                                viewModel.clearPingResults()
-                                            }
-                                        )
-                                    }
-
-                                    // 5. Sort by (> on left)
-                                    DropdownMenuItem(
-                                        modifier = Modifier.heightIn(min = 36.dp),
-                                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
-                                        text = {
-                                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                                Text(if (expandedSort) "v " else "> ", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                                                Text("Sort by", fontSize = 13.sp)
-                                            }
-                                        },
-                                        leadingIcon = { Icon(Icons.Default.Dns, contentDescription = null, modifier = Modifier.size(18.dp)) },
-                                        onClick = { expandedSort = !expandedSort },
-                                        enabled = uiState.profiles.isNotEmpty()
-                                    )
-                                    if (expandedSort) {
-                                        DropdownMenuItem(
-                                            modifier = Modifier.heightIn(min = 32.dp),
-                                            contentPadding = PaddingValues(start = 28.dp, end = 10.dp, top = 1.dp, bottom = 1.dp),
-                                            text = { Text("Sort by test results", fontSize = 12.sp) },
-                                            onClick = {
-                                                showOverflowMenu = false
-                                                viewModel.sortProfilesByPing()
-                                            }
-                                        )
-                                        DropdownMenuItem(
-                                            modifier = Modifier.heightIn(min = 32.dp),
-                                            contentPadding = PaddingValues(start = 28.dp, end = 10.dp, top = 1.dp, bottom = 1.dp),
-                                            text = { Text("Sort by profile name", fontSize = 12.sp) },
-                                            onClick = {
-                                                showOverflowMenu = false
-                                                viewModel.sortProfilesByName()
-                                            }
-                                        )
-                                        DropdownMenuItem(
-                                            modifier = Modifier.heightIn(min = 32.dp),
-                                            contentPadding = PaddingValues(start = 28.dp, end = 10.dp, top = 1.dp, bottom = 1.dp),
-                                            text = { Text("Sort by protocol", fontSize = 12.sp) },
-                                            onClick = {
-                                                showOverflowMenu = false
-                                                viewModel.sortProfilesByProtocol()
-                                            }
-                                        )
                                     }
                                 }
                             }
@@ -1175,7 +1315,7 @@ fun MainScreen(
                 val displayedProfiles = remember(uiState.profiles, selectedCategoryIndex, searchQuery, groupTabs) {
                     val currentGroup = groupTabs.getOrNull(selectedCategoryIndex)?.first ?: "All"
                     uiState.profiles.filter { profile ->
-                        val matchesGroup = when (currentGroup) {
+                        val matchesGroup = if (searchQuery.isNotBlank()) true else when (currentGroup) {
                             "All" -> true
                             "Default" -> profile.subscriptionGroup.isBlank()
                             "Chains" -> true
@@ -2760,11 +2900,19 @@ fun MainScreen(
                                 if (!showAddSubField) {
                                     showAddSubField = true
                                 } else if (newSubUrl.isNotBlank()) {
-                                    viewModel.parseImportConfig(newSubUrl)
+                                    val group = newSubName.ifBlank { "Subscription" }
+                                    viewModel.updateSubscriptionGroup(group, newSubUrl) { count, err ->
+                                        scope.launch {
+                                            if (err == null) {
+                                                snackbarHostState.showSnackbar("Fetched $count configs into $group")
+                                            } else {
+                                                snackbarHostState.showSnackbar("Error: $err")
+                                            }
+                                        }
+                                    }
                                     showAddSubField = false
                                     newSubUrl = ""
                                     newSubName = ""
-                                    scope.launch { snackbarHostState.showSnackbar("Importing subscription...") }
                                 }
                             },
                             modifier = Modifier.weight(1f)
@@ -2904,6 +3052,7 @@ fun MainScreen(
             },
             confirmButton = {
                 Button(onClick = {
+                    viewModel.applyRoutingSettings(routingMode, bypassLan, bypassIran, blockAds)
                     showRoutingSettingsDialog = false
                     scope.launch { snackbarHostState.showSnackbar("Routing settings applied") }
                 }) {

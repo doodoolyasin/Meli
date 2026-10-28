@@ -53,8 +53,19 @@ data class SavedSshHost(
     val username: String = "root",
     val password: String = "",
     val privateKey: String = "",
-    val osType: String = "ubuntu", // "ubuntu", "amazon", "debian", "centos", "linux"
-    val group: String = ""
+    val osType: String = "",
+    val group: String = "",
+    val tag: String = "",
+    val protocol: String = "SSH",
+    val moshEnabled: Boolean = false,
+    val deleteSendControlH: Boolean = false,
+    val snippet: String = "",
+    val agentForwarding: Boolean = false,
+    val hostChaining: String = "",
+    val proxy: String = "",
+    val colorScheme: String = "Default",
+    val charset: String = "UTF-8",
+    val keyType: String = "SSH Key"
 )
 
 data class TerminalTab(
@@ -160,7 +171,7 @@ class SshTerminalViewModel @Inject constructor() : ViewModel() {
         )
     }
 
-    fun saveCurrentHost(label: String, osType: String = "ubuntu", group: String = "") {
+    fun saveCurrentHost(label: String, osType: String = "", group: String = "") {
         val s = _uiState.value
         val newHost = SavedSshHost(
             name = label.ifBlank { "${s.username}@${s.host}" },
@@ -173,6 +184,11 @@ class SshTerminalViewModel @Inject constructor() : ViewModel() {
             group = group
         )
         _uiState.value = s.copy(savedHosts = s.savedHosts + newHost)
+    }
+
+    fun saveCustomHost(host: SavedSshHost) {
+        val s = _uiState.value
+        _uiState.value = s.copy(savedHosts = s.savedHosts + host)
     }
 
     fun deleteHost(id: String) {

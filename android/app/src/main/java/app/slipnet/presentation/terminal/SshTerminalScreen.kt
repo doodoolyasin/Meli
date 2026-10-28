@@ -34,6 +34,10 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.hilt.navigation.compose.hiltViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -234,88 +238,578 @@ fun SshTerminalScreen(
                 }
             }
 
-            // New Host Dialog
+            // Termius Full-Screen New Host Dialog
             if (showNewHostDialog) {
-                AlertDialog(
+                var selectedVault by remember { mutableStateOf("Personal Vault") }
+                var hostAlias by remember { mutableStateOf(newHostName) }
+                var hostAddress by remember { mutableStateOf(newHostIp) }
+                var hostGroup by remember { mutableStateOf("") }
+                var hostTag by remember { mutableStateOf("") }
+                var deleteSendControlH by remember { mutableStateOf(false) }
+
+                var selectedProtocol by remember { mutableStateOf("SSH") } // "SSH" or "Telnet"
+
+                // SSH fields
+                var moshEnabled by remember { mutableStateOf(false) }
+                var hostPort by remember { mutableStateOf(newHostPort.ifBlank { "22" }) }
+                var hostUsername by remember { mutableStateOf(newHostUser.ifBlank { "root" }) }
+                var hostPassword by remember { mutableStateOf(newHostPass) }
+                var hostPasswordVisible by remember { mutableStateOf(false) }
+                var hostKeyLabel by remember { mutableStateOf("SSH key, ID, certificate, FIDO2") }
+                var showKeySetupDialog by remember { mutableStateOf(false) }
+
+                var hostSnippet by remember { mutableStateOf("") }
+                var agentForwarding by remember { mutableStateOf(false) }
+                var hostChaining by remember { mutableStateOf("") }
+                var hostProxy by remember { mutableStateOf("") }
+                var showAddEnvDialog by remember { mutableStateOf(false) }
+                var envVars by remember { mutableStateOf(listOf<Pair<String, String>>()) }
+                var colorScheme by remember { mutableStateOf("Default") }
+                var charset by remember { mutableStateOf("UTF-8") }
+
+                val uriHandler = LocalUriHandler.current
+
+                Dialog(
                     onDismissRequest = { showNewHostDialog = false },
-                    title = { Text("New SSH Host") },
-                    text = {
-                        Column(
-                            verticalArrangement = Arrangement.spacedBy(8.dp),
-                            modifier = Modifier.verticalScroll(rememberScrollState())
-                        ) {
-                            OutlinedTextField(
-                                value = newHostName,
-                                onValueChange = { newHostName = it },
-                                label = { Text("Host Alias (e.g. Amazon-1, iran)") },
-                                singleLine = true,
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                            Row(modifier = Modifier.fillMaxWidth()) {
-                                OutlinedTextField(
-                                    value = newHostIp,
-                                    onValueChange = { newHostIp = it },
-                                    label = { Text("Hostname / IP") },
-                                    singleLine = true,
-                                    modifier = Modifier.weight(2f)
-                                )
-                                Spacer(Modifier.width(8.dp))
-                                OutlinedTextField(
-                                    value = newHostPort,
-                                    onValueChange = { newHostPort = it },
-                                    label = { Text("Port") },
-                                    singleLine = true,
-                                    modifier = Modifier.weight(1f)
-                                )
-                            }
-                            OutlinedTextField(
-                                value = newHostUser,
-                                onValueChange = { newHostUser = it },
-                                label = { Text("Username (root, ubuntu, yasin)") },
-                                singleLine = true,
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                            OutlinedTextField(
-                                value = newHostPass,
-                                onValueChange = { newHostPass = it },
-                                label = { Text("Password (optional)") },
-                                visualTransformation = PasswordVisualTransformation(),
-                                singleLine = true,
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                verticalAlignment = Alignment.CenterVertically
+                    properties = DialogProperties(usePlatformDefaultWidth = false)
+                ) {
+                    Scaffold(
+                        topBar = {
+                            Surface(
+                                color = termSurface,
+                                shadowElevation = 4.dp
                             ) {
-                                Text("OS:", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
-                                listOf("ubuntu" to "Ubuntu", "amazon" to "Amazon", "linux" to "Linux").forEach { (type, name) ->
-                                    FilterChip(
-                                        selected = newHostOs == type,
-                                        onClick = { newHostOs = type },
-                                        label = { Text(name, fontSize = 11.sp) }
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .statusBarsPadding()
+                                        .padding(horizontal = 8.dp, vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    TextButton(onClick = { showNewHostDialog = false }) {
+                                        Text("Cancel", color = Color(0xFF94A3B8), fontSize = 15.sp)
+                                    }
+                                    Text(
+                                        "New Host",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 17.sp,
+                                        color = Color.White
                                     )
+                                    Button(
+                                        onClick = {
+                                            if (hostAddress.isNotBlank()) {
+                                                viewModel.saveCustomHost(
+                                                    SavedSshHost(
+                                                        name = hostAlias.ifBlank { hostAddress },
+                                                        host = hostAddress.trim(),
+                                                        port = hostPort.ifBlank { if (selectedProtocol == "Telnet") "23" else "22" },
+                                                        username = hostUsername.ifBlank { "root" },
+                                                        password = hostPassword,
+                                                        group = hostGroup,
+                                                        tag = hostTag,
+                                                        protocol = selectedProtocol,
+                                                        moshEnabled = moshEnabled,
+                                                        deleteSendControlH = deleteSendControlH,
+                                                        snippet = hostSnippet,
+                                                        agentForwarding = agentForwarding,
+                                                        hostChaining = hostChaining,
+                                                        proxy = hostProxy,
+                                                        colorScheme = colorScheme,
+                                                        charset = charset,
+                                                        keyType = hostKeyLabel
+                                                    )
+                                                )
+                                                showNewHostDialog = false
+                                            }
+                                        },
+                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF22C55E)),
+                                        shape = RoundedCornerShape(8.dp)
+                                    ) {
+                                        Text("Save", fontWeight = FontWeight.Bold, color = Color.White)
+                                    }
+                                }
+                            }
+                        },
+                        containerColor = termBg
+                    ) { paddingValues ->
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(paddingValues)
+                                .verticalScroll(rememberScrollState())
+                                .padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            // Vault Selector (Personal Vault / Team Vault)
+                            Card(
+                                colors = CardDefaults.cardColors(containerColor = termSurface),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Column(modifier = Modifier.padding(14.dp)) {
+                                    Text("Vault", fontSize = 12.sp, color = Color(0xFF94A3B8), fontWeight = FontWeight.SemiBold)
+                                    Spacer(Modifier.height(8.dp))
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        FilterChip(
+                                            selected = selectedVault == "Personal Vault",
+                                            onClick = { selectedVault = "Personal Vault" },
+                                            label = { Text("Personal Vault", fontWeight = FontWeight.Bold) },
+                                            leadingIcon = { Icon(Icons.Default.VpnKey, contentDescription = null, modifier = Modifier.size(16.dp)) },
+                                            colors = FilterChipDefaults.filterChipColors(
+                                                selectedContainerColor = Color(0xFF22C55E).copy(alpha = 0.2f),
+                                                selectedLabelColor = Color(0xFF22C55E)
+                                            )
+                                        )
+                                        FilterChip(
+                                            selected = false,
+                                            onClick = { },
+                                            enabled = false,
+                                            label = { Text("Team Vault (Coming soon)") },
+                                            colors = FilterChipDefaults.filterChipColors(
+                                                disabledLabelColor = Color.Gray
+                                            )
+                                        )
+                                    }
+                                }
+                            }
+
+                            // Personal Vault fields
+                            Card(
+                                colors = CardDefaults.cardColors(containerColor = termSurface),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(14.dp),
+                                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    OutlinedTextField(
+                                        value = hostAlias,
+                                        onValueChange = { hostAlias = it },
+                                        label = { Text("Alias") },
+                                        placeholder = { Text("e.g. My-Server") },
+                                        singleLine = true,
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+                                    OutlinedTextField(
+                                        value = hostAddress,
+                                        onValueChange = { hostAddress = it },
+                                        label = { Text("Host name or IP address *") },
+                                        placeholder = { Text("192.168.1.1 or example.com") },
+                                        singleLine = true,
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+                                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        OutlinedTextField(
+                                            value = hostGroup,
+                                            onValueChange = { hostGroup = it },
+                                            label = { Text("Group") },
+                                            singleLine = true,
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                        OutlinedTextField(
+                                            value = hostTag,
+                                            onValueChange = { hostTag = it },
+                                            label = { Text("Tag") },
+                                            singleLine = true,
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                    }
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text("Delete send Control+H", fontSize = 14.sp, color = Color.White)
+                                        Switch(
+                                            checked = deleteSendControlH,
+                                            onCheckedChange = { deleteSendControlH = it },
+                                            colors = SwitchDefaults.colors(checkedThumbColor = Color(0xFF22C55E))
+                                        )
+                                    }
+                                }
+                            }
+
+                            // Protocol Options: SSH | Telnet
+                            Card(
+                                colors = CardDefaults.cardColors(containerColor = termSurface),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Column(modifier = Modifier.padding(14.dp)) {
+                                    Text("Protocol", fontSize = 12.sp, color = Color(0xFF94A3B8), fontWeight = FontWeight.SemiBold)
+                                    Spacer(Modifier.height(8.dp))
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        FilterChip(
+                                            selected = selectedProtocol == "SSH",
+                                            onClick = { selectedProtocol = "SSH" },
+                                            label = { Text("SSH") },
+                                            colors = FilterChipDefaults.filterChipColors(
+                                                selectedContainerColor = Color(0xFF3B82F6).copy(alpha = 0.2f),
+                                                selectedLabelColor = Color(0xFF3B82F6)
+                                            )
+                                        )
+                                        FilterChip(
+                                            selected = selectedProtocol == "Telnet",
+                                            onClick = { selectedProtocol = "Telnet" },
+                                            label = { Text("Telnet") },
+                                            colors = FilterChipDefaults.filterChipColors(
+                                                selectedContainerColor = Color(0xFFF59E0B).copy(alpha = 0.2f),
+                                                selectedLabelColor = Color(0xFFF59E0B)
+                                            )
+                                        )
+                                    }
+                                }
+                            }
+
+                            // SSH Section
+                            if (selectedProtocol == "SSH") {
+                                Card(
+                                    colors = CardDefaults.cardColors(containerColor = termSurface),
+                                    shape = RoundedCornerShape(12.dp)
+                                ) {
+                                    Column(
+                                        modifier = Modifier.padding(14.dp),
+                                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                                    ) {
+                                        // Port & Mosh
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            OutlinedTextField(
+                                                value = hostPort,
+                                                onValueChange = { hostPort = it },
+                                                label = { Text("Port") },
+                                                singleLine = true,
+                                                modifier = Modifier.width(90.dp)
+                                            )
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    Text("Mosh", fontSize = 14.sp, fontWeight = FontWeight.Medium, color = Color.White)
+                                                    Spacer(Modifier.width(6.dp))
+                                                    Text(
+                                                        "(Learn more)",
+                                                        fontSize = 12.sp,
+                                                        color = Color(0xFF38BDF8),
+                                                        modifier = Modifier.clickable {
+                                                            uriHandler.openUri("https://mosh.org/")
+                                                        }
+                                                    )
+                                                }
+                                                Text("Mobile shell with roaming", fontSize = 11.sp, color = Color(0xFF94A3B8))
+                                            }
+                                            Switch(
+                                                checked = moshEnabled,
+                                                onCheckedChange = { moshEnabled = it },
+                                                colors = SwitchDefaults.colors(checkedThumbColor = Color(0xFF38BDF8))
+                                            )
+                                        }
+
+                                        HorizontalDivider(color = Color(0xFF334155))
+
+                                        // Credentials Header
+                                        Text(
+                                            "Credentials",
+                                            fontSize = 14.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color(0xFF22C55E)
+                                        )
+
+                                        OutlinedTextField(
+                                            value = hostUsername,
+                                            onValueChange = { hostUsername = it },
+                                            label = { Text("Username") },
+                                            singleLine = true,
+                                            modifier = Modifier.fillMaxWidth()
+                                        )
+
+                                        OutlinedTextField(
+                                            value = hostPassword,
+                                            onValueChange = { hostPassword = it },
+                                            label = { Text("Password") },
+                                            singleLine = true,
+                                            visualTransformation = if (hostPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                                            trailingIcon = {
+                                                IconButton(onClick = { hostPasswordVisible = !hostPasswordVisible }) {
+                                                    Icon(
+                                                        if (hostPasswordVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                                        contentDescription = null
+                                                    )
+                                                }
+                                            },
+                                            modifier = Modifier.fillMaxWidth()
+                                        )
+
+                                        // Key field with full-screen selector trigger
+                                        Card(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clickable { showKeySetupDialog = true },
+                                            colors = CardDefaults.cardColors(containerColor = Color(0xFF0F172A)),
+                                            shape = RoundedCornerShape(8.dp)
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.padding(14.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Icon(Icons.Default.Key, contentDescription = null, tint = Color(0xFFA78BFA))
+                                                Spacer(Modifier.width(10.dp))
+                                                Column(modifier = Modifier.weight(1f)) {
+                                                    Text("SSH key, certificate, FIDO2", fontSize = 11.sp, color = Color(0xFF94A3B8))
+                                                    Text(hostKeyLabel, fontSize = 14.sp, color = Color.White, fontWeight = FontWeight.Medium)
+                                                }
+                                                Icon(Icons.Default.ArrowForward, contentDescription = null, tint = Color.Gray, modifier = Modifier.size(14.dp))
+                                            }
+                                        }
+
+                                        HorizontalDivider(color = Color(0xFF334155))
+
+                                        // Advanced section
+                                        Text("Advanced", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(0xFF38BDF8))
+
+                                        OutlinedTextField(
+                                            value = hostSnippet,
+                                            onValueChange = { hostSnippet = it },
+                                            label = { Text("Snippet") },
+                                            placeholder = { Text("Auto-run script on connect") },
+                                            singleLine = true,
+                                            modifier = Modifier.fillMaxWidth()
+                                        )
+
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text("Agent forwarding", fontSize = 14.sp, color = Color.White)
+                                            Switch(
+                                                checked = agentForwarding,
+                                                onCheckedChange = { agentForwarding = it }
+                                            )
+                                        }
+
+                                        OutlinedTextField(
+                                            value = hostChaining,
+                                            onValueChange = { hostChaining = it },
+                                            label = { Text("Host chaining (Jump host)") },
+                                            placeholder = { Text("None") },
+                                            singleLine = true,
+                                            modifier = Modifier.fillMaxWidth()
+                                        )
+
+                                        OutlinedTextField(
+                                            value = hostProxy,
+                                            onValueChange = { hostProxy = it },
+                                            label = { Text("Proxy") },
+                                            placeholder = { Text("Direct") },
+                                            singleLine = true,
+                                            modifier = Modifier.fillMaxWidth()
+                                        )
+
+                                        Button(
+                                            onClick = { showAddEnvDialog = true },
+                                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF334155))
+                                        ) {
+                                            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                                            Spacer(Modifier.width(6.dp))
+                                            Text("Add ENV variable", fontSize = 12.sp)
+                                        }
+
+                                        if (envVars.isNotEmpty()) {
+                                            envVars.forEach { (k, v) ->
+                                                Text("$k = $v", fontSize = 12.sp, color = Color(0xFF94A3B8))
+                                            }
+                                        }
+
+                                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                            OutlinedTextField(
+                                                value = colorScheme,
+                                                onValueChange = { colorScheme = it },
+                                                label = { Text("Color scheme") },
+                                                singleLine = true,
+                                                modifier = Modifier.weight(1f)
+                                            )
+                                            OutlinedTextField(
+                                                value = charset,
+                                                onValueChange = { charset = it },
+                                                label = { Text("Charset") },
+                                                singleLine = true,
+                                                modifier = Modifier.weight(1f)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Telnet Section
+                            if (selectedProtocol == "Telnet") {
+                                Card(
+                                    colors = CardDefaults.cardColors(containerColor = termSurface),
+                                    shape = RoundedCornerShape(12.dp)
+                                ) {
+                                    Column(
+                                        modifier = Modifier.padding(14.dp),
+                                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                                    ) {
+                                        OutlinedTextField(
+                                            value = hostPort.ifBlank { "23" },
+                                            onValueChange = { hostPort = it },
+                                            label = { Text("Port") },
+                                            singleLine = true,
+                                            modifier = Modifier.fillMaxWidth()
+                                        )
+
+                                        Text(
+                                            "Credentials",
+                                            fontSize = 14.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color(0xFFF59E0B)
+                                        )
+
+                                        OutlinedTextField(
+                                            value = hostUsername,
+                                            onValueChange = { hostUsername = it },
+                                            label = { Text("Username") },
+                                            singleLine = true,
+                                            modifier = Modifier.fillMaxWidth()
+                                        )
+
+                                        OutlinedTextField(
+                                            value = hostPassword,
+                                            onValueChange = { hostPassword = it },
+                                            label = { Text("Password") },
+                                            singleLine = true,
+                                            visualTransformation = PasswordVisualTransformation(),
+                                            modifier = Modifier.fillMaxWidth()
+                                        )
+
+                                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                            OutlinedTextField(
+                                                value = colorScheme,
+                                                onValueChange = { colorScheme = it },
+                                                label = { Text("Color scheme") },
+                                                singleLine = true,
+                                                modifier = Modifier.weight(1f)
+                                            )
+                                            OutlinedTextField(
+                                                value = charset,
+                                                onValueChange = { charset = it },
+                                                label = { Text("Charset") },
+                                                singleLine = true,
+                                                modifier = Modifier.weight(1f)
+                                            )
+                                        }
+                                    }
                                 }
                             }
                         }
-                    },
-                    confirmButton = {
-                        Button(onClick = {
-                            if (newHostIp.isNotBlank()) {
-                                viewModel.saveCurrentHost(
-                                    label = newHostName.ifBlank { newHostIp },
-                                    osType = newHostOs
-                                )
-                                showNewHostDialog = false
-                            }
-                        }) {
-                            Text("Save Host")
-                        }
-                    },
-                    dismissButton = {
-                        TextButton(onClick = { showNewHostDialog = false }) { Text("Cancel") }
                     }
-                )
+
+                    // Key Setup Full Screen Dialog
+                    if (showKeySetupDialog) {
+                        Dialog(
+                            onDismissRequest = { showKeySetupDialog = false },
+                            properties = DialogProperties(usePlatformDefaultWidth = false)
+                        ) {
+                            Scaffold(
+                                topBar = {
+                                    Surface(color = termSurface, shadowElevation = 4.dp) {
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .statusBarsPadding()
+                                                .padding(horizontal = 8.dp, vertical = 6.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            IconButton(onClick = { showKeySetupDialog = false }) {
+                                                Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.White)
+                                            }
+                                            Spacer(Modifier.width(8.dp))
+                                            Text("Keys & Certificates", fontWeight = FontWeight.Bold, fontSize = 17.sp, color = Color.White)
+                                        }
+                                    }
+                                },
+                                containerColor = termBg
+                            ) { keyPadding ->
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .padding(keyPadding)
+                                        .verticalScroll(rememberScrollState())
+                                        .padding(16.dp),
+                                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    listOf(
+                                        "Set up ssh id" to Icons.Default.Key,
+                                        "New ssh id" to Icons.Default.Add,
+                                        "New certificate" to Icons.Default.Security,
+                                        "New biometric key" to Icons.Default.Fingerprint,
+                                        "New FIDO2 key" to Icons.Default.VpnKey
+                                    ).forEach { (actionTitle, icon) ->
+                                        Card(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clickable {
+                                                    hostKeyLabel = actionTitle
+                                                    showKeySetupDialog = false
+                                                },
+                                            colors = CardDefaults.cardColors(containerColor = termSurface),
+                                            shape = RoundedCornerShape(10.dp)
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.padding(16.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Icon(icon, contentDescription = null, tint = Color(0xFFA78BFA), modifier = Modifier.size(24.dp))
+                                                Spacer(Modifier.width(16.dp))
+                                                Text(actionTitle, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Add ENV Dialog
+                    if (showAddEnvDialog) {
+                        var envName by remember { mutableStateOf("") }
+                        var envVal by remember { mutableStateOf("") }
+                        AlertDialog(
+                            onDismissRequest = { showAddEnvDialog = false },
+                            title = { Text("Add Environment Variable") },
+                            text = {
+                                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    OutlinedTextField(
+                                        value = envName,
+                                        onValueChange = { envName = it },
+                                        label = { Text("Variable Name (e.g. TERM)") },
+                                        singleLine = true
+                                    )
+                                    OutlinedTextField(
+                                        value = envVal,
+                                        onValueChange = { envVal = it },
+                                        label = { Text("Value (e.g. xterm-256color)") },
+                                        singleLine = true
+                                    )
+                                }
+                            },
+                            confirmButton = {
+                                Button(onClick = {
+                                    if (envName.isNotBlank()) {
+                                        envVars = envVars + (envName.trim() to envVal)
+                                    }
+                                    showAddEnvDialog = false
+                                }) {
+                                    Text("Add")
+                                }
+                            },
+                            dismissButton = {
+                                TextButton(onClick = { showAddEnvDialog = false }) { Text("Cancel") }
+                            }
+                        )
+                    }
+                }
             }
 
             // New Tab Dialog
@@ -594,35 +1088,25 @@ private fun TermiusHostCard(
                 .padding(14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // OS Logo / Avatar Icon
+            // Server Icon (Termius style)
             Box(
                 modifier = Modifier
                     .size(42.dp)
                     .clip(CircleShape)
-                    .background(
-                        when (host.osType.lowercase()) {
-                            "ubuntu" -> Color(0xFFE95420)
-                            "amazon" -> Color(0xFFFF9900)
-                            else -> Color(0xFF3B82F6)
-                        }
-                    ),
+                    .background(Color(0xFF22C55E).copy(alpha = 0.15f)),
                 contentAlignment = Alignment.Center
             ) {
-                Text(
-                    text = when (host.osType.lowercase()) {
-                        "ubuntu" -> "ubuntu"
-                        "amazon" -> "aws"
-                        else -> "linux"
-                    },
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White
+                Icon(
+                    imageVector = Icons.Default.Dns,
+                    contentDescription = null,
+                    tint = Color(0xFF22C55E),
+                    modifier = Modifier.size(22.dp)
                 )
             }
 
             Spacer(Modifier.width(14.dp))
 
-            // Title and Subtitle (Termius layout: Name + "ssh, root, ubuntu")
+            // Title and Subtitle (Termius layout: Alias + "ssh, username@host:port")
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = host.name,
@@ -632,7 +1116,7 @@ private fun TermiusHostCard(
                 )
                 Spacer(Modifier.height(2.dp))
                 Text(
-                    text = "ssh, ${host.username}, ${if (host.osType.isNotBlank()) host.osType else host.host}",
+                    text = "${host.protocol.lowercase()}, ${host.username}@${host.host}:${host.port}",
                     fontSize = 12.sp,
                     color = Color(0xFF94A3B8)
                 )

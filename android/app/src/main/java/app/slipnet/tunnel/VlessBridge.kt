@@ -384,7 +384,14 @@ object VlessBridge {
             // Read first payload from client (e.g., TLS ClientHello) to bundle with VLESS header.
             // This avoids a deadlock where the remote server waits for data before responding.
             val firstPayload = ByteArray(BUFFER_SIZE)
-            val firstPayloadLen = input.read(firstPayload)
+            val prevTimeout = client.soTimeout
+            client.soTimeout = 250
+            val firstPayloadLen = try {
+                input.read(firstPayload)
+            } catch (_: Exception) {
+                0
+            }
+            client.soTimeout = prevTimeout
             val initialData = if (firstPayloadLen > 0) firstPayload.copyOf(firstPayloadLen) else ByteArray(0)
             logd("First payload from client: ${initialData.size} bytes for $destHost:$destPort")
 
@@ -600,60 +607,12 @@ object VlessBridge {
         }
         Log.d(TAG, "VLESS request (${vlessHeader.size}b header + ${initialData.size}b payload) for $destHost:$destPort")
         writeWsFrame(tunnelOut, bundled)
-
-        // Read server response — log raw bytes for debugging
-        val b0 = tunnelIn.read()
-        if (b0 < 0) throw Exception("No VLESS response (EOF)")
-        val b1 = tunnelIn.read()
-        if (b1 < 0) throw Exception("No VLESS response (EOF after b0=${String.format("%02x", b0)})")
-
-        // Only credit the buffered payload once the server actually answered.
         if (initialData.isNotEmpty()) tunnelTxBytes.addAndGet(initialData.size.toLong())
-        val opcode = b0 and 0x0F
-        val fin = (b0 and 0x80) != 0
-        val masked = (b1 and 0x80) != 0
-        var payloadLen = (b1 and 0x7F).toLong()
-        Log.d(TAG, "WS frame: fin=$fin opcode=$opcode masked=$masked len=$payloadLen for $destHost:$destPort")
-
-        if (opcode == 0x08) throw Exception("Server sent WS close frame")
-
-        if (payloadLen == 126L) {
-            val h = tunnelIn.read(); val l = tunnelIn.read()
-            if (h < 0 || l < 0) throw Exception("Truncated extended length")
-            payloadLen = ((h shl 8) or l).toLong()
-        } else if (payloadLen == 127L) {
-            var len = 0L
-            for (i in 0 until 8) { val b = tunnelIn.read(); if (b < 0) throw Exception("Truncated 64-bit length"); len = (len shl 8) or b.toLong() }
-            payloadLen = len
-        }
-
-        var maskKey: ByteArray? = null
-        if (masked) { maskKey = ByteArray(4); readFully(tunnelIn, maskKey) }
-
-        if (payloadLen > 16 * 1024 * 1024) throw Exception("Frame too large: $payloadLen")
-
-        val payload = ByteArray(payloadLen.toInt())
-        if (payloadLen > 0) {
-            readFully(tunnelIn, payload)
-            if (maskKey != null) { for (i in payload.indices) { payload[i] = (payload[i].toInt() xor maskKey[i % 4].toInt()).toByte() } }
-        }
-
-        Log.d(TAG, "VLESS response (${payload.size}b): ${payload.take(16).joinToString(" ") { String.format("%02x", it) }} for $destHost:$destPort")
-
-        if (payload.size < 2) throw Exception("Invalid VLESS response (${payload.size} bytes)")
-        val respAddonsLen = payload[1].toInt() and 0xFF
-        val responsePayloadOffset = 2 + respAddonsLen
-        if (responsePayloadOffset < payload.size) {
-            val initialData = payload.copyOfRange(responsePayloadOffset, payload.size)
-            client.getOutputStream().write(initialData)
-            client.getOutputStream().flush()
-            tunnelRxBytes.addAndGet(initialData.size.toLong())
-        }
 
         Log.i(TAG, "VLESS/WS session established for $destHost:$destPort")
 
-        // Bidirectional relay with WS framing
-        relayVless(client, tunnelIn, tunnelOut)
+        // Bidirectional relay with WS framing - asynchronously strips VLESS response header from first frame
+        relayVless(client, tunnelIn, tunnelOut, stripFirstVlessHeader = true)
     }
 
     /**
@@ -739,11 +698,17 @@ object VlessBridge {
      * Relay data between client and WebSocket-framed VLESS tunnel.
      * Client side is raw TCP; tunnel side uses WebSocket binary frames.
      */
-    private fun relayVless(client: Socket, wsInput: InputStream, wsOutput: OutputStream) {
+    private fun relayVless(
+        client: Socket,
+        wsInput: InputStream,
+        wsOutput: OutputStream,
+        stripFirstVlessHeader: Boolean = false
+    ) {
         val threadCount = if (wsPaddingEnabled) 3 else 2
         val executor = Executors.newFixedThreadPool(threadCount)
         val clientIn = client.getInputStream()
         val clientOut = client.getOutputStream()
+        val isFirstFrame = java.util.concurrent.atomic.AtomicBoolean(stripFirstVlessHeader)
 
         // Client -> VLESS (wrap in WS frames)
         val f1 = executor.submit {
@@ -766,9 +731,22 @@ object VlessBridge {
                 while (!Thread.currentThread().isInterrupted) {
                     val frame = readWsFrame(wsInput) ?: break
                     if (frame.isEmpty()) continue
-                    clientOut.write(frame)
-                    clientOut.flush()
-                    tunnelRxBytes.addAndGet(frame.size.toLong())
+                    val toSend = if (isFirstFrame.compareAndSet(true, false)) {
+                        if (frame.size >= 2) {
+                            val addonsLen = frame[1].toInt() and 0xFF
+                            val offset = 2 + addonsLen
+                            if (offset < frame.size) frame.copyOfRange(offset, frame.size) else ByteArray(0)
+                        } else {
+                            ByteArray(0)
+                        }
+                    } else {
+                        frame
+                    }
+                    if (toSend.isNotEmpty()) {
+                        clientOut.write(toSend)
+                        clientOut.flush()
+                        tunnelRxBytes.addAndGet(toSend.size.toLong())
+                    }
                 }
             } catch (_: Exception) {}
         }

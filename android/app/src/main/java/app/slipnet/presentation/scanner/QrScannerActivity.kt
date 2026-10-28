@@ -19,6 +19,11 @@ class QrScannerActivity : CaptureActivity() {
         private const val REQUEST_GALLERY = 1001
     }
 
+    override fun onCreate(savedInstanceState: android.os.Bundle?) {
+        requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        super.onCreate(savedInstanceState)
+    }
+
     override fun initializeContent(): DecoratedBarcodeView {
         setContentView(R.layout.activity_qr_scanner)
 

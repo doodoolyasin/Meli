@@ -152,6 +152,13 @@
         <activity
             android:name=".presentation.scanner.QrScannerActivity"
             android:screenOrientation="portrait"
+            android:configChanges="orientation|screenSize"
+            tools:replace="screenOrientation" />
+
+        <activity
+            android:name="com.journeyapps.barcodescanner.CaptureActivity"
+            android:screenOrientation="portrait"
+            android:configChanges="orientation|screenSize"
             tools:replace="screenOrientation" />
 
         <!-- FileProvider for sharing APK -->

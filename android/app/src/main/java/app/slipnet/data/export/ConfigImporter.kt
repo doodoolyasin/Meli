@@ -3343,6 +3343,34 @@ class ConfigImporter @Inject constructor() {
                                 )
                             )
                         }
+                        "socks", "socks5" -> {
+                            profiles.add(
+                                ServerProfile(
+                                    name = profileName,
+                                    domain = server,
+                                    cdnIp = server,
+                                    cdnPort = port,
+                                    socks5ServerPort = port,
+                                    tunnelType = TunnelType.SOCKS5,
+                                    socksUsername = uuid,
+                                    socksPassword = password
+                                )
+                            )
+                        }
+                        "http" -> {
+                            profiles.add(
+                                ServerProfile(
+                                    name = profileName,
+                                    domain = server,
+                                    cdnIp = server,
+                                    cdnPort = port,
+                                    socks5ServerPort = port,
+                                    tunnelType = TunnelType.NAIVE,
+                                    socksUsername = uuid,
+                                    socksPassword = password
+                                )
+                            )
+                        }
                     }
                 }
             }

@@ -665,6 +665,93 @@ class MainViewModel @Inject constructor(
         }
     }
 
+    fun parseAndDirectImport(json: String, bundlePassword: String? = null, onResult: (Boolean, String) -> Unit) {
+        val result = configImporter.parseAndImport(
+            json, connectionManager.getDeviceId(), bundlePassword
+        )
+        when (result) {
+            is ImportResult.Success -> {
+                viewModelScope.launch {
+                    try {
+                        for (profile in result.profiles.reversed()) {
+                            saveProfileUseCase(profile)
+                        }
+                        _uiState.value = _uiState.value.copy(importPreview = null, error = null)
+                        val names = result.profiles.joinToString(", ") { it.name }
+                        onResult(true, "Imported ${result.profiles.size} profile(s): $names")
+                    } catch (e: Exception) {
+                        onResult(false, "Failed to save imported profiles: ${e.message}")
+                    }
+                }
+            }
+            is ImportResult.Error -> {
+                _uiState.value = _uiState.value.copy(error = result.message)
+                onResult(false, result.message)
+            }
+            ImportResult.NeedsPassword -> {
+                _uiState.value = _uiState.value.copy(pendingEncryptedImport = json)
+                onResult(false, "Encrypted bundle requires password")
+            }
+        }
+    }
+
+    fun updateSubscriptionGroup(groupName: String, url: String, onDone: (Int, String?) -> Unit) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val conn = java.net.URL(url.trim()).openConnection() as java.net.HttpURLConnection
+                conn.connectTimeout = 15000
+                conn.readTimeout = 15000
+                conn.setRequestProperty("User-Agent", "v2rayNG/1.8.5")
+                conn.instanceFollowRedirects = true
+                val responseCode = conn.responseCode
+                if (responseCode !in 200..299) {
+                    withContext(Dispatchers.Main) { onDone(0, "HTTP $responseCode from subscription server") }
+                    return@launch
+                }
+                val raw = conn.inputStream.bufferedReader().use { it.readText() }.trim()
+                val decoded = try {
+                    val cleanB64 = raw.replace("\n", "").replace("\r", "").trim()
+                    val bytes = android.util.Base64.decode(cleanB64, android.util.Base64.DEFAULT)
+                    String(bytes, Charsets.UTF_8)
+                } catch (_: Exception) {
+                    raw
+                }
+                val result = configImporter.parseAndImport(decoded, connectionManager.getDeviceId())
+                if (result is ImportResult.Success && result.profiles.isNotEmpty()) {
+                    val group = groupName.ifBlank { "Subscription" }
+                    for (p in result.profiles) {
+                        saveProfileUseCase(p.copy(subscriptionGroup = group))
+                    }
+                    withContext(Dispatchers.Main) { onDone(result.profiles.size, null) }
+                } else if (result is ImportResult.Error) {
+                    withContext(Dispatchers.Main) { onDone(0, result.message) }
+                } else {
+                    withContext(Dispatchers.Main) { onDone(0, "No profiles found in subscription") }
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) { onDone(0, e.message ?: "Failed to fetch subscription") }
+            }
+        }
+    }
+
+    fun applyRoutingSettings(
+        routingMode: String,
+        bypassLan: Boolean,
+        bypassIran: Boolean,
+        blockAds: Boolean
+    ) {
+        viewModelScope.launch {
+            preferencesDataStore.setDomainRoutingEnabled(true)
+            preferencesDataStore.setGeoBypassEnabled(bypassIran)
+            preferencesDataStore.setGeoBypassCountry("IR")
+            when (routingMode) {
+                "Global" -> preferencesDataStore.setDomainRoutingMode(app.slipnet.data.local.datastore.DomainRoutingMode.PROXY)
+                "Direct" -> preferencesDataStore.setDomainRoutingMode(app.slipnet.data.local.datastore.DomainRoutingMode.DIRECT)
+                else -> preferencesDataStore.setDomainRoutingMode(app.slipnet.data.local.datastore.DomainRoutingMode.BYPASS)
+            }
+        }
+    }
+
     fun cancelEncryptedImport() {
         _uiState.value = _uiState.value.copy(pendingEncryptedImport = null)
     }

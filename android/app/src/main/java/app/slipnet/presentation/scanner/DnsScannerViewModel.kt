@@ -294,7 +294,8 @@ enum class ScanMode {
     ADVANCED,
     SIMPLE,
     PRISM,
-    E2E
+    E2E,
+    MASTERDNS
 }
 
 /**
@@ -1781,6 +1782,32 @@ class DnsScannerViewModel @Inject constructor(
                 port = scanPort,
                 querySize = state.profile?.dnsPayloadSize ?: 0
             )
+            ScanMode.MASTERDNS -> {
+                val domesticResolvers = listOf(
+                    "10.201.33.34", "10.201.33.35",
+                    "10.202.10.202", "10.202.10.102",
+                    "85.15.1.14", "85.15.1.15",
+                    "217.218.127.127", "217.218.155.155",
+                    "5.200.200.200", "178.22.122.100",
+                    "185.51.200.2", "185.55.226.26",
+                    "10.10.34.34", "10.10.34.35",
+                    "78.38.255.17", "78.38.255.18",
+                    "91.99.100.100", "91.99.101.101",
+                    "80.191.160.1", "80.191.160.2"
+                ) + resolvers
+                launchScan(
+                    hosts = domesticResolvers.distinct(),
+                    allHosts = domesticResolvers.distinct(),
+                    testDomain = state.effectiveTestDomain,
+                    timeout = timeout,
+                    concurrency = concurrency,
+                    existingResults = emptyMap(),
+                    startScannedCount = 0,
+                    startWorkingCount = 0,
+                    port = scanPort,
+                    querySize = state.profile?.dnsPayloadSize ?: 0
+                )
+            }
         }
     }
 

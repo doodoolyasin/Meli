@@ -482,11 +482,13 @@ private fun ActionSection(
     val buttonLabel = when (scanMode) {
         ScanMode.SIMPLE -> "Start Simple Scan"
         ScanMode.E2E -> "Start E2E Scan"
+        ScanMode.MASTERDNS -> "Start MasterDNS Scan"
         else -> "Start Scan"
     }
     val resultsLabel = when (scanMode) {
         ScanMode.SIMPLE, ScanMode.E2E -> "View Results ($workingCount passed)"
         ScanMode.PRISM -> "View Results ($workingCount verified)"
+        ScanMode.MASTERDNS -> "View Results ($workingCount MasterDNS ready)"
         else -> "View Results ($workingCount working)"
     }
 
@@ -553,8 +555,23 @@ private fun ScanModeToggle(
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         Row(
+            modifier = Modifier.horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
+            FilterChip(
+                selected = scanMode == ScanMode.MASTERDNS,
+                onClick = { onModeChange(ScanMode.MASTERDNS) },
+                enabled = enabled,
+                label = { Text("MasterDNS") },
+                leadingIcon = if (scanMode == ScanMode.MASTERDNS) {
+                    { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp)) }
+                } else null,
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                    selectedLabelColor = MaterialTheme.colorScheme.primary,
+                    selectedLeadingIconColor = MaterialTheme.colorScheme.primary
+                )
+            )
             if (canUseSimpleMode) {
                 FilterChip(
                     selected = scanMode == ScanMode.SIMPLE,
@@ -648,6 +665,7 @@ private fun ScanModeToggle(
         } else {
             Text(
                 text = when (scanMode) {
+                    ScanMode.MASTERDNS -> "Scans domestic Iranian ISP resolvers (Irancell, MCI, Shatel, Mokhaberat) specifically optimized for MasterDNS and Meli protocol."
                     ScanMode.SIMPLE -> "Scans DNS resolvers and automatically tests each one through the tunnel. Only resolvers that pass the tunnel test are shown."
                     ScanMode.E2E -> "Tests each resolver directly through the tunnel, skipping DNS compatibility checks. Slower but tests real connectivity."
                     else -> "Scan DNS resolvers first, then optionally run tunnel test separately."

@@ -3528,13 +3528,7 @@ class SlipNetVpnService : VpnService() {
         val probeResult = withContext(Dispatchers.IO) { VlessBridge.probe() }
         if (probeResult.isFailure) {
             val reason = probeResult.exceptionOrNull()?.message ?: "unknown"
-            connectionManager.onVpnError("VLESS setup check failed: $reason. Verify CDN IP, domain, and WS path.")
-            VlessBridge.stop()
-            vpnInterface?.close()
-            vpnInterface = null
-            stopForeground(STOP_FOREGROUND_REMOVE)
-            stopSelf()
-            return
+            Log.w(TAG, "VLESS probe warning: $reason. Proceeding with connection.")
         }
 
         // Step 3: Start tun2socks
