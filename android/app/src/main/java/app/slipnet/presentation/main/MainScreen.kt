@@ -1796,7 +1796,7 @@ fun MainScreen(
                 dnsWarning = uiState.dnsWarning,
                 dnsPoolScan = uiState.dnsPoolScan,
                 onPingConnected = {
-                    uiState.activeProfile?.let { viewModel.pingProfile(it) }
+                    uiState.activeProfile?.let { viewModel.pingSingleProfile(it) }
                 },
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
