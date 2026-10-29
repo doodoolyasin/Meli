@@ -135,7 +135,9 @@ jobs:
       - name: Setup Keystore
         working-directory: android
         run: |
-          keytool -genkeypair -v -keystore slipnet-release.keystore -alias slipnet -keyalg RSA -keysize 2048 -validity 10000 -storepass "123456" -keypass "123456" -dname "CN=Meli, OU=Meli, O=Meli, L=Tehran, S=Tehran, C=IR"
+          if [ ! -f slipnet-release.keystore ]; then
+            keytool -genkeypair -v -keystore slipnet-release.keystore -alias slipnet -keyalg RSA -keysize 2048 -validity 10000 -storepass "123456" -keypass "123456" -dname "CN=AryanaNG, OU=Aryana, O=Aryana, L=Tehran, S=Tehran, C=IR"
+          fi
           cat > keystore.properties <<EOF
           storeFile=../slipnet-release.keystore
           storePassword=123456
