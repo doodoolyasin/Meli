@@ -22,6 +22,31 @@ import (
 	"stormdns-go/internal/config"
 )
 
+// SocketProtector protects sockets from VPN routing on Android.
+type SocketProtector interface {
+	Protect(fd int) bool
+}
+
+type clientProtectorBridge struct {
+	p SocketProtector
+}
+
+func (b *clientProtectorBridge) Protect(fd int) bool {
+	if b.p != nil {
+		return b.p.Protect(fd)
+	}
+	return true
+}
+
+// SetSocketProtector configures the socket protector for VPN routing avoidance.
+func SetSocketProtector(p SocketProtector) {
+	if p != nil {
+		client.SetSocketProtector(&clientProtectorBridge{p: p})
+	} else {
+		client.SetSocketProtector(nil)
+	}
+}
+
 // StormDnsClient wraps a booted StormDNS client with a start/stop lifecycle.
 type StormDnsClient struct {
 	mu      sync.Mutex

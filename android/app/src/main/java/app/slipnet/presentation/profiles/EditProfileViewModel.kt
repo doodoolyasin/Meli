@@ -1705,6 +1705,17 @@ class EditProfileViewModel @Inject constructor(
     }
 
 
+    fun applyAutoTuneSettings() {
+        val res = _uiState.value.autoTuneResult ?: return
+        _uiState.value = _uiState.value.copy(
+            dnsPayloadSize = res.payloadSize,
+            vaydnsMaxQnameLen = res.maxQnameLen,
+            dnsttAuthoritative = res.authoritativeRecommended,
+            autoTuneResult = null,
+            error = null
+        )
+    }
+
     fun save() {
         if (!validateProfile()) return
         persistProfile(forScanner = false)

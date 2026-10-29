@@ -817,21 +817,36 @@ func (c *Client) asyncReaderWorker(ctx context.Context, id int, conn *net.UDPCon
 		localAddr = conn.LocalAddr().String()
 	}
 
+	consecutiveErrors := 0
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		default:
+			if conn == nil {
+				return
+			}
 			buf := c.udpBufferPool.Get().([]byte)
 			n, addr, err := conn.ReadFromUDP(buf)
 			if err != nil {
 				c.udpBufferPool.Put(buf)
-				if ctx.Err() != nil || errors.Is(err, net.ErrClosed) || strings.Contains(err.Error(), "closed") {
+				errStr := strings.ToLower(err.Error())
+				if ctx.Err() != nil || errors.Is(err, net.ErrClosed) ||
+					strings.Contains(errStr, "closed") ||
+					strings.Contains(errStr, "bad file descriptor") ||
+					strings.Contains(errStr, "broken pipe") ||
+					strings.Contains(errStr, "not a socket") {
+					return
+				}
+				consecutiveErrors++
+				if consecutiveErrors > 10 {
+					c.log.Warnf("Reader Worker #%d exiting after %d consecutive errors: %v", id, consecutiveErrors, err)
 					return
 				}
 				time.Sleep(50 * time.Millisecond)
 				continue
 			}
+			consecutiveErrors = 0
 
 			if n < 12 { // Basic DNS header length
 				c.udpBufferPool.Put(buf)

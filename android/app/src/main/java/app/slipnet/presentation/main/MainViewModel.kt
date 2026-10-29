@@ -386,11 +386,19 @@ class MainViewModel @Inject constructor(
         connectionManager.disconnect()
     }
 
+    fun resetConnection() {
+        connectionManager.reset()
+        _uiState.update { it.copy(connectionState = ConnectionState.Disconnected, error = null) }
+    }
+
     fun toggleConnection() {
         when (_uiState.value.connectionState) {
             is ConnectionState.Connected,
-            is ConnectionState.Connecting,
-            is ConnectionState.Error -> disconnect()
+            is ConnectionState.Connecting -> disconnect()
+            is ConnectionState.Error -> {
+                resetConnection()
+                connect()
+            }
             is ConnectionState.Disconnecting -> { /* ignore — already disconnecting */ }
             else -> connect()
         }
@@ -729,10 +737,10 @@ class MainViewModel @Inject constructor(
                 val result = configImporter.parseAndImport(decoded, connectionManager.getDeviceId())
                 if (result is ImportResult.Success && result.profiles.isNotEmpty()) {
                     val group = groupName.ifBlank { "Subscription" }
-                    // Remove existing profiles for this group first to prevent duplicates / stale servers
-                    deleteProfilesMatching { it.subscriptionGroup == group }
+                    // Synchronously delete all existing profiles for this group first to prevent duplicates / stale servers
+                    profileRepository.deleteProfilesByGroup(group)
                     for (p in result.profiles) {
-                        saveProfileUseCase(p.copy(subscriptionId = group))
+                        saveProfileUseCase(p.copy(subscriptionId = group, subscriptionGroup = group))
                     }
                     withContext(Dispatchers.Main) { onDone(result.profiles.size, null) }
                 } else if (result is ImportResult.Error) {
@@ -793,9 +801,9 @@ class MainViewModel @Inject constructor(
                             val decoded = decodeSubscriptionPayload(raw)
                             val result = configImporter.parseAndImport(decoded, connectionManager.getDeviceId())
                             if (result is ImportResult.Success && result.profiles.isNotEmpty()) {
-                                deleteProfilesMatching { it.subscriptionGroup == group }
+                                profileRepository.deleteProfilesByGroup(group)
                                 for (p in result.profiles) {
-                                    saveProfileUseCase(p.copy(subscriptionId = group))
+                                    saveProfileUseCase(p.copy(subscriptionId = group, subscriptionGroup = group))
                                 }
                                 totalCount += result.profiles.size
                             }
@@ -1182,6 +1190,20 @@ class MainViewModel @Inject constructor(
     fun sortProfilesByProtocol() {
         val current = _uiState.value.profiles
         val sorted = current.sortedBy { it.tunnelType.displayName }
+        if (sorted == current) return
+        _uiState.value = _uiState.value.copy(profiles = sorted)
+        viewModelScope.launch {
+            profileRepository.updateProfileOrder(sorted.map { it.id })
+        }
+    }
+
+    fun sortProfilesByProtocolOrder(priorityList: List<app.slipnet.domain.model.TunnelType>) {
+        val current = _uiState.value.profiles
+        val priorityMap = priorityList.withIndex().associate { it.value to it.index }
+        val sorted = current.sortedWith(
+            compareBy<ServerProfile> { priorityMap[it.tunnelType] ?: Int.MAX_VALUE }
+                .thenBy { it.name.lowercase() }
+        )
         if (sorted == current) return
         _uiState.value = _uiState.value.copy(profiles = sorted)
         viewModelScope.launch {

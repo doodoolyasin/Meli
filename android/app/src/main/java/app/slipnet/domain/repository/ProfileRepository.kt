@@ -17,4 +17,5 @@ interface ProfileRepository {
     suspend fun getMaxSortOrder(): Int
     suspend fun prepareTopSortOrder()
     suspend fun togglePinned(id: Long)
+    suspend fun deleteProfilesByGroup(group: String)
 }

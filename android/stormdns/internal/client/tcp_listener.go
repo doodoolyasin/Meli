@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"stormdns-go/internal/netutil"
@@ -42,8 +43,16 @@ func (l *TCPListener) Start(ctx context.Context, ip string, port int) error {
 	}
 
 	listeners := make([]net.Listener, 0, len(addrs))
+	lc := net.ListenConfig{
+		Control: func(network, address string, c syscall.RawConn) error {
+			return c.Control(func(fd uintptr) {
+				_ = syscall.SetsockoptInt(int(fd), syscall.SOL_SOCKET, syscall.SO_REUSEADDR, 1)
+				_ = syscall.SetsockoptInt(int(fd), syscall.SOL_SOCKET, 0xf /* SO_REUSEPORT */, 1)
+			})
+		},
+	}
 	for i, addr := range addrs {
-		listener, err := net.Listen("tcp", addr)
+		listener, err := lc.Listen(ctx, "tcp", addr)
 		if err != nil {
 			if i == 0 {
 				for _, opened := range listeners {

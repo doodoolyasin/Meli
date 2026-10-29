@@ -403,11 +403,51 @@ pub async fn run_meli_client(opts: MeliClientOptions, mut shutdown_rx: mpsc::Rec
         opts.listen_host, opts.listen_port, opts.domain, opts.resolver
     );
 
-    let listen_addr = format!("{}:{}", opts.listen_host, opts.listen_port);
-    let listener = match TcpListener::bind(&listen_addr).await {
+    let listen_addr: SocketAddr = format!("{}:{}", opts.listen_host, opts.listen_port)
+        .parse()
+        .unwrap_or_else(|_| SocketAddr::from(([127, 0, 0, 1], opts.listen_port)));
+
+    let socket = match socket2::Socket::new(
+        if listen_addr.is_ipv4() { socket2::Domain::IPV4 } else { socket2::Domain::IPV6 },
+        socket2::Type::STREAM,
+        Some(socket2::Protocol::TCP),
+    ) {
+        Ok(s) => s,
+        Err(e) => {
+            let msg = format!("Failed to create SOCKS5 listener socket: {}", e);
+            error!("{}", msg);
+            set_last_error(msg);
+            IS_RUNNING.store(false, Ordering::SeqCst);
+            return;
+        }
+    };
+
+    let _ = socket.set_reuse_address(true);
+    #[cfg(unix)]
+    let _ = socket.set_reuse_port(true);
+    let _ = socket.set_nonblocking(true);
+
+    if let Err(e) = socket.bind(&listen_addr.into()) {
+        let msg = format!("Failed to bind SOCKS5 listener on {}: {}", listen_addr, e);
+        error!("{}", msg);
+        set_last_error(msg);
+        IS_RUNNING.store(false, Ordering::SeqCst);
+        return;
+    }
+
+    if let Err(e) = socket.listen(128) {
+        let msg = format!("Failed to listen on SOCKS5 socket {}: {}", listen_addr, e);
+        error!("{}", msg);
+        set_last_error(msg);
+        IS_RUNNING.store(false, Ordering::SeqCst);
+        return;
+    }
+
+    let std_listener: std::net::TcpListener = socket.into();
+    let listener = match TcpListener::from_std(std_listener) {
         Ok(l) => l,
         Err(e) => {
-            let msg = format!("Failed to bind SOCKS5 listener on {}: {}", listen_addr, e);
+            let msg = format!("Failed to convert SOCKS5 listener: {}", e);
             error!("{}", msg);
             set_last_error(msg);
             IS_RUNNING.store(false, Ordering::SeqCst);
@@ -663,10 +703,15 @@ async fn handle_socks5_client(
 
 pub fn decode_key(s: &str) -> Vec<u8> {
     let trimmed = s.trim();
-    if trimmed.len() == 64 && trimmed.chars().all(|c| c.is_ascii_hexdigit()) {
-        (0..trimmed.len())
+    if (trimmed.len() == 64 || trimmed.len() == 32) && trimmed.chars().all(|c| c.is_ascii_hexdigit()) {
+        let hex_str = if trimmed.len() == 32 {
+            format!("{:0<64}", trimmed)
+        } else {
+            trimmed.to_string()
+        };
+        (0..hex_str.len())
             .step_by(2)
-            .filter_map(|i| u8::from_str_radix(&trimmed[i..i + 2], 16).ok())
+            .filter_map(|i| u8::from_str_radix(&hex_str[i..i + 2], 16).ok())
             .collect()
     } else {
         trimmed.as_bytes().to_vec()

@@ -53,4 +53,7 @@ interface ProfileDao {
 
     @Query("UPDATE server_profiles SET is_pinned = NOT is_pinned WHERE id = :id")
     suspend fun togglePinned(id: Long)
+
+    @Query("DELETE FROM server_profiles WHERE subscription_id = :group OR subscription_group = :group")
+    suspend fun deleteProfilesByGroup(group: String)
 }

@@ -7,8 +7,8 @@ package turbotunnel
 import "errors"
 
 // QueueSize is the size of send and receive queues in QueuePacketConn and
-// RemoteMap.
-const QueueSize = 128
+// RemoteMap. Increased from 128 to 2048 to prevent buffer stalls on bursts >11KB.
+const QueueSize = 2048
 
 var errClosedPacketConn = errors.New("operation on closed connection")
 var errNotImplemented = errors.New("not implemented")

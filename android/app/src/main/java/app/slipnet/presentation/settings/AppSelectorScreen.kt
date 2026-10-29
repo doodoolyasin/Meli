@@ -146,6 +146,23 @@ fun AppSelectorScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
+            // Dedicated User vs System Apps Tabs (PattNG style)
+            TabRow(
+                selectedTabIndex = uiState.selectedTab,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Tab(
+                    selected = uiState.selectedTab == 0,
+                    onClick = { viewModel.setTab(0) },
+                    text = { Text("User Apps") }
+                )
+                Tab(
+                    selected = uiState.selectedTab == 1,
+                    onClick = { viewModel.setTab(1) },
+                    text = { Text("System Apps") }
+                )
+            }
+
             // Filter chips row
             Row(
                 modifier = Modifier
@@ -164,11 +181,6 @@ fun AppSelectorScreen(
                     selected = uiState.showSelectedOnly,
                     onClick = { viewModel.toggleSelectedOnly() },
                     label = { Text("Selected (${uiState.selectedApps.size})") }
-                )
-                FilterChip(
-                    selected = !uiState.showSystemApps,
-                    onClick = { viewModel.toggleSystemApps() },
-                    label = { Text("Hide system") }
                 )
             }
 

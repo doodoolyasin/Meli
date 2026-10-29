@@ -1140,6 +1140,10 @@ func (c *DnsttClient) run(ctx context.Context, pubkey []byte, domain dns.Name, l
 		log.Printf("capping MTU from %d to %d (maxPayload)", mtu, c.maxPayload)
 		mtu = c.maxPayload
 	}
+	if mtu > 210 {
+		log.Printf("capping MTU from %d to 210 for frame safety", mtu)
+		mtu = 210
+	}
 	log.Printf("effective MTU %d", mtu)
 
 	// Open a KCP conn on the PacketConn.

@@ -12,7 +12,7 @@ import (
 
 // QueueSize is the size of send and receive queues in QueuePacketConn and
 // RemoteMap.
-const QueueSize = 512
+const QueueSize = 2048
 
 // QueueOverflowMode controls how QueuePacketConn behaves when its queues are
 // full.

@@ -64,6 +64,18 @@ object MeliBridge {
             return Result.failure(IllegalStateException("Meli native library not loaded"))
         }
 
+        if (isRunning()) {
+            stopClient()
+            try { Thread.sleep(100) } catch (_: InterruptedException) {}
+        }
+
+        val effectiveKey = if (encryptionKey.isNotBlank()) {
+            val trimmed = encryptionKey.trim()
+            if (trimmed.length == 32 && trimmed.all { it in "0123456789abcdefABCDEF" }) {
+                trimmed.padEnd(64, '0')
+            } else trimmed
+        } else ""
+
         currentPort = listenPort
         Log.i(TAG, "Starting Meli client: domain=$domain, resolver=$resolver, port=$listenPort")
 
@@ -72,7 +84,7 @@ object MeliBridge {
             resolver = resolver,
             listenPort = listenPort,
             listenHost = listenHost,
-            encryptionKey = encryptionKey
+            encryptionKey = effectiveKey
         )
 
         return if (success) {

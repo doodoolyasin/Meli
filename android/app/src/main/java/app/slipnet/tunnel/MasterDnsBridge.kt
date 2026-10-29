@@ -15,6 +15,24 @@ object MasterDnsBridge {
 
     private var client: StormDnsClient? = null
     private var currentPort: Int = 0
+    private var vpnService: android.net.VpnService? = null
+
+    fun setVpnService(service: android.net.VpnService?) {
+        vpnService = service
+        try {
+            if (service != null) {
+                Stormdns.setSocketProtector(object : stormdns.SocketProtector {
+                    override fun protect(fd: Long): Boolean {
+                        return service.protect(fd.toInt())
+                    }
+                })
+            } else {
+                Stormdns.setSocketProtector(null)
+            }
+        } catch (e: Throwable) {
+            Log.w(TAG, "Socket protector hook: ${e.message}")
+        }
+    }
 
     fun getClientPort(): Int = currentPort
 

@@ -1127,14 +1127,14 @@ fun EditProfileScreen(
                                 )
                                 Spacer(Modifier.height(8.dp))
                                 Button(
-                                    onClick = { viewModel.save() },
+                                    onClick = { viewModel.applyAutoTuneSettings() },
                                     modifier = Modifier.fillMaxWidth(),
                                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary),
                                     shape = RoundedCornerShape(8.dp)
                                 ) {
                                     Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp))
                                     Spacer(Modifier.width(8.dp))
-                                    Text("Apply & Save Optimal Settings")
+                                    Text("Apply Best Settings")
                                 }
                             }
                         }

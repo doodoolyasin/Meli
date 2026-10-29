@@ -26,9 +26,10 @@ data class AppSelectorUiState(
     val apps: List<InstalledApp> = emptyList(),
     val selectedApps: Set<String> = emptySet(),
     val searchQuery: String = "",
-    val showSystemApps: Boolean = true,
+    val showSystemApps: Boolean = false,
     val showSelectedOnly: Boolean = false,
-    val isLoading: Boolean = true
+    val isLoading: Boolean = true,
+    val selectedTab: Int = 0 // 0 = User Apps, 1 = System Apps
 )
 
 @HiltViewModel
@@ -98,6 +99,15 @@ class AppSelectorViewModel @Inject constructor(
         )
     }
 
+    fun setTab(tabIndex: Int) {
+        val showSys = tabIndex == 1
+        _uiState.value = _uiState.value.copy(
+            selectedTab = tabIndex,
+            showSystemApps = showSys,
+            apps = filterApps(allApps, _uiState.value.searchQuery, showSys, _uiState.value.showSelectedOnly, _uiState.value.selectedApps)
+        )
+    }
+
     fun toggleSystemApps() {
         val state = _uiState.value
         val show = !state.showSystemApps
@@ -146,7 +156,8 @@ class AppSelectorViewModel @Inject constructor(
         selectedApps: Set<String>
     ): List<InstalledApp> {
         return apps.filter { app ->
-            (showSystem || !app.isSystemApp) &&
+            val matchType = if (showSystem) app.isSystemApp else !app.isSystemApp
+            matchType &&
                     (!selectedOnly || app.packageName in selectedApps) &&
                     (query.isBlank() ||
                             app.appName.contains(query, ignoreCase = true) ||

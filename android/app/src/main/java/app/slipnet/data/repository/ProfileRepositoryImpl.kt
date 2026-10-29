@@ -75,4 +75,8 @@ class ProfileRepositoryImpl @Inject constructor(
     override suspend fun togglePinned(id: Long) {
         profileDao.togglePinned(id)
     }
+
+    override suspend fun deleteProfilesByGroup(group: String) {
+        profileDao.deleteProfilesByGroup(group)
+    }
 }

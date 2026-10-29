@@ -126,8 +126,14 @@ object DnsttBridge {
                 }
             }
 
+            // Normalize public key: if 32 hex chars, pad to 64 hex chars (32 bytes)
+            val trimmedKey = publicKey.trim()
+            val effectiveKey = if (trimmedKey.length == 32 && trimmedKey.all { it in "0123456789abcdefABCDEF" }) {
+                trimmedKey.padEnd(64, '0')
+            } else trimmedKey
+
             // Create the DNSTT client via Go mobile bindings
-            val newClient = Mobile.newClient(dnsAddr, tunnelDomain, publicKey, listenAddr)
+            val newClient = Mobile.newClient(dnsAddr, tunnelDomain, effectiveKey, listenAddr)
             newClient.setAuthoritativeMode(authoritativeMode)
             if (maxPayload > 0) {
                 newClient.setMaxPayload(maxPayload.toLong())

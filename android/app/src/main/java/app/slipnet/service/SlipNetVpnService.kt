@@ -2836,6 +2836,9 @@ class SlipNetVpnService : VpnService() {
         val proxyHost = preferencesDataStore.proxyListenAddress.first()
         val masterDnsPort = proxyPort + 1
 
+        MasterDnsBridge.setVpnService(this@SlipNetVpnService)
+        MasterDnsBridge.stopClient()
+
         if (!isProxyOnly) {
             vpnInterface = establishVpnInterface(dnsServer)
             if (vpnInterface == null) {
@@ -2972,6 +2975,7 @@ class SlipNetVpnService : VpnService() {
         val proxyHost = preferencesDataStore.proxyListenAddress.first()
         val meliPort = proxyPort + 1
 
+        MeliBridge.stopClient()
         MeliBridge.proxyOnlyMode = isProxyOnly
         MeliBridge.setVpnService(this@SlipNetVpnService)
         SlipstreamBridge.setVpnService(this@SlipNetVpnService)

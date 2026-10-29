@@ -234,18 +234,13 @@ fun ProfileListItem(
                     TunnelType.DOH -> DOH_SERVERS.firstOrNull { it.url == profile.dohUrl }?.name ?: profile.dohUrl
                     TunnelType.SSH -> "$hostPart:${profile.sshPort}"
                     TunnelType.SNOWFLAKE -> "Tor / Snowflake Network"
-                    TunnelType.VLESS -> "$hostPart:${profile.cdnPort} (vless+${profile.vlessTransport.ifBlank { "ws" }})"
-                    TunnelType.VLESS_REALITY -> "$hostPart:${profile.cdnPort} (vless+reality)"
-                    TunnelType.VMESS -> "$hostPart:${profile.cdnPort} (vmess)"
-                    TunnelType.TROJAN -> "$hostPart:${profile.cdnPort} (trojan)"
-                    TunnelType.WIREGUARD -> "$hostPart:${profile.cdnPort} (wireguard)"
-                    TunnelType.AETHER -> "$hostPart:${profile.cdnPort} (masque/aether)"
-                    TunnelType.WARP -> "$hostPart:${profile.cdnPort} (warp)"
-                    TunnelType.MASTERDNS, TunnelType.MASTERDNS_SSH -> "$hostPart (masterdns)"
-                    TunnelType.MELI, TunnelType.MELI_SSH -> "$hostPart (melidns)"
-                    TunnelType.STORMDNS, TunnelType.STORMDNS_SSH -> "$hostPart (stormdns)"
-                    TunnelType.SLIPSTREAM, TunnelType.SLIPSTREAM_SSH -> "$hostPart (slipstream)"
-                    TunnelType.DNSTT, TunnelType.DNSTT_SSH -> "$hostPart (dnstt)"
+                    TunnelType.VLESS, TunnelType.VLESS_REALITY, TunnelType.VMESS, TunnelType.TROJAN,
+                    TunnelType.WIREGUARD, TunnelType.AETHER, TunnelType.WARP -> "$hostPart:${profile.cdnPort}"
+                    TunnelType.MASTERDNS, TunnelType.MASTERDNS_SSH,
+                    TunnelType.MELI, TunnelType.MELI_SSH,
+                    TunnelType.STORMDNS, TunnelType.STORMDNS_SSH,
+                    TunnelType.SLIPSTREAM, TunnelType.SLIPSTREAM_SSH,
+                    TunnelType.DNSTT, TunnelType.DNSTT_SSH -> hostPart
                     else -> "$hostPart:${profile.cdnPort.takeIf { it > 0 } ?: 53}"
                 }
 

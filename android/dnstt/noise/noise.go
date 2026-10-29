@@ -263,9 +263,20 @@ func WriteKey(w io.Writer, key []byte) error {
 
 // DecodeKey decodes a hex-encoded private or public key.
 func DecodeKey(s string) ([]byte, error) {
+	s = strings.TrimSpace(s)
 	key, err := hex.DecodeString(s)
-	if err == nil && len(key) != KeyLen {
-		err = fmt.Errorf("length is %d, expected %d", len(key), KeyLen)
+	if err == nil {
+		if len(key) == 16 {
+			// User provided a 32-char hex string (16 bytes). Pad with zeroes to 32 bytes for Curve25519.
+			padded := make([]byte, KeyLen)
+			copy(padded, key)
+			return padded, nil
+		}
+		if len(key) != KeyLen {
+			err = fmt.Errorf("length is %d, expected %d", len(key), KeyLen)
+		}
+	} else if len(s) == KeyLen {
+		return []byte(s), nil
 	}
 	return key, err
 }

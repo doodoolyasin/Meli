@@ -161,6 +161,17 @@ class VpnConnectionManager @Inject constructor(
         context.startService(intent)
     }
 
+    fun reset() {
+        _connectionState.value = ConnectionState.Disconnected
+        _dnsWarning.value = null
+        try {
+            val intent = Intent(context, SlipNetVpnService::class.java).apply {
+                action = SlipNetVpnService.ACTION_DISCONNECT
+            }
+            context.startService(intent)
+        } catch (_: Exception) {}
+    }
+
     fun onVpnEstablished() {
         val profile = pendingProfile ?: return
 
