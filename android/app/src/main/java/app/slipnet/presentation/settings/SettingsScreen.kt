@@ -146,17 +146,11 @@ fun SettingsScreen(
     val scrollState = rememberScrollState()
 
     var showDarkModeDialog by remember { mutableStateOf(false) }
-    var showSshCipherDialog by remember { mutableStateOf(false) }
-    var showSplitModeDialog by remember { mutableStateOf(false) }
-    var showDomainRoutingModeDialog by remember { mutableStateOf(false) }
-    var showDomainManagementDialog by remember { mutableStateOf(false) }
-    var showGeoBypassCountryDialog by remember { mutableStateOf(false) }
     var showAboutDialog by remember { mutableStateOf(false) }
     var showRemoteDnsDialog by remember { mutableStateOf(false) }
     var showGlobalResolverDialog by remember { mutableStateOf(false) }
     var showDnsPoolDialog by remember { mutableStateOf(false) }
     var showMtuDialog by remember { mutableStateOf(false) }
-    var showBandwidthLimitDialog by remember { mutableStateOf(false) }
     var showDnsWorkerDialog by remember { mutableStateOf(false) }
     var showResetSettingsDialog by remember { mutableStateOf(false) }
 
@@ -239,39 +233,6 @@ fun SettingsScreen(
                 title = "VPN Settings",
                 subtitle = "Tunnel & network parameters"
             ) {
-                // System VPN settings
-                ClickableSettingItem(
-                    icon = Icons.Default.SettingsEthernet,
-                    title = "System VPN Settings",
-                    description = "Open Android VPN settings to enable Always-on VPN",
-                    onClick = {
-                        try {
-                            val intent = Intent(Settings.ACTION_VPN_SETTINGS)
-                            context.startActivity(intent)
-                        } catch (_: Exception) {
-                            // Fallback
-                        }
-                    }
-                )
-
-                SettingsDivider()
-
-                // Custom Remote DNS
-                ClickableSettingItem(
-                    icon = Icons.Default.Dns,
-                    title = "Custom Remote DNS",
-                    description = if (uiState.remoteDnsMode == "custom") {
-                        val primary = uiState.customRemoteDns.ifBlank { "8.8.8.8" }
-                        val fallback = uiState.customRemoteDnsFallback.ifBlank { "1.1.1.1" }
-                        "Custom ($primary, $fallback)"
-                    } else {
-                        "Default (8.8.8.8, 1.1.1.1)"
-                    },
-                    onClick = { showRemoteDnsDialog = true }
-                )
-
-                SettingsDivider()
-
                 // VPN MTU
                 ClickableSettingItem(
                     icon = Icons.Default.Speed,
@@ -293,13 +254,49 @@ fun SettingsScreen(
 
                 SettingsDivider()
 
-                // Append HTTP Proxy to VPN
-                SwitchSettingItem(
-                    icon = Icons.Default.Lan,
-                    title = "Append HTTP Proxy to VPN",
-                    description = "Route app traffic directly through HTTP proxy for speed (Android 10+)",
-                    checked = uiState.appendHttpProxyToVpn,
-                    onCheckedChange = { viewModel.setAppendHttpProxyToVpn(it) }
+                // Custom Remote DNS
+                ClickableSettingItem(
+                    icon = Icons.Default.Dns,
+                    title = "Custom Remote DNS",
+                    description = if (uiState.remoteDnsMode == "custom") {
+                        val primary = uiState.customRemoteDns.ifBlank { "8.8.8.8" }
+                        val fallback = uiState.customRemoteDnsFallback.ifBlank { "1.1.1.1" }
+                        "Custom ($primary, $fallback)"
+                    } else {
+                        "Default (8.8.8.8, 1.1.1.1)"
+                    },
+                    onClick = { showRemoteDnsDialog = true }
+                )
+
+                SettingsDivider()
+
+                // Client DNS Tunnel Options (Payload Size & Tuning)
+                ClickableSettingItem(
+                    icon = Icons.Default.Tune,
+                    title = "DNS Tunnel Tuning & Resolvers",
+                    description = if (uiState.globalResolverList.isNotBlank()) {
+                        "${uiState.globalResolverList.split(",", "\n").filter { it.isNotBlank() }.size} custom resolvers · ${uiState.dnsWorkerMode.displayName} Workers"
+                    } else {
+                        "Auto-tune (dynamic payload) · ${uiState.dnsWorkerMode.displayName} Workers"
+                    },
+                    onClick = { showGlobalResolverDialog = true }
+                )
+
+                SettingsDivider()
+
+                // System VPN settings
+                ClickableSettingItem(
+                    icon = Icons.Default.SettingsEthernet,
+                    title = "System VPN Settings",
+                    description = "Open Android VPN settings to enable Always-on VPN",
+                    onClick = {
+                        try {
+                            val intent = Intent(Settings.ACTION_VPN_SETTINGS)
+                            context.startActivity(intent)
+                        } catch (_: Exception) {
+                            // Fallback
+                        }
+                    }
                 )
             }
 
@@ -760,166 +757,6 @@ fun SettingsScreen(
         )
     }
 
-    // Split Tunneling Mode Dialog
-    if (showSplitModeDialog) {
-        AlertDialog(
-            onDismissRequest = { showSplitModeDialog = false },
-            title = { Text("Split Tunneling Mode") },
-            text = {
-                Column {
-                    SplitTunnelingMode.entries.forEach { mode ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(8.dp))
-                                .clickable {
-                                    viewModel.setSplitTunnelingMode(mode)
-                                    showSplitModeDialog = false
-                                }
-                                .padding(vertical = 12.dp, horizontal = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            RadioButton(
-                                selected = uiState.splitTunnelingMode == mode,
-                                onClick = {
-                                    viewModel.setSplitTunnelingMode(mode)
-                                    showSplitModeDialog = false
-                                }
-                            )
-                            Column(modifier = Modifier.padding(start = 8.dp)) {
-                                Text(
-                                    text = when (mode) {
-                                        SplitTunnelingMode.DISALLOW -> "Bypass"
-                                        SplitTunnelingMode.ALLOW -> "Only"
-                                    }
-                                )
-                                Text(
-                                    text = when (mode) {
-                                        SplitTunnelingMode.DISALLOW -> "Selected apps bypass VPN"
-                                        SplitTunnelingMode.ALLOW -> "Only selected apps use VPN"
-                                    },
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { showSplitModeDialog = false }) {
-                    Text("Cancel")
-                }
-            }
-        )
-    }
-
-    // Domain Routing Mode Dialog
-    if (showDomainRoutingModeDialog) {
-        AlertDialog(
-            onDismissRequest = { showDomainRoutingModeDialog = false },
-            title = { Text("Domain Routing Mode") },
-            text = {
-                Column {
-                    DomainRoutingMode.entries.forEach { mode ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(8.dp))
-                                .clickable {
-                                    viewModel.setDomainRoutingMode(mode)
-                                    showDomainRoutingModeDialog = false
-                                }
-                                .padding(vertical = 12.dp, horizontal = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            RadioButton(
-                                selected = uiState.domainRoutingMode == mode,
-                                onClick = {
-                                    viewModel.setDomainRoutingMode(mode)
-                                    showDomainRoutingModeDialog = false
-                                }
-                            )
-                            Column(modifier = Modifier.padding(start = 8.dp)) {
-                                Text(
-                                    text = when (mode) {
-                                        DomainRoutingMode.BYPASS -> "Bypass VPN"
-                                        DomainRoutingMode.ONLY_VPN -> "Only VPN"
-                                    }
-                                )
-                                Text(
-                                    text = when (mode) {
-                                        DomainRoutingMode.BYPASS -> "Listed domains connect directly"
-                                        DomainRoutingMode.ONLY_VPN -> "Only listed domains use the VPN"
-                                    },
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { showDomainRoutingModeDialog = false }) {
-                    Text("Cancel")
-                }
-            }
-        )
-    }
-
-    // Domain Management Dialog
-    if (showDomainManagementDialog) {
-        DomainManagementDialog(
-            domains = uiState.domainRoutingDomains,
-            onAddDomain = { viewModel.addDomainRoutingDomain(it) },
-            onRemoveDomain = { viewModel.removeDomainRoutingDomain(it) },
-            onDismiss = { showDomainManagementDialog = false }
-        )
-    }
-
-    // Geo-Bypass Country Dialog
-    if (showGeoBypassCountryDialog) {
-        AlertDialog(
-            onDismissRequest = { showGeoBypassCountryDialog = false },
-            title = { Text("Select Country") },
-            text = {
-                Column {
-                    GeoBypassCountry.entries.forEach { country ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(8.dp))
-                                .clickable {
-                                    viewModel.setGeoBypassCountry(country)
-                                    showGeoBypassCountryDialog = false
-                                }
-                                .padding(vertical = 12.dp, horizontal = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            RadioButton(
-                                selected = uiState.geoBypassCountry == country,
-                                onClick = {
-                                    viewModel.setGeoBypassCountry(country)
-                                    showGeoBypassCountryDialog = false
-                                }
-                            )
-                            Text(
-                                text = country.displayName,
-                                modifier = Modifier.padding(start = 8.dp)
-                            )
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { showGeoBypassCountryDialog = false }) {
-                    Text("Cancel")
-                }
-            }
-        )
-    }
-
     // Global Resolver Override Dialog
     if (showGlobalResolverDialog) {
         var resolverText by remember { mutableStateOf(uiState.globalResolverList) }
@@ -1128,103 +965,6 @@ fun SettingsScreen(
             )
         }
     }
-}
-
-@Composable
-private fun DomainManagementDialog(
-    domains: Set<String>,
-    onAddDomain: (String) -> Unit,
-    onRemoveDomain: (String) -> Unit,
-    onDismiss: () -> Unit
-) {
-    var newDomain by remember { mutableStateOf("") }
-    val sortedDomains = remember(domains) { domains.sorted() }
-
-    val addDomain = {
-        val trimmed = newDomain.trim().lowercase()
-        if (trimmed.isNotEmpty()) {
-            onAddDomain(trimmed)
-            newDomain = ""
-        }
-    }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Manage Domains") },
-        text = {
-            Column(
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                // Add domain input
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    OutlinedTextField(
-                        value = newDomain,
-                        onValueChange = { newDomain = it },
-                        placeholder = { Text("e.g., google.com") },
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions.Default,
-                        keyboardActions = KeyboardActions(onDone = { addDomain() }),
-                        modifier = Modifier.weight(1f)
-                    )
-                    IconButton(onClick = { addDomain() }) {
-                        Icon(Icons.Default.Add, contentDescription = "Add domain")
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                if (sortedDomains.isEmpty()) {
-                    Text(
-                        text = "No domains configured",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(vertical = 8.dp)
-                    )
-                } else {
-                    LazyColumn(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(240.dp)
-                    ) {
-                        items(sortedDomains) { domain ->
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 4.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = domain,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    modifier = Modifier.weight(1f)
-                                )
-                                IconButton(
-                                    onClick = { onRemoveDomain(domain) },
-                                    modifier = Modifier.size(32.dp)
-                                ) {
-                                    Icon(
-                                        Icons.Default.Delete,
-                                        contentDescription = "Remove $domain",
-                                        tint = MaterialTheme.colorScheme.error,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = { addDomain(); onDismiss() }) {
-                Text("Done")
-            }
-        }
-    )
 }
 
 @Composable

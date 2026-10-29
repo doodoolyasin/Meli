@@ -90,7 +90,7 @@ fun ProfileListItem(
         modifier = modifier
             .fillMaxWidth()
             .clickable { onClick() },
-        shape = RoundedCornerShape(10.dp),
+        shape = RoundedCornerShape(8.dp),
         colors = CardDefaults.cardColors(containerColor = containerColor),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
@@ -102,7 +102,7 @@ fun ProfileListItem(
             // PattNG Left Indicator Accent Bar
             Box(
                 modifier = Modifier
-                    .width(6.dp)
+                    .width(4.dp)
                     .fillMaxHeight()
                     .background(
                         when {
@@ -116,7 +116,7 @@ fun ProfileListItem(
             Column(
                 modifier = Modifier
                     .weight(1f)
-                    .padding(start = 10.dp, end = 6.dp, top = 6.dp, bottom = 6.dp)
+                    .padding(start = 8.dp, end = 4.dp, top = 3.dp, bottom = 3.dp)
             ) {
                 // Top Row: Remarks & Inline Actions (Share, Edit, Delete, More)
                 Row(
@@ -125,19 +125,20 @@ fun ProfileListItem(
                 ) {
                     Text(
                         text = profile.name,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontSize = 13.5.sp,
+                        fontWeight = FontWeight.SemiBold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f)
                     )
 
                     if (profile.isPinned) {
-                        Spacer(modifier = Modifier.width(4.dp))
+                        Spacer(modifier = Modifier.width(3.dp))
                         Icon(
                             imageVector = Icons.Default.PushPin,
                             contentDescription = "Pinned",
-                            modifier = Modifier.size(14.dp),
+                            modifier = Modifier.size(13.dp),
                             tint = MaterialTheme.colorScheme.primary
                         )
                     }
@@ -145,24 +146,24 @@ fun ProfileListItem(
                     // PattNG Inline Action Buttons
                     IconButton(
                         onClick = onExportClick,
-                        modifier = Modifier.size(28.dp)
+                        modifier = Modifier.size(24.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Default.Share,
                             contentDescription = "Share",
-                            modifier = Modifier.size(16.dp),
+                            modifier = Modifier.size(14.dp),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
 
                     IconButton(
                         onClick = onEditClick,
-                        modifier = Modifier.size(28.dp)
+                        modifier = Modifier.size(24.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Default.Edit,
                             contentDescription = "Edit",
-                            modifier = Modifier.size(16.dp),
+                            modifier = Modifier.size(14.dp),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
@@ -170,12 +171,12 @@ fun ProfileListItem(
                     IconButton(
                         onClick = onDeleteClick,
                         enabled = !isConnected,
-                        modifier = Modifier.size(28.dp)
+                        modifier = Modifier.size(24.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Default.Delete,
                             contentDescription = "Delete",
-                            modifier = Modifier.size(16.dp),
+                            modifier = Modifier.size(14.dp),
                             tint = if (!isConnected) MaterialTheme.colorScheme.onSurfaceVariant else Color.Gray.copy(alpha = 0.4f)
                         )
                     }
@@ -183,12 +184,12 @@ fun ProfileListItem(
                     Box {
                         IconButton(
                             onClick = { showExportMenu = true },
-                            modifier = Modifier.size(28.dp)
+                            modifier = Modifier.size(24.dp)
                         ) {
                             Icon(
                                 imageVector = Icons.Default.MoreVert,
                                 contentDescription = "More",
-                                modifier = Modifier.size(16.dp),
+                                modifier = Modifier.size(14.dp),
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
@@ -226,7 +227,7 @@ fun ProfileListItem(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(2.dp))
 
                 // Subtitle: Endpoint / Host / Port Details
                 val hostPart = if (profile.cdnIp.isNotBlank()) profile.cdnIp else profile.domain
@@ -246,13 +247,14 @@ fun ProfileListItem(
 
                 Text(
                     text = subtitleText,
-                    style = MaterialTheme.typography.bodySmall,
+                    fontSize = 11.sp,
+                    lineHeight = 13.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
 
-                Spacer(modifier = Modifier.height(6.dp))
+                Spacer(modifier = Modifier.height(3.dp))
 
                 // Bottom Row: Protocol Badge Pill on Left & Latency Result on Right
                 Row(
@@ -280,11 +282,11 @@ fun ProfileListItem(
                         modifier = Modifier
                             .clip(RoundedCornerShape(4.dp))
                             .background(ColorConfigType.copy(alpha = 0.15f))
-                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                            .padding(horizontal = 5.dp, vertical = 1.dp)
                     ) {
                         Text(
                             text = tunnelTypeLabel,
-                            style = MaterialTheme.typography.labelSmall,
+                            fontSize = 10.5.sp,
                             color = ColorConfigType,
                             fontWeight = FontWeight.SemiBold,
                             maxLines = 1
@@ -297,7 +299,7 @@ fun ProfileListItem(
                     when (pingResult) {
                         is PingResult.Pending -> {
                             androidx.compose.material3.CircularProgressIndicator(
-                                modifier = Modifier.size(14.dp),
+                                modifier = Modifier.size(13.dp),
                                 strokeWidth = 1.5.dp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -305,7 +307,7 @@ fun ProfileListItem(
                         is PingResult.Testing -> {
                             Text(
                                 text = pingResult.phase,
-                                style = MaterialTheme.typography.labelSmall,
+                                fontSize = 11.sp,
                                 color = ColorPingOrange,
                                 maxLines = 1
                             )
@@ -318,7 +320,7 @@ fun ProfileListItem(
                             }
                             Text(
                                 text = "${pingResult.latencyMs} ms",
-                                style = MaterialTheme.typography.labelSmall,
+                                fontSize = 11.sp,
                                 color = latencyColor,
                                 fontWeight = FontWeight.Bold
                             )
@@ -326,7 +328,7 @@ fun ProfileListItem(
                         is PingResult.Error -> {
                             Text(
                                 text = pingResult.message,
-                                style = MaterialTheme.typography.labelSmall,
+                                fontSize = 11.sp,
                                 color = ColorPingRed,
                                 maxLines = 1
                             )
@@ -334,7 +336,7 @@ fun ProfileListItem(
                         is PingResult.Skipped, null -> {
                             Text(
                                 text = if (isConnected) "Connected" else "",
-                                style = MaterialTheme.typography.labelSmall,
+                                fontSize = 11.sp,
                                 color = if (isConnected) ColorPingGreen else Color.Transparent
                             )
                         }

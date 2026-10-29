@@ -537,34 +537,55 @@ class SlipNetVpnService : VpnService() {
                 // - Slipstream: Start proxy first (Rust uses protect_socket JNI callback)
                 // - DNSTT: Establish VPN first (uses addDisallowedApplication for socket protection)
                 when (currentTunnelType) {
-                    TunnelType.SLIPSTREAM -> if (profile.sshUsername.isNotBlank()) connectSlipstreamSsh(profile, dnsServer, remoteDns, remoteDnsFallback, globalResolverOverride) else connectSlipstream(profile, dnsServer, remoteDns, remoteDnsFallback, globalResolverOverride)
+                    TunnelType.SLIPSTREAM -> connectSlipstream(profile, dnsServer, remoteDns, remoteDnsFallback, globalResolverOverride)
                     TunnelType.SLIPSTREAM_SSH -> connectSlipstreamSsh(profile, dnsServer, remoteDns, remoteDnsFallback, globalResolverOverride)
-                    TunnelType.DNSTT -> if (profile.sshUsername.isNotBlank()) connectDnsttSsh(profile, dnsServer, remoteDns, remoteDnsFallback, globalResolverOverride) else connectDnstt(profile, dnsServer, remoteDns, remoteDnsFallback, globalResolverOverride)
-                    TunnelType.NOIZDNS -> if (profile.sshUsername.isNotBlank()) connectDnsttSsh(profile, dnsServer, remoteDns, remoteDnsFallback, globalResolverOverride) else connectDnstt(profile, dnsServer, remoteDns, remoteDnsFallback, globalResolverOverride)
-                    TunnelType.SSH -> connectSsh(profile, dnsServer, remoteDns, remoteDnsFallback, globalDnsIp)
+                    TunnelType.DNSTT -> connectDnstt(profile, dnsServer, remoteDns, remoteDnsFallback, globalResolverOverride)
                     TunnelType.DNSTT_SSH -> connectDnsttSsh(profile, dnsServer, remoteDns, remoteDnsFallback, globalResolverOverride)
+                    TunnelType.NOIZDNS -> connectDnstt(profile, dnsServer, remoteDns, remoteDnsFallback, globalResolverOverride)
                     TunnelType.NOIZDNS_SSH -> connectDnsttSsh(profile, dnsServer, remoteDns, remoteDnsFallback, globalResolverOverride)
+                    TunnelType.SSH -> connectSsh(profile, dnsServer, remoteDns, remoteDnsFallback, globalDnsIp)
                     TunnelType.DOH -> connectDoh(profile, dnsServer)
                     TunnelType.SNOWFLAKE -> connectSnowflake(profile, dnsServer)
                     TunnelType.NAIVE_SSH -> connectNaiveSsh(profile, dnsServer, remoteDns, remoteDnsFallback)
                     TunnelType.NAIVE -> connectNaive(profile, dnsServer, remoteDns, remoteDnsFallback)
-                    TunnelType.VAYDNS -> if (profile.sshUsername.isNotBlank()) connectVaydnsSsh(profile, dnsServer, remoteDns, remoteDnsFallback, globalResolverOverride) else connectVaydns(profile, dnsServer, remoteDns, remoteDnsFallback, globalResolverOverride)
+                    TunnelType.VAYDNS -> connectVaydns(profile, dnsServer, remoteDns, remoteDnsFallback, globalResolverOverride)
                     TunnelType.VAYDNS_SSH -> connectVaydnsSsh(profile, dnsServer, remoteDns, remoteDnsFallback, globalResolverOverride)
                     TunnelType.SOCKS5 -> connectSocks5(profile, dnsServer, remoteDns)
                     TunnelType.VLESS, TunnelType.VLESS_REALITY, TunnelType.TROJAN -> connectVless(profile, dnsServer)
-                    TunnelType.MASTERDNS, TunnelType.MASTERDNS_SSH,
-                    TunnelType.STORMDNS, TunnelType.STORMDNS_SSH,
-                    TunnelType.COTTENDNS, TunnelType.COTTENDNS_SSH,
-                    TunnelType.SOAR, TunnelType.SOAR_SSH -> connectMasterDns(profile, dnsServer, remoteDns, remoteDnsFallback, globalResolverOverride)
-                    TunnelType.MELI, TunnelType.MELI_SSH -> connectMeli(profile, dnsServer, remoteDns, remoteDnsFallback, globalResolverOverride)
-                    TunnelType.NOOSHDAROO, TunnelType.QWDTT -> if (profile.sshUsername.isNotBlank()) connectDnsttSsh(profile, dnsServer, remoteDns, remoteDnsFallback, globalResolverOverride) else connectDnstt(profile, dnsServer, remoteDns, remoteDnsFallback, globalResolverOverride)
+                    TunnelType.MASTERDNS,
+                    TunnelType.STORMDNS,
+                    TunnelType.COTTENDNS,
+                    TunnelType.SOAR -> connectMasterDns(profile, dnsServer, remoteDns, remoteDnsFallback, globalResolverOverride)
+                    TunnelType.MASTERDNS_SSH,
+                    TunnelType.STORMDNS_SSH,
+                    TunnelType.COTTENDNS_SSH,
+                    TunnelType.SOAR_SSH -> connectMasterDns(profile, dnsServer, remoteDns, remoteDnsFallback, globalResolverOverride)
+                    TunnelType.MELI -> connectMeli(profile, dnsServer, remoteDns, remoteDnsFallback, globalResolverOverride)
+                    TunnelType.MELI_SSH -> connectMeli(profile, dnsServer, remoteDns, remoteDnsFallback, globalResolverOverride)
+                    TunnelType.NOOSHDAROO, TunnelType.QWDTT -> connectDnstt(profile, dnsServer, remoteDns, remoteDnsFallback, globalResolverOverride)
                     TunnelType.NOOSHDAROO_SSH, TunnelType.QWDTT_SSH -> connectDnsttSsh(profile, dnsServer, remoteDns, remoteDnsFallback, globalResolverOverride)
                     TunnelType.BALE -> connectBale(profile, dnsServer, remoteDns)
                     TunnelType.PINGTUNNEL, TunnelType.SPOOF_TUNNEL, TunnelType.GOLDEN_GRE, TunnelType.PAQET,
                     TunnelType.WIREGUARD, TunnelType.OPENVPN, TunnelType.HYSTERIA2, TunnelType.TUIC, TunnelType.SHADOWSOCKS,
                     TunnelType.VMESS, TunnelType.SNELL, TunnelType.SHADOWSOCKSR,
-                    TunnelType.AETHER, TunnelType.WARP -> connectSocks5(profile, dnsServer, remoteDns)
-                    else -> connectSocks5(profile, dnsServer, remoteDns)
+                    TunnelType.AETHER, TunnelType.WARP -> {
+                        if (profile.vlessUuid.isNotBlank() || profile.vlessTransport.isNotBlank()) {
+                            connectVless(profile, dnsServer)
+                        } else {
+                            connectSocks5(profile, dnsServer, remoteDns)
+                        }
+                    }
+                    else -> {
+                        if (profile.vlessUuid.isNotBlank()) {
+                            connectVless(profile, dnsServer)
+                        } else if (profile.domain.isNotBlank() || profile.cdnIp.isNotBlank()) {
+                            connectSocks5(profile, dnsServer, remoteDns)
+                        } else {
+                            val msg = "Unsupported configuration: ${profile.name}"
+                            Log.e(TAG, msg)
+                            connectionManager.onVpnError(msg)
+                        }
+                    }
                 }
 
             } catch (e: kotlinx.coroutines.CancellationException) {
@@ -2839,17 +2860,6 @@ class SlipNetVpnService : VpnService() {
         MasterDnsBridge.setVpnService(this@SlipNetVpnService)
         MasterDnsBridge.stopClient()
 
-        if (!isProxyOnly) {
-            vpnInterface = establishVpnInterface(dnsServer)
-            if (vpnInterface == null) {
-                connectionManager.onVpnError("Failed to establish VPN interface")
-                stopForeground(STOP_FOREGROUND_REMOVE)
-                stopSelf()
-                return
-            }
-            delay(200)
-        }
-
         val proxyResult = vpnRepository.startMasterDnsProxy(
             profile,
             portOverride = masterDnsPort,
@@ -2857,11 +2867,9 @@ class SlipNetVpnService : VpnService() {
             resolverOverride = globalResolverOverride
         )
         if (proxyResult.isFailure) {
-            connectionManager.onVpnError(proxyResult.exceptionOrNull()?.message ?: "Failed to start MasterDNS proxy")
-            vpnInterface?.close()
-            vpnInterface = null
-            stopForeground(STOP_FOREGROUND_REMOVE)
-            stopSelf()
+            val err = proxyResult.exceptionOrNull()?.message ?: "Failed to start MasterDNS proxy"
+            Log.e(TAG, "MasterDNS proxy startup error: $err")
+            connectionManager.onVpnError(err)
             return
         }
 
@@ -2872,18 +2880,13 @@ class SlipNetVpnService : VpnService() {
             Log.e(TAG, "$tunnelName failed to become ready on port $actualPort: $lastErr")
             connectionManager.onVpnError("$tunnelName startup failed: $lastErr")
             MasterDnsBridge.stopClient()
-            vpnInterface?.close()
-            vpnInterface = null
-            stopForeground(STOP_FOREGROUND_REMOVE)
-            stopSelf()
             return
         }
 
         val useSsh = profile.tunnelType in setOf(
             TunnelType.MASTERDNS_SSH, TunnelType.STORMDNS_SSH,
-            TunnelType.COTTENDNS_SSH, TunnelType.SOAR_SSH,
-            TunnelType.MELI_SSH
-        ) || (profile.tunnelType.value.endsWith("_ssh") && profile.sshUsername.isNotBlank())
+            TunnelType.COTTENDNS_SSH, TunnelType.SOAR_SSH
+        )
         if (useSsh) {
             configureSshBridge()
             val targetHost = if (profile.sshHost.isBlank() || profile.sshHost == "127.0.0.1") "45.38.249.16" else profile.sshHost
@@ -2917,12 +2920,10 @@ class SlipNetVpnService : VpnService() {
                 }
             }
             if (sshResult.isFailure) {
-                connectionManager.onVpnError(sshResult.exceptionOrNull()?.message ?: "Failed to start SSH tunnel over MasterDNS")
+                val err = sshResult.exceptionOrNull()?.message ?: "Failed to start SSH tunnel over MasterDNS"
+                Log.e(TAG, err)
+                connectionManager.onVpnError(err)
                 MasterDnsBridge.stopClient()
-                vpnInterface?.close()
-                vpnInterface = null
-                stopForeground(STOP_FOREGROUND_REMOVE)
-                stopSelf()
                 return
             }
 
@@ -2931,10 +2932,6 @@ class SlipNetVpnService : VpnService() {
                 connectionManager.onVpnError("SSH tunnel failed to start over MasterDNS")
                 SshTunnelBridge.stop()
                 MasterDnsBridge.stopClient()
-                vpnInterface?.close()
-                vpnInterface = null
-                stopForeground(STOP_FOREGROUND_REMOVE)
-                stopSelf()
                 return
             }
         }
@@ -2946,16 +2943,27 @@ class SlipNetVpnService : VpnService() {
             return
         }
 
+        // Establish TUN interface ONLY AFTER MasterDNS local proxy is active and verified
+        vpnInterface = establishVpnInterface(dnsServer)
+        if (vpnInterface == null) {
+            Log.e(TAG, "Failed to establish VPN interface for MasterDNS")
+            connectionManager.onVpnError("Failed to establish VPN interface")
+            if (useSsh) SshTunnelBridge.stop()
+            MasterDnsBridge.stopClient()
+            return
+        }
+        delay(200)
+
         val socksPort = if (useSsh) proxyPort else actualPort
         val tun2socksResult = vpnRepository.startTun2Socks(profile, vpnInterface!!, socksPortOverride = socksPort)
         if (tun2socksResult.isFailure) {
-            connectionManager.onVpnError(tun2socksResult.exceptionOrNull()?.message ?: "Failed to start tunnel")
+            val err = tun2socksResult.exceptionOrNull()?.message ?: "Failed to start tunnel"
+            Log.e(TAG, err)
+            connectionManager.onVpnError(err)
             if (useSsh) SshTunnelBridge.stop()
             MasterDnsBridge.stopClient()
             vpnInterface?.close()
             vpnInterface = null
-            stopForeground(STOP_FOREGROUND_REMOVE)
-            stopSelf()
             return
         }
 
@@ -3032,7 +3040,7 @@ class SlipNetVpnService : VpnService() {
             return
         }
 
-        val useSsh = profile.tunnelType == TunnelType.MELI_SSH || (profile.tunnelType.value.endsWith("_ssh") && profile.sshUsername.isNotBlank())
+        val useSsh = profile.tunnelType == TunnelType.MELI_SSH
         if (useSsh) {
             configureSshBridge()
             val targetHost = if (profile.sshHost.isBlank() || profile.sshHost == "127.0.0.1") "45.38.249.16" else profile.sshHost
@@ -3312,8 +3320,8 @@ class SlipNetVpnService : VpnService() {
             Socks5ProxyBridge.debugLogging = preferencesDataStore.debugLogging.first()
             val bridgeResult = withContext(Dispatchers.IO) {
                 Socks5ProxyBridge.start(
-                    remoteHost = profile.domain,
-                    remotePort = profile.socks5ServerPort,
+                    remoteHost = profile.domain.ifBlank { profile.cdnIp },
+                    remotePort = if (profile.socks5ServerPort > 0) profile.socks5ServerPort else if (profile.cdnPort > 0) profile.cdnPort else 1080,
                     remoteUsername = profile.socksUsername,
                     remotePassword = profile.socksPassword,
                     listenPort = proxyPort,
@@ -3324,17 +3332,16 @@ class SlipNetVpnService : VpnService() {
                 )
             }
             if (bridgeResult.isFailure) {
-                connectionManager.onVpnError(bridgeResult.exceptionOrNull()?.message ?: "Failed to start SOCKS5 proxy bridge")
-                stopForeground(STOP_FOREGROUND_REMOVE)
-                stopSelf()
+                val err = bridgeResult.exceptionOrNull()?.message ?: "Failed to start SOCKS5 proxy bridge"
+                Log.e(TAG, err)
+                connectionManager.onVpnError(err)
                 return
             }
 
             if (!waitForProxyReady(proxyPort, maxAttempts = 30, delayMs = 100)) {
+                Log.e(TAG, "SOCKS5 proxy bridge failed to start on $proxyPort")
                 connectionManager.onVpnError("SOCKS5 proxy bridge failed to start")
                 Socks5ProxyBridge.stop()
-                stopForeground(STOP_FOREGROUND_REMOVE)
-                stopSelf()
                 return
             }
 
@@ -3344,17 +3351,7 @@ class SlipNetVpnService : VpnService() {
             return
         }
 
-        // Step 1: Establish VPN interface
-        vpnInterface = establishVpnInterface(dnsServer)
-        if (vpnInterface == null) {
-            connectionManager.onVpnError("Failed to establish VPN interface")
-            stopForeground(STOP_FOREGROUND_REMOVE)
-            stopSelf()
-            return
-        }
-        delay(200)
-
-        // Step 2: Start SOCKS5 proxy bridge
+        // Step 1: Start SOCKS5 proxy bridge
         Socks5ProxyBridge.vpnService = this@SlipNetVpnService
         Socks5ProxyBridge.debugLogging = preferencesDataStore.debugLogging.first()
         val bridgeResult = withContext(Dispatchers.IO) {
@@ -3371,33 +3368,38 @@ class SlipNetVpnService : VpnService() {
             )
         }
         if (bridgeResult.isFailure) {
-            connectionManager.onVpnError(bridgeResult.exceptionOrNull()?.message ?: "Failed to start SOCKS5 proxy bridge")
-            vpnInterface?.close()
-            vpnInterface = null
-            stopForeground(STOP_FOREGROUND_REMOVE)
-            stopSelf()
+            val err = bridgeResult.exceptionOrNull()?.message ?: "Failed to start SOCKS5 proxy bridge"
+            Log.e(TAG, err)
+            connectionManager.onVpnError(err)
             return
         }
 
         if (!waitForProxyReady(proxyPort, maxAttempts = 30, delayMs = 100)) {
+            Log.e(TAG, "SOCKS5 proxy bridge failed to start on $proxyPort")
             connectionManager.onVpnError("SOCKS5 proxy bridge failed to start")
             Socks5ProxyBridge.stop()
-            vpnInterface?.close()
-            vpnInterface = null
-            stopForeground(STOP_FOREGROUND_REMOVE)
-            stopSelf()
             return
         }
+
+        // Step 2: Establish VPN interface ONLY AFTER proxy bridge is verified
+        vpnInterface = establishVpnInterface(dnsServer)
+        if (vpnInterface == null) {
+            Log.e(TAG, "Failed to establish VPN interface")
+            connectionManager.onVpnError("Failed to establish VPN interface")
+            Socks5ProxyBridge.stop()
+            return
+        }
+        delay(200)
 
         // Step 3: Start tun2socks
         val tun2socksResult = vpnRepository.startTun2Socks(profile, vpnInterface!!)
         if (tun2socksResult.isFailure) {
-            connectionManager.onVpnError(tun2socksResult.exceptionOrNull()?.message ?: "Failed to start tunnel")
+            val err = tun2socksResult.exceptionOrNull()?.message ?: "Failed to start tunnel"
+            Log.e(TAG, err)
+            connectionManager.onVpnError(err)
             Socks5ProxyBridge.stop()
             vpnInterface?.close()
             vpnInterface = null
-            stopForeground(STOP_FOREGROUND_REMOVE)
-            stopSelf()
             return
         }
 
@@ -3459,17 +3461,16 @@ class SlipNetVpnService : VpnService() {
                 )
             }
             if (bridgeResult.isFailure) {
-                connectionManager.onVpnError(bridgeResult.exceptionOrNull()?.message ?: "Failed to start $protocol bridge")
-                stopForeground(STOP_FOREGROUND_REMOVE)
-                stopSelf()
+                val err = bridgeResult.exceptionOrNull()?.message ?: "Failed to start $protocol bridge"
+                Log.e(TAG, err)
+                connectionManager.onVpnError(err)
                 return
             }
 
             if (!waitForProxyReady(proxyPort, maxAttempts = 30, delayMs = 100)) {
+                Log.e(TAG, "${protocol.uppercase()} bridge failed to start on $proxyPort")
                 connectionManager.onVpnError("${protocol.uppercase()} bridge failed to start")
                 VlessBridge.stop()
-                stopForeground(STOP_FOREGROUND_REMOVE)
-                stopSelf()
                 return
             }
 
@@ -3485,18 +3486,7 @@ class SlipNetVpnService : VpnService() {
             return
         }
 
-        // Step 1: Establish VPN interface
-        vpnInterface = establishVpnInterface(dnsServer)
-        if (vpnInterface == null) {
-            connectionManager.onVpnError("Failed to establish VPN interface")
-            stopForeground(STOP_FOREGROUND_REMOVE)
-            stopSelf()
-            return
-        }
-
-        delay(200)
-
-        // Step 2: Start VLESS bridge
+        // Step 1: Start VLESS bridge
         VlessBridge.setVpnService(this@SlipNetVpnService)
         VlessBridge.debugLogging = preferencesDataStore.debugLogging.first()
         val bridgeResult = withContext(Dispatchers.IO) {
@@ -3524,21 +3514,16 @@ class SlipNetVpnService : VpnService() {
             )
         }
         if (bridgeResult.isFailure) {
-            connectionManager.onVpnError(bridgeResult.exceptionOrNull()?.message ?: "Failed to start $protocol bridge")
-            vpnInterface?.close()
-            vpnInterface = null
-            stopForeground(STOP_FOREGROUND_REMOVE)
-            stopSelf()
+            val err = bridgeResult.exceptionOrNull()?.message ?: "Failed to start $protocol bridge"
+            Log.e(TAG, err)
+            connectionManager.onVpnError(err)
             return
         }
 
         if (!waitForProxyReady(proxyPort, maxAttempts = 30, delayMs = 100)) {
+            Log.e(TAG, "${protocol.uppercase()} bridge failed to start on $proxyPort")
             connectionManager.onVpnError("${protocol.uppercase()} bridge failed to start")
             VlessBridge.stop()
-            vpnInterface?.close()
-            vpnInterface = null
-            stopForeground(STOP_FOREGROUND_REMOVE)
-            stopSelf()
             return
         }
 
@@ -3548,15 +3533,25 @@ class SlipNetVpnService : VpnService() {
             Log.w(TAG, "${protocol.uppercase()} probe warning: $reason. Proceeding with connection.")
         }
 
+        // Step 2: Establish VPN interface ONLY AFTER VLESS bridge is verified ready
+        vpnInterface = establishVpnInterface(dnsServer)
+        if (vpnInterface == null) {
+            Log.e(TAG, "Failed to establish VPN interface")
+            connectionManager.onVpnError("Failed to establish VPN interface")
+            VlessBridge.stop()
+            return
+        }
+        delay(200)
+
         // Step 3: Start tun2socks
         val tun2socksResult = vpnRepository.startTun2Socks(profile, vpnInterface!!)
         if (tun2socksResult.isFailure) {
-            connectionManager.onVpnError(tun2socksResult.exceptionOrNull()?.message ?: "Failed to start tunnel")
+            val err = tun2socksResult.exceptionOrNull()?.message ?: "Failed to start tunnel"
+            Log.e(TAG, err)
+            connectionManager.onVpnError(err)
             VlessBridge.stop()
             vpnInterface?.close()
             vpnInterface = null
-            stopForeground(STOP_FOREGROUND_REMOVE)
-            stopSelf()
             return
         }
 

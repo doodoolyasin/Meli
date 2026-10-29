@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"net"
 	"strings"
+	"syscall"
 	"time"
 
 	"stormdns-go/internal/arq"
@@ -673,7 +674,7 @@ func (c *Client) asyncReaderWorker(ctx context.Context, id int, conn *net.UDPCon
 			if err != nil {
 				c.udpBufferPool.Put(buf)
 				errStr := strings.ToLower(err.Error())
-				if ctx.Err() != nil || errors.Is(err, net.ErrClosed) ||
+				if ctx.Err() != nil || errors.Is(err, net.ErrClosed) || errors.Is(err, syscall.EBADF) ||
 					strings.Contains(errStr, "closed") ||
 					strings.Contains(errStr, "bad file descriptor") ||
 					strings.Contains(errStr, "broken pipe") ||

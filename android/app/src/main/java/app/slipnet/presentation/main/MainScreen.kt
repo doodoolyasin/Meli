@@ -1329,82 +1329,126 @@ fun MainScreen(
                                             )
                                             DropdownMenuItem(
                                                 modifier = Modifier.heightIn(min = 36.dp),
-                                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
-                                                text = {
-                                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                                contentPadding = PaddingValues(start = 10.dp, end = 4.dp, top = 2.dp, bottom = 2.dp),
+                                                text = { Text("Delete configs", fontSize = 13.sp) },
+                                                leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                                                trailingIcon = {
+                                                    IconButton(
+                                                        onClick = {
+                                                            activeOverflowSubmenu = if (activeOverflowSubmenu == OverflowMenuPage.DELETE) null else OverflowMenuPage.DELETE
+                                                        },
+                                                        modifier = Modifier.size(28.dp)
+                                                    ) {
                                                         Text(
-                                                            "< ",
-                                                            fontSize = 13.sp,
+                                                            "<",
+                                                            fontSize = 14.sp,
                                                             fontWeight = FontWeight.Bold,
                                                             color = if (activeOverflowSubmenu == OverflowMenuPage.DELETE) MaterialTheme.colorScheme.primary else Color.Gray
                                                         )
-                                                        Text("Delete configs", fontSize = 13.sp)
                                                     }
                                                 },
-                                                leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(18.dp)) },
                                                 onClick = {
-                                                    activeOverflowSubmenu = if (activeOverflowSubmenu == OverflowMenuPage.DELETE) null else OverflowMenuPage.DELETE
+                                                    val currentGroup = groupTabs.getOrNull(selectedCategoryIndex)?.first ?: ""
+                                                    showOverflowMenu = false
+                                                    activeOverflowSubmenu = null
+                                                    if (currentGroup.isNotBlank() && currentGroup != "All" && currentGroup != "Default") {
+                                                        viewModel.deleteProfilesMatching { it.subscriptionGroup == currentGroup }
+                                                        scope.launch { snackbarHostState.showSnackbar("Deleted configs of $currentGroup") }
+                                                    } else {
+                                                        viewModel.deleteProfilesMatching { it.subscriptionGroup.isNotBlank() }
+                                                        scope.launch { snackbarHostState.showSnackbar("Deleted subscription configs") }
+                                                    }
                                                 },
                                                 enabled = uiState.profiles.isNotEmpty()
                                             )
                                             DropdownMenuItem(
                                                 modifier = Modifier.heightIn(min = 36.dp),
-                                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
-                                                text = {
-                                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                                contentPadding = PaddingValues(start = 10.dp, end = 4.dp, top = 2.dp, bottom = 2.dp),
+                                                text = { Text("Export config to clipboard", fontSize = 13.sp) },
+                                                leadingIcon = { Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                                                trailingIcon = {
+                                                    IconButton(
+                                                        onClick = {
+                                                            activeOverflowSubmenu = if (activeOverflowSubmenu == OverflowMenuPage.EXPORT) null else OverflowMenuPage.EXPORT
+                                                        },
+                                                        modifier = Modifier.size(28.dp)
+                                                    ) {
                                                         Text(
-                                                            "< ",
-                                                            fontSize = 13.sp,
+                                                            "<",
+                                                            fontSize = 14.sp,
                                                             fontWeight = FontWeight.Bold,
                                                             color = if (activeOverflowSubmenu == OverflowMenuPage.EXPORT) MaterialTheme.colorScheme.primary else Color.Gray
                                                         )
-                                                        Text("Export config to clipboard", fontSize = 13.sp)
                                                     }
                                                 },
-                                                leadingIcon = { Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(18.dp)) },
                                                 onClick = {
-                                                    activeOverflowSubmenu = if (activeOverflowSubmenu == OverflowMenuPage.EXPORT) null else OverflowMenuPage.EXPORT
+                                                    val currentGroup = groupTabs.getOrNull(selectedCategoryIndex)?.first ?: ""
+                                                    showOverflowMenu = false
+                                                    activeOverflowSubmenu = null
+                                                    val str = viewModel.exportProfilesToClipboard {
+                                                        if (currentGroup.isNotBlank() && currentGroup != "All" && currentGroup != "Default") {
+                                                            it.subscriptionGroup == currentGroup
+                                                        } else {
+                                                            it.subscriptionGroup.isNotBlank()
+                                                        }
+                                                    }
+                                                    clipboardManager.setText(AnnotatedString(str))
+                                                    scope.launch { snackbarHostState.showSnackbar("Copied this subscription configs") }
                                                 },
                                                 enabled = uiState.profiles.isNotEmpty()
                                             )
                                             HorizontalDivider()
                                             DropdownMenuItem(
                                                 modifier = Modifier.heightIn(min = 36.dp),
-                                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
-                                                text = {
-                                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                                contentPadding = PaddingValues(start = 10.dp, end = 4.dp, top = 2.dp, bottom = 2.dp),
+                                                text = { Text("Ping", fontSize = 13.sp) },
+                                                leadingIcon = { Icon(Icons.Default.NetworkPing, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                                                trailingIcon = {
+                                                    IconButton(
+                                                        onClick = {
+                                                            activeOverflowSubmenu = if (activeOverflowSubmenu == OverflowMenuPage.PING) null else OverflowMenuPage.PING
+                                                        },
+                                                        modifier = Modifier.size(28.dp)
+                                                    ) {
                                                         Text(
-                                                            "< ",
-                                                            fontSize = 13.sp,
+                                                            "<",
+                                                            fontSize = 14.sp,
                                                             fontWeight = FontWeight.Bold,
                                                             color = if (activeOverflowSubmenu == OverflowMenuPage.PING) MaterialTheme.colorScheme.primary else Color.Gray
                                                         )
-                                                        Text("Ping", fontSize = 13.sp)
                                                     }
                                                 },
-                                                leadingIcon = { Icon(Icons.Default.NetworkPing, contentDescription = null, modifier = Modifier.size(18.dp)) },
                                                 onClick = {
-                                                    activeOverflowSubmenu = if (activeOverflowSubmenu == OverflowMenuPage.PING) null else OverflowMenuPage.PING
+                                                    showOverflowMenu = false
+                                                    activeOverflowSubmenu = null
+                                                    viewModel.pingAllProfiles()
                                                 },
                                                 enabled = uiState.profiles.isNotEmpty()
                                             )
                                             DropdownMenuItem(
                                                 modifier = Modifier.heightIn(min = 36.dp),
-                                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
-                                                text = {
-                                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                                contentPadding = PaddingValues(start = 10.dp, end = 4.dp, top = 2.dp, bottom = 2.dp),
+                                                text = { Text("Sort by", fontSize = 13.sp) },
+                                                leadingIcon = { Icon(Icons.Default.Dns, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                                                trailingIcon = {
+                                                    IconButton(
+                                                        onClick = {
+                                                            activeOverflowSubmenu = if (activeOverflowSubmenu == OverflowMenuPage.SORT) null else OverflowMenuPage.SORT
+                                                        },
+                                                        modifier = Modifier.size(28.dp)
+                                                    ) {
                                                         Text(
-                                                            "< ",
-                                                            fontSize = 13.sp,
+                                                            "<",
+                                                            fontSize = 14.sp,
                                                             fontWeight = FontWeight.Bold,
                                                             color = if (activeOverflowSubmenu == OverflowMenuPage.SORT) MaterialTheme.colorScheme.primary else Color.Gray
                                                         )
-                                                        Text("Sort by", fontSize = 13.sp)
                                                     }
                                                 },
-                                                leadingIcon = { Icon(Icons.Default.Dns, contentDescription = null, modifier = Modifier.size(18.dp)) },
                                                 onClick = {
-                                                    activeOverflowSubmenu = if (activeOverflowSubmenu == OverflowMenuPage.SORT) null else OverflowMenuPage.SORT
+                                                    showOverflowMenu = false
+                                                    activeOverflowSubmenu = null
+                                                    viewModel.sortProfilesByPing()
                                                 },
                                                 enabled = uiState.profiles.isNotEmpty()
                                             )
@@ -1708,11 +1752,11 @@ fun MainScreen(
                             LazyColumn(
                                 state = lazyListState,
                                 contentPadding = PaddingValues(
-                                    start = 16.dp, end = 16.dp,
-                                    top = 8.dp,
-                                    bottom = 200.dp + navBarPadding.calculateBottomPadding()
+                                    start = 8.dp, end = 8.dp,
+                                    top = 4.dp,
+                                    bottom = 140.dp + navBarPadding.calculateBottomPadding()
                                 ),
-                                verticalArrangement = Arrangement.spacedBy(12.dp),
+                                verticalArrangement = Arrangement.spacedBy(6.dp),
                                 modifier = Modifier.fillMaxSize()
                             ) {
                                 items(

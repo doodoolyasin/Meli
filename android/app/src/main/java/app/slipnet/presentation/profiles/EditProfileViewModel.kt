@@ -248,15 +248,20 @@ data class EditProfileUiState(
     val wsHeaderObfuscation: Boolean = true,
     val wsPaddingEnabled: Boolean = false,
 ) {
+    val isExplicitSshTunnel: Boolean
+        get() = tunnelType == TunnelType.SSH || tunnelType.value.endsWith("_ssh")
+
+    val isPureDns: Boolean
+        get() = tunnelType in setOf(
+            TunnelType.MASTERDNS, TunnelType.STORMDNS,
+            TunnelType.COTTENDNS, TunnelType.SOAR,
+            TunnelType.NOOSHDAROO, TunnelType.QWDTT,
+            TunnelType.DNSTT, TunnelType.VAYDNS, TunnelType.NOIZDNS,
+            TunnelType.MELI, TunnelType.SLIPSTREAM
+        )
+
     val useSsh: Boolean
-        get() = tunnelType == TunnelType.SSH || tunnelType == TunnelType.DNSTT_SSH ||
-                tunnelType == TunnelType.SLIPSTREAM_SSH || tunnelType == TunnelType.NAIVE_SSH ||
-                tunnelType == TunnelType.NOIZDNS_SSH || tunnelType == TunnelType.VAYDNS_SSH ||
-                tunnelType == TunnelType.MASTERDNS_SSH || tunnelType == TunnelType.STORMDNS_SSH ||
-                tunnelType == TunnelType.NOOSHDAROO_SSH || tunnelType == TunnelType.QWDTT_SSH ||
-                tunnelType == TunnelType.COTTENDNS_SSH || tunnelType == TunnelType.SOAR_SSH ||
-                tunnelType == TunnelType.MELI_SSH ||
-                sshUsername.isNotBlank()
+        get() = !isPureDns && isExplicitSshTunnel
 
     val isDnsttBased: Boolean
         get() = tunnelType == TunnelType.DNSTT || tunnelType == TunnelType.DNSTT_SSH ||
@@ -375,7 +380,7 @@ data class EditProfileUiState(
         get() = isVless || isTrojan || isVlessReality
 
     val showConnectionMethod: Boolean
-        get() = !isSshOnly && !isDoh && !isSnowflake && !isSocks5 && !isVless &&
+        get() = !isPureDns && !isSshOnly && !isDoh && !isSnowflake && !isSocks5 && !isVless &&
                 tunnelType != TunnelType.PINGTUNNEL &&
                 tunnelType != TunnelType.BALE &&
                 tunnelType != TunnelType.SPOOF_TUNNEL &&
@@ -535,26 +540,21 @@ class EditProfileViewModel @Inject constructor(
                 initialTunnelType == TunnelType.WIREGUARD -> "wojxQsiNgLLmm8WowTn/hoqvQ/QMVW6D4QRC27NAxBY="
                 isMeliInitial -> "1937e96db977fb13ebc205e43ac5d5dad7ef61c8434cd7f08b8e166135595972"
                 isMasterDnsInitial -> "137e43fd04a5b9dfdaf29e103fddcce2"
-                isStormDnsInitial -> "137e43fd04a5b9dfdaf29e103fddcce2"
-                isCottenDnsInitial -> "137e43fd04a5b9dfdaf29e103fddcce2"
-                isSoarInitial -> "137e43fd04a5b9dfdaf29e103fddcce2"
-                isNooshdarooInitial -> "137e43fd04a5b9dfdaf29e103fddcce2"
-                isQwdttInitial -> "137e43fd04a5b9dfdaf29e103fddcce2"
                 isVaydnsInitial -> "278431382be3d3711377ed94bcc97c7b20181c2d276ae7a389a79e6b3c7abc23"
                 isNoizdnsInitial -> "80c627491b20a8f8bccd613abb4b933650c51fb68f3982e01a607ec5d07a8a0a"
                 isDnsttInitial -> "15bedeebebf104e83f1ed0a29b1d166fbee7e59a0e7892182dea8dd42f0fa80a"
                 else -> ""
             },
             resolvers = when {
-                isMasterDnsInitial || isStormDnsInitial || isCottenDnsInitial || isSoarInitial || isNooshdarooInitial || isQwdttInitial -> "45.38.249.16:53"
+                isMasterDnsInitial -> "45.38.249.16:53"
                 else -> "8.8.8.8:53"
             },
             authoritativeMode = false,
             dnsttAuthoritative = false,
             tunnelEncryptionMethod = 1,
             sshPort = "22",
-            sshUsername = "yasin",
-            sshPassword = "yasin"
+            sshUsername = "",
+            sshPassword = ""
         )
     )
     val uiState: StateFlow<EditProfileUiState> = _uiState.asStateFlow()
@@ -2060,17 +2060,22 @@ class EditProfileViewModel @Inject constructor(
                 return "Key must be 32 or 64 hex characters, got ${trimmed.length}"
             }
         } else {
-            val is32HexKey = tunnelType == TunnelType.MASTERDNS || tunnelType == TunnelType.MASTERDNS_SSH ||
-                             tunnelType == TunnelType.STORMDNS || tunnelType == TunnelType.STORMDNS_SSH ||
-                             tunnelType == TunnelType.COTTENDNS || tunnelType == TunnelType.COTTENDNS_SSH
+            val isSymmetricDnsKey = tunnelType in setOf(
+                TunnelType.MASTERDNS, TunnelType.MASTERDNS_SSH,
+                TunnelType.STORMDNS, TunnelType.STORMDNS_SSH,
+                TunnelType.COTTENDNS, TunnelType.COTTENDNS_SSH,
+                TunnelType.SOAR, TunnelType.SOAR_SSH,
+                TunnelType.NOOSHDAROO, TunnelType.NOOSHDAROO_SSH,
+                TunnelType.QWDTT, TunnelType.QWDTT_SSH
+            )
 
-            if (is32HexKey) {
-                if (trimmed.length != 32) {
-                    return "Key must be 32 hex characters (16 bytes), got ${trimmed.length}"
+            if (isSymmetricDnsKey) {
+                if (trimmed.length != 32 && trimmed.length != 64) {
+                    return "Key must be 32 or 64 hex characters, got ${trimmed.length}"
                 }
             } else {
-                if (trimmed.length != 64) {
-                    return "DNSTT / Protocol key must be 64 hex characters (32 bytes), got ${trimmed.length}"
+                if (trimmed.length != 64 && trimmed.length != 32) {
+                    return "Protocol key must be 32 or 64 hex characters, got ${trimmed.length}"
                 }
             }
         }

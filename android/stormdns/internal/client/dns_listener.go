@@ -12,7 +12,9 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"stormdns-go/internal/arq"
@@ -68,7 +70,14 @@ func (l *DNSListener) Start(ctx context.Context, ip string, port int) error {
 		for {
 			n, peerAddr, err := l.conn.ReadFromUDP(buf)
 			if err != nil {
-				if errors.Is(err, net.ErrClosed) {
+				if errors.Is(err, net.ErrClosed) || errors.Is(err, syscall.EBADF) {
+					return
+				}
+				errStr := strings.ToLower(err.Error())
+				if strings.Contains(errStr, "use of closed network connection") ||
+					strings.Contains(errStr, "bad file descriptor") ||
+					strings.Contains(errStr, "broken pipe") ||
+					strings.Contains(errStr, "not a socket") {
 					return
 				}
 				select {
@@ -78,7 +87,7 @@ func (l *DNSListener) Start(ctx context.Context, ip string, port int) error {
 					return
 				default:
 					if dnsListenerShouldRetryRead(err) {
-						time.Sleep(100 * time.Millisecond)
+						time.Sleep(50 * time.Millisecond)
 						continue
 					}
 					if l.client != nil && l.client.log != nil {
