@@ -272,7 +272,7 @@ fun SettingsScreen(
 
                 // Client DNS Tunnel Options (Payload Size & Tuning)
                 ClickableSettingItem(
-                    icon = Icons.Default.Tune,
+                    icon = Icons.Default.SettingsEthernet,
                     title = "DNS Tunnel Tuning & Resolvers",
                     description = if (uiState.globalResolverList.isNotBlank()) {
                         "${uiState.globalResolverList.split(",", "\n").filter { it.isNotBlank() }.size} custom resolvers · ${uiState.dnsWorkerMode.displayName} Workers"
@@ -643,19 +643,6 @@ fun SettingsScreen(
         )
     }
 
-    if (showBandwidthLimitDialog) {
-        BandwidthLimitDialog(
-            currentUploadKbps = uiState.uploadLimitKbps,
-            currentDownloadKbps = uiState.downloadLimitKbps,
-            onDismiss = { showBandwidthLimitDialog = false },
-            onApply = { upKbps, downKbps ->
-                viewModel.setUploadLimitKbps(upKbps)
-                viewModel.setDownloadLimitKbps(downKbps)
-                showBandwidthLimitDialog = false
-            }
-        )
-    }
-
     if (showDnsWorkerDialog) {
         AlertDialog(
             onDismissRequest = { showDnsWorkerDialog = false },
@@ -851,48 +838,6 @@ fun SettingsScreen(
                 showRemoteDnsDialog = false
             },
             onDismiss = { showRemoteDnsDialog = false }
-        )
-    }
-
-    // SSH Cipher Dialog
-    if (showSshCipherDialog) {
-        AlertDialog(
-            onDismissRequest = { showSshCipherDialog = false },
-            title = { Text("SSH Cipher") },
-            text = {
-                Column {
-                    SshCipher.entries.forEach { cipher ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(8.dp))
-                                .clickable {
-                                    viewModel.setSshCipher(cipher)
-                                    showSshCipherDialog = false
-                                }
-                                .padding(vertical = 12.dp, horizontal = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            RadioButton(
-                                selected = uiState.sshCipher == cipher,
-                                onClick = {
-                                    viewModel.setSshCipher(cipher)
-                                    showSshCipherDialog = false
-                                }
-                            )
-                            Text(
-                                text = cipher.displayName,
-                                modifier = Modifier.padding(start = 8.dp)
-                            )
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { showSshCipherDialog = false }) {
-                    Text("Cancel")
-                }
-            }
         )
     }
 
