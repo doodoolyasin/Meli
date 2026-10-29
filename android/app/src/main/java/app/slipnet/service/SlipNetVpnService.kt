@@ -551,7 +551,7 @@ class SlipNetVpnService : VpnService() {
                     TunnelType.VAYDNS -> if (profile.sshUsername.isNotBlank()) connectVaydnsSsh(profile, dnsServer, remoteDns, remoteDnsFallback, globalResolverOverride) else connectVaydns(profile, dnsServer, remoteDns, remoteDnsFallback, globalResolverOverride)
                     TunnelType.VAYDNS_SSH -> connectVaydnsSsh(profile, dnsServer, remoteDns, remoteDnsFallback, globalResolverOverride)
                     TunnelType.SOCKS5 -> connectSocks5(profile, dnsServer, remoteDns)
-                    TunnelType.VLESS -> connectVless(profile, dnsServer)
+                    TunnelType.VLESS, TunnelType.VLESS_REALITY, TunnelType.TROJAN -> connectVless(profile, dnsServer)
                     TunnelType.MASTERDNS, TunnelType.MASTERDNS_SSH,
                     TunnelType.STORMDNS, TunnelType.STORMDNS_SSH,
                     TunnelType.COTTENDNS, TunnelType.COTTENDNS_SSH,
@@ -561,8 +561,8 @@ class SlipNetVpnService : VpnService() {
                     TunnelType.NOOSHDAROO_SSH, TunnelType.QWDTT_SSH -> connectDnsttSsh(profile, dnsServer, remoteDns, remoteDnsFallback, globalResolverOverride)
                     TunnelType.BALE -> connectBale(profile, dnsServer, remoteDns)
                     TunnelType.PINGTUNNEL, TunnelType.SPOOF_TUNNEL, TunnelType.GOLDEN_GRE, TunnelType.PAQET,
-                    TunnelType.WIREGUARD, TunnelType.OPENVPN, TunnelType.HYSTERIA2, TunnelType.TUIC, TunnelType.TROJAN, TunnelType.SHADOWSOCKS,
-                    TunnelType.VMESS, TunnelType.SNELL, TunnelType.SHADOWSOCKSR, TunnelType.VLESS_REALITY,
+                    TunnelType.WIREGUARD, TunnelType.OPENVPN, TunnelType.HYSTERIA2, TunnelType.TUIC, TunnelType.SHADOWSOCKS,
+                    TunnelType.VMESS, TunnelType.SNELL, TunnelType.SHADOWSOCKSR,
                     TunnelType.AETHER, TunnelType.WARP -> connectSocks5(profile, dnsServer, remoteDns)
                     else -> connectSocks5(profile, dnsServer, remoteDns)
                 }
@@ -1277,7 +1277,7 @@ class SlipNetVpnService : VpnService() {
             }
             TunnelType.DOH -> DohBridge.stop()
             TunnelType.SOCKS5, TunnelType.BALE, TunnelType.PINGTUNNEL, TunnelType.SPOOF_TUNNEL, TunnelType.GOLDEN_GRE, TunnelType.PAQET,
-            TunnelType.WIREGUARD, TunnelType.OPENVPN, TunnelType.HYSTERIA2, TunnelType.TUIC, TunnelType.TROJAN, TunnelType.SHADOWSOCKS -> Socks5ProxyBridge.stopAll()
+            TunnelType.WIREGUARD, TunnelType.OPENVPN, TunnelType.HYSTERIA2, TunnelType.TUIC, TunnelType.SHADOWSOCKS -> Socks5ProxyBridge.stopAll()
             TunnelType.MASTERDNS, TunnelType.MASTERDNS_SSH,
             TunnelType.STORMDNS, TunnelType.STORMDNS_SSH,
             TunnelType.COTTENDNS, TunnelType.COTTENDNS_SSH,
@@ -1302,7 +1302,7 @@ class SlipNetVpnService : VpnService() {
                 DnsttSocksBridge.stop()
                 DnsttBridge.stopClient()
             }
-            TunnelType.VLESS -> VlessBridge.stop()
+            TunnelType.VLESS, TunnelType.VLESS_REALITY, TunnelType.TROJAN -> VlessBridge.stop()
             else -> {}
         }
     }
@@ -3411,12 +3411,21 @@ class SlipNetVpnService : VpnService() {
     private suspend fun connectVless(profile: app.slipnet.domain.model.ServerProfile, dnsServer: String) {
         val proxyPort = preferencesDataStore.proxyListenPort.first()
         val proxyHost = preferencesDataStore.proxyListenAddress.first()
-        vpnRepository.setCurrentTunnelType(app.slipnet.domain.model.TunnelType.VLESS)
+        val protocol = when (profile.tunnelType) {
+            app.slipnet.domain.model.TunnelType.TROJAN -> "trojan"
+            else -> "vless"
+        }
+        vpnRepository.setCurrentTunnelType(profile.tunnelType)
 
         val rawCdnTarget = profile.cdnIp.ifBlank { profile.domain }
         val resolvedCdnIp = resolveToIp(rawCdnTarget)
         val isIp = resolvedCdnIp.matches(Regex("""^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$""")) || resolvedCdnIp.contains(":")
         val effectiveCdnIp = if (isIp) resolvedCdnIp else rawCdnTarget
+        val authKey = if (profile.tunnelType == app.slipnet.domain.model.TunnelType.TROJAN) {
+            profile.socksPassword.ifBlank { profile.vlessUuid }
+        } else {
+            profile.vlessUuid
+        }
 
         if (isProxyOnly) {
             VlessBridge.setVpnService(this@SlipNetVpnService)
@@ -3428,31 +3437,32 @@ class SlipNetVpnService : VpnService() {
                     cdnIp = effectiveCdnIp,
                     cdnPort = if (profile.cdnPort > 0) profile.cdnPort else 443,
                     serverDomain = profile.domain.ifBlank { profile.cdnIp },
-                    vlessUuid = profile.vlessUuid,
-                    security = profile.vlessSecurity,
-                    transport = profile.vlessTransport,
-                    wsPath = profile.vlessWsPath,
+                    vlessUuid = authKey,
+                    security = profile.vlessSecurity.ifBlank { "tls" },
+                    transport = profile.vlessTransport.ifBlank { "ws" },
+                    wsPath = profile.vlessWsPath.ifBlank { "/" },
                     fragmentEnabled = profile.sniFragmentEnabled,
                     fragmentStrategy = profile.sniFragmentStrategy,
                     fragmentDelayMs = profile.sniFragmentDelayMs,
                     sniSpoofTtl = profile.sniSpoofTtl,
                     fakeDecoyHost = profile.fakeDecoyHost,
                     tcpMaxSeg = profile.tcpMaxSeg,
-                    vlessSni = profile.vlessSni,
+                    vlessSni = profile.vlessSni.ifBlank { profile.domain },
                     chPaddingEnabled = profile.chPaddingEnabled,
                     wsHeaderObfuscation = profile.wsHeaderObfuscation,
-                    wsPaddingEnabled = profile.wsPaddingEnabled
+                    wsPaddingEnabled = profile.wsPaddingEnabled,
+                    protocol = protocol
                 )
             }
             if (bridgeResult.isFailure) {
-                connectionManager.onVpnError(bridgeResult.exceptionOrNull()?.message ?: "Failed to start VLESS bridge")
+                connectionManager.onVpnError(bridgeResult.exceptionOrNull()?.message ?: "Failed to start $protocol bridge")
                 stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf()
                 return
             }
 
             if (!waitForProxyReady(proxyPort, maxAttempts = 30, delayMs = 100)) {
-                connectionManager.onVpnError("VLESS bridge failed to start")
+                connectionManager.onVpnError("${protocol.uppercase()} bridge failed to start")
                 VlessBridge.stop()
                 stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf()
@@ -3462,15 +3472,11 @@ class SlipNetVpnService : VpnService() {
             val probeResult = withContext(Dispatchers.IO) { VlessBridge.probe() }
             if (probeResult.isFailure) {
                 val reason = probeResult.exceptionOrNull()?.message ?: "unknown"
-                connectionManager.onVpnError("VLESS setup check failed: $reason. Verify CDN IP, domain, and WS path.")
-                VlessBridge.stop()
-                stopForeground(STOP_FOREGROUND_REMOVE)
-                stopSelf()
-                return
+                Log.w(TAG, "${protocol.uppercase()} setup check warning: $reason. Proceeding with connection.")
             }
 
             vpnRepository.setProxyConnected(profile)
-            Log.i(TAG, "Proxy-only mode: VLESS bridge ready on $proxyHost:$proxyPort")
+            Log.i(TAG, "Proxy-only mode: ${protocol.uppercase()} bridge ready on $proxyHost:$proxyPort")
             finishConnection()
             return
         }
@@ -3496,24 +3502,25 @@ class SlipNetVpnService : VpnService() {
                 cdnIp = effectiveCdnIp,
                 cdnPort = if (profile.cdnPort > 0) profile.cdnPort else 443,
                 serverDomain = profile.domain.ifBlank { profile.cdnIp },
-                vlessUuid = profile.vlessUuid,
-                security = profile.vlessSecurity,
-                transport = profile.vlessTransport,
-                wsPath = profile.vlessWsPath,
+                vlessUuid = authKey,
+                security = profile.vlessSecurity.ifBlank { "tls" },
+                transport = profile.vlessTransport.ifBlank { "ws" },
+                wsPath = profile.vlessWsPath.ifBlank { "/" },
                 fragmentEnabled = profile.sniFragmentEnabled,
                 fragmentStrategy = profile.sniFragmentStrategy,
                 fragmentDelayMs = profile.sniFragmentDelayMs,
                 sniSpoofTtl = profile.sniSpoofTtl,
                 fakeDecoyHost = profile.fakeDecoyHost,
                 tcpMaxSeg = profile.tcpMaxSeg,
-                vlessSni = profile.vlessSni,
+                vlessSni = profile.vlessSni.ifBlank { profile.domain },
                 chPaddingEnabled = profile.chPaddingEnabled,
                 wsHeaderObfuscation = profile.wsHeaderObfuscation,
-                wsPaddingEnabled = profile.wsPaddingEnabled
+                wsPaddingEnabled = profile.wsPaddingEnabled,
+                protocol = protocol
             )
         }
         if (bridgeResult.isFailure) {
-            connectionManager.onVpnError(bridgeResult.exceptionOrNull()?.message ?: "Failed to start VLESS bridge")
+            connectionManager.onVpnError(bridgeResult.exceptionOrNull()?.message ?: "Failed to start $protocol bridge")
             vpnInterface?.close()
             vpnInterface = null
             stopForeground(STOP_FOREGROUND_REMOVE)
@@ -3522,7 +3529,7 @@ class SlipNetVpnService : VpnService() {
         }
 
         if (!waitForProxyReady(proxyPort, maxAttempts = 30, delayMs = 100)) {
-            connectionManager.onVpnError("VLESS bridge failed to start")
+            connectionManager.onVpnError("${protocol.uppercase()} bridge failed to start")
             VlessBridge.stop()
             vpnInterface?.close()
             vpnInterface = null
@@ -3534,7 +3541,7 @@ class SlipNetVpnService : VpnService() {
         val probeResult = withContext(Dispatchers.IO) { VlessBridge.probe() }
         if (probeResult.isFailure) {
             val reason = probeResult.exceptionOrNull()?.message ?: "unknown"
-            Log.w(TAG, "VLESS probe warning: $reason. Proceeding with connection.")
+            Log.w(TAG, "${protocol.uppercase()} probe warning: $reason. Proceeding with connection.")
         }
 
         // Step 3: Start tun2socks
@@ -3681,7 +3688,7 @@ class SlipNetVpnService : VpnService() {
             TunnelType.NAIVE -> NaiveBridge.isRunning()
             TunnelType.SNOWFLAKE -> SnowflakeBridge.isRunning()
             TunnelType.SOCKS5 -> Socks5ProxyBridge.isRunning()
-            TunnelType.VLESS -> VlessBridge.isRunning()
+            TunnelType.VLESS, TunnelType.VLESS_REALITY, TunnelType.TROJAN -> VlessBridge.isRunning()
             else -> true
         }
         Log.e(TAG, "Proxy failed to become ready on port $port, nativeRunning=$nativeRunning")
@@ -3928,7 +3935,7 @@ class SlipNetVpnService : VpnService() {
                             Socks5ProxyBridge.getInstance("chain-socks5-$it")?.isRunning() == true
                         }
                     }
-                    TunnelType.VLESS -> VlessBridge.isRunning()
+                    TunnelType.VLESS, TunnelType.VLESS_REALITY, TunnelType.TROJAN -> VlessBridge.isRunning()
                     TunnelType.MASTERDNS, TunnelType.MASTERDNS_SSH,
                     TunnelType.STORMDNS, TunnelType.STORMDNS_SSH -> MasterDnsBridge.isRunning()
                     else -> true
@@ -5200,13 +5207,13 @@ class SlipNetVpnService : VpnService() {
                 Log.d(TAG, "Stopping SOCKS5 proxy bridge")
                 Socks5ProxyBridge.stop()
             }
-            TunnelType.VLESS -> {
-                Log.d(TAG, "Stopping VLESS bridge")
+            TunnelType.VLESS, TunnelType.VLESS_REALITY, TunnelType.TROJAN -> {
+                Log.d(TAG, "Stopping VLESS/Trojan bridge")
                 VlessBridge.stop()
             }
             TunnelType.BALE, TunnelType.PINGTUNNEL, TunnelType.SPOOF_TUNNEL, TunnelType.GOLDEN_GRE, TunnelType.PAQET,
-            TunnelType.WIREGUARD, TunnelType.OPENVPN, TunnelType.HYSTERIA2, TunnelType.TUIC, TunnelType.TROJAN, TunnelType.SHADOWSOCKS,
-            TunnelType.VMESS, TunnelType.SNELL, TunnelType.SHADOWSOCKSR, TunnelType.VLESS_REALITY, TunnelType.AETHER, TunnelType.WARP -> {
+            TunnelType.WIREGUARD, TunnelType.OPENVPN, TunnelType.HYSTERIA2, TunnelType.TUIC, TunnelType.SHADOWSOCKS,
+            TunnelType.VMESS, TunnelType.SNELL, TunnelType.SHADOWSOCKSR, TunnelType.AETHER, TunnelType.WARP -> {
                 Log.d(TAG, "Stopping SOCKS5-compatible bridge")
                 Socks5ProxyBridge.stopAll()
             }
@@ -5283,7 +5290,7 @@ class SlipNetVpnService : VpnService() {
             TunnelType.NAIVE -> NaiveBridge.isClientHealthy() && NaiveSocksBridge.isClientHealthy()
             TunnelType.SNOWFLAKE -> SnowflakeBridge.isClientHealthy() && TorSocksBridge.isClientHealthy()
             TunnelType.SOCKS5 -> Socks5ProxyBridge.isRunning() && Socks5ProxyBridge.isClientHealthy()
-            TunnelType.VLESS -> VlessBridge.isRunning() && VlessBridge.isClientHealthy()
+            TunnelType.VLESS, TunnelType.VLESS_REALITY, TunnelType.TROJAN -> VlessBridge.isRunning() && VlessBridge.isClientHealthy()
             else -> true
         }
     }
@@ -5291,12 +5298,12 @@ class SlipNetVpnService : VpnService() {
 
     /**
      * Resolve a resolver host to a numeric IP for [Builder.addDnsServer].
-     * Falls back to [DEFAULT_DNS] if resolution fails or host is null.
+     * Falls back to [host] if resolution fails or cannot be resolved to an IP.
      */
     private suspend fun resolveToIp(host: String?, customDnsServer: String? = null): String = withContext(Dispatchers.IO) {
-        if (host.isNullOrBlank()) return@withContext DEFAULT_DNS
+        if (host.isNullOrBlank()) return@withContext ""
         val resolved = VpnRepositoryImpl.resolveHost(host, customDnsServer)
-        if (DomainRouter.isIpAddress(resolved)) resolved else DEFAULT_DNS
+        if (DomainRouter.isIpAddress(resolved)) resolved else host
     }
 
     private suspend fun establishVpnInterface(dnsServer: String): ParcelFileDescriptor? {

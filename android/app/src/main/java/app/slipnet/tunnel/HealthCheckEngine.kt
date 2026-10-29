@@ -71,11 +71,11 @@ object HealthCheckEngine {
                 }
             }
 
-            TunnelType.VLESS -> {
+            TunnelType.VLESS, TunnelType.VLESS_REALITY, TunnelType.TROJAN -> {
                 val host = profile.domain.ifEmpty { profile.cdnIp }
                 val port = if (profile.cdnPort > 0) profile.cdnPort else 443
                 if (host.isNotEmpty()) {
-                    checks.add(probeTcp("VLESS/CDN Endpoint ($host:$port)", "سرور VLESS / CDN", host, port))
+                    checks.add(probeTcp("${profile.tunnelType.displayName} ($host:$port)", "سرور ${profile.tunnelType.displayName}", host, port))
                 }
             }
 

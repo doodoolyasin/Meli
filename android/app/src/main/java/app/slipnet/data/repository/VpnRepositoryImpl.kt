@@ -84,10 +84,21 @@ class VpnRepositoryImpl @Inject constructor(
             // Already numeric IPv4/IPv6 — pass through
             if (app.slipnet.tunnel.DomainRouter.isIpAddress(host)) return host
 
+            // Try DoH first for resilient resolution (bypasses UDP 53 blocking)
+            try {
+                val dohResolved = resolveViaDoH(host, 1500)
+                if (dohResolved != null) {
+                    Log.i(TAG, "Resolved '$host' → $dohResolved via DoH")
+                    return dohResolved
+                }
+            } catch (e: Exception) {
+                Log.d(TAG, "DoH resolution failed for '$host': ${e.message}")
+            }
+
             // Try custom DNS server first (bypasses ISP DNS filtering)
             if (!customDnsServer.isNullOrBlank()) {
                 try {
-                    val resolved = resolveViaUdp(host, customDnsServer)
+                    val resolved = resolveViaUdp(host, customDnsServer, 1500)
                     if (resolved != null) {
                         Log.i(TAG, "Resolved '$host' → $resolved via custom DNS $customDnsServer")
                         return resolved
@@ -101,7 +112,7 @@ class VpnRepositoryImpl @Inject constructor(
             for (dns in PUBLIC_DNS_SERVERS) {
                 if (dns == customDnsServer) continue
                 try {
-                    val resolved = resolveViaUdp(host, dns)
+                    val resolved = resolveViaUdp(host, dns, 1500)
                     if (resolved != null) {
                         Log.i(TAG, "Resolved '$host' → $resolved via public DNS $dns")
                         return resolved
@@ -118,6 +129,40 @@ class VpnRepositoryImpl @Inject constructor(
                 Log.w(TAG, "Failed to resolve '$host' to IP, passing through", e)
                 host
             }
+        }
+
+        private fun resolveViaDoH(hostname: String, timeoutMs: Int = 1500): String? {
+            val dohUrls = listOf(
+                "https://1.1.1.1/dns-query?name=$hostname&type=A",
+                "https://162.159.36.1/dns-query?name=$hostname&type=A",
+                "https://dns.google/resolve?name=$hostname&type=A"
+            )
+            for (endpoint in dohUrls) {
+                try {
+                    val url = java.net.URL(endpoint)
+                    val conn = url.openConnection() as javax.net.ssl.HttpsURLConnection
+                    conn.connectTimeout = timeoutMs
+                    conn.readTimeout = timeoutMs
+                    conn.setRequestProperty("Accept", "application/dns-json")
+                    if (conn.responseCode == 200) {
+                        val body = conn.inputStream.bufferedReader().use { it.readText() }
+                        val json = org.json.JSONObject(body)
+                        val answers = json.optJSONArray("Answer")
+                        if (answers != null && answers.length() > 0) {
+                            for (i in 0 until answers.length()) {
+                                val ans = answers.optJSONObject(i) ?: continue
+                                if (ans.optInt("type") == 1) { // Type A
+                                    val ip = ans.optString("data", "").trim()
+                                    if (app.slipnet.tunnel.DomainRouter.isIpAddress(ip)) {
+                                        return ip
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } catch (_: Exception) {}
+            }
+            return null
         }
 
         /**
@@ -1134,8 +1179,8 @@ class VpnRepositoryImpl @Inject constructor(
                 DnsttBridge.stopClient()
                 DnsDoHProxy.stop()
             }
-            TunnelType.VLESS -> {
-                Log.d(TAG, "Stopping VLESS proxy bridge")
+            TunnelType.VLESS, TunnelType.VLESS_REALITY, TunnelType.TROJAN -> {
+                Log.d(TAG, "Stopping VLESS/Trojan proxy bridge")
                 VlessBridge.stop()
             }
             else -> {
@@ -1355,7 +1400,7 @@ class VpnRepositoryImpl @Inject constructor(
                 sent = Socks5ProxyBridge.getTunnelTxBytes()
                 received = Socks5ProxyBridge.getTunnelRxBytes()
             }
-            TunnelType.VLESS -> {
+            TunnelType.VLESS, TunnelType.VLESS_REALITY, TunnelType.TROJAN -> {
                 sent = VlessBridge.getTunnelTxBytes()
                 received = VlessBridge.getTunnelRxBytes()
             }

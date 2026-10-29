@@ -2754,10 +2754,16 @@ class ConfigImporter @Inject constructor() {
             //            differs from host= (legitimate CDN setups where the
             //            cert hostname ≠ the origin routing hostname, or a
             //            DPI-evasion decoy on direct servers).
+            val vlessType = if (security.equals("reality", ignoreCase = true)) {
+                TunnelType.VLESS_REALITY
+            } else {
+                TunnelType.VLESS
+            }
+
             val profile = ServerProfile(
                 name = profileName,
                 domain = wsHost,
-                tunnelType = TunnelType.VLESS,
+                tunnelType = vlessType,
                 vlessUuid = uuid,
                 vlessSecurity = normalizedSecurity,
                 vlessTransport = normalizedTransport,
@@ -2904,14 +2910,22 @@ class ConfigImporter @Inject constructor() {
             val port = hostPort.substringAfter(':').toIntOrNull() ?: 443
             val params = parseQueryParams(query)
             val sni = params["sni"] ?: params["peer"] ?: host
+            val transport = params["type"] ?: "tcp"
+            val path = params["path"]?.let { java.net.URLDecoder.decode(it, "UTF-8") } ?: "/"
+            val hostHeader = params["host"] ?: host
 
             ProfileParseResult.Success(
                 ServerProfile(
                     name = name,
-                    domain = host,
+                    domain = hostHeader,
+                    cdnIp = host,
                     cdnPort = port,
+                    socks5ServerPort = port,
                     tunnelType = TunnelType.TROJAN,
                     socksPassword = password,
+                    vlessSecurity = "tls",
+                    vlessTransport = transport,
+                    vlessWsPath = path,
                     vlessSni = sni
                 )
             )
@@ -3268,6 +3282,11 @@ class ConfigImporter @Inject constructor() {
 
                     when (type) {
                         "vless" -> {
+                            val vlessType = if (security.equals("reality", ignoreCase = true)) {
+                                TunnelType.VLESS_REALITY
+                            } else {
+                                TunnelType.VLESS
+                            }
                             profiles.add(
                                 ServerProfile(
                                     name = profileName,
@@ -3275,7 +3294,7 @@ class ConfigImporter @Inject constructor() {
                                     cdnIp = server,
                                     cdnPort = port,
                                     socks5ServerPort = port,
-                                    tunnelType = TunnelType.VLESS,
+                                    tunnelType = vlessType,
                                     vlessUuid = uuid,
                                     vlessSecurity = security,
                                     vlessTransport = transport,
@@ -3288,12 +3307,13 @@ class ConfigImporter @Inject constructor() {
                             profiles.add(
                                 ServerProfile(
                                     name = profileName,
-                                    domain = server,
+                                    domain = targetDomain,
                                     cdnIp = server,
                                     cdnPort = port,
                                     socks5ServerPort = port,
                                     tunnelType = TunnelType.TROJAN,
                                     socksPassword = password,
+                                    vlessSecurity = security,
                                     vlessTransport = transport,
                                     vlessWsPath = path,
                                     vlessSni = sni
