@@ -77,6 +77,13 @@ class ProfileRepositoryImpl @Inject constructor(
     }
 
     override suspend fun deleteProfilesByGroup(group: String) {
-        profileDao.deleteProfilesByGroup(group)
+        val all = profileDao.getAllProfilesList()
+        val toDelete = all.filter { entity ->
+            val domain = profileMapper.toDomain(entity)
+            domain.subscriptionGroup == group
+        }
+        if (toDelete.isNotEmpty()) {
+            profileDao.deleteProfilesByIds(toDelete.map { it.id })
+        }
     }
 }
