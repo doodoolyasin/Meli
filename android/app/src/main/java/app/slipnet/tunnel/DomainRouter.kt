@@ -79,10 +79,23 @@ class DomainRouter(
             val ends = mutableListOf<Long>()
             val domains = mutableSetOf<String>()
 
-            // Load CIDR ranges
+            val code = country.code.lowercase()
+            val customCidrFile = java.io.File(context.filesDir, "$code.cidr")
+            val customDomainsFile = java.io.File(context.filesDir, "$code.domains")
+
+            // Load CIDR ranges (check custom filesDir first, then assets lowercase and original)
             try {
-                context.assets.open("geo/${country.code}.cidr").use { stream ->
-                    BufferedReader(InputStreamReader(stream)).use { reader ->
+                val stream: java.io.InputStream = if (customCidrFile.exists()) {
+                    java.io.FileInputStream(customCidrFile)
+                } else {
+                    try {
+                        context.assets.open("geo/$code.cidr")
+                    } catch (_: Exception) {
+                        context.assets.open("geo/${country.code}.cidr")
+                    }
+                }
+                stream.use { s ->
+                    BufferedReader(InputStreamReader(s)).use { reader ->
                         reader.forEachLine { line ->
                             val trimmed = line.trim()
                             if (trimmed.isNotEmpty()) {
@@ -100,10 +113,19 @@ class DomainRouter(
                 Log.e(TAG, "Failed to load CIDR ranges for ${country.code}: ${e.message}")
             }
 
-            // Load domain list
+            // Load domain list (check custom filesDir first, then assets lowercase and original)
             try {
-                context.assets.open("geo/${country.code}.domains").use { stream ->
-                    BufferedReader(InputStreamReader(stream)).use { reader ->
+                val stream: java.io.InputStream = if (customDomainsFile.exists()) {
+                    java.io.FileInputStream(customDomainsFile)
+                } else {
+                    try {
+                        context.assets.open("geo/$code.domains")
+                    } catch (_: Exception) {
+                        context.assets.open("geo/${country.code}.domains")
+                    }
+                }
+                stream.use { s ->
+                    BufferedReader(InputStreamReader(s)).use { reader ->
                         reader.forEachLine { line ->
                             val trimmed = line.trim().lowercase()
                             if (trimmed.isNotEmpty()) {

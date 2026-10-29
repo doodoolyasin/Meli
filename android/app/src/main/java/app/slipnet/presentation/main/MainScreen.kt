@@ -678,7 +678,40 @@ fun MainScreen(
                         modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
                     )
 
+                    NavigationDrawerItem(
+                        label = { Text("Resolver scanner", fontWeight = FontWeight.Medium) },
+                        selected = false,
+                        onClick = {
+                            scope.launch { drawerState.close() }
+                            onNavigateToDnsScanner()
+                        },
+                        icon = { Icon(Icons.Default.NetworkPing, contentDescription = null) },
+                        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                    )
+
+                    NavigationDrawerItem(
+                        label = { Text("Terminal", fontWeight = FontWeight.Medium) },
+                        selected = false,
+                        onClick = {
+                            scope.launch { drawerState.close() }
+                            onNavigateToTerminal()
+                        },
+                        icon = { Icon(Icons.Default.Dns, contentDescription = null, tint = Color(0xFF00FF66)) },
+                        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                    )
+
                     HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+                    NavigationDrawerItem(
+                        label = { Text("Connection LOG", fontWeight = FontWeight.Medium) },
+                        selected = false,
+                        onClick = {
+                            scope.launch { drawerState.close() }
+                            showLogSheet = true
+                        },
+                        icon = { Icon(Icons.Default.BugReport, contentDescription = null) },
+                        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                    )
 
                     NavigationDrawerItem(
                         label = { Text("Backup & restore", fontWeight = FontWeight.Medium) },
@@ -722,6 +755,17 @@ fun MainScreen(
                             }
                         },
                         icon = { Icon(Icons.Default.Refresh, contentDescription = null) },
+                        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                    )
+
+                    NavigationDrawerItem(
+                        label = { Text("About", fontWeight = FontWeight.Medium) },
+                        selected = false,
+                        onClick = {
+                            scope.launch { drawerState.close() }
+                            showAboutDialog = true
+                        },
+                        icon = { Icon(Icons.Default.Info, contentDescription = null) },
                         modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
                     )
                 }
@@ -3249,16 +3293,16 @@ fun MainScreen(
                     }
 
                     if (assetUpdateMsg != null) {
-                        Text(assetUpdateMsg!!, color = Color(0xFF00FF66), style = MaterialTheme.typography.bodySmall)
+                        Text(assetUpdateMsg!!, color = if (assetUpdateMsg!!.startsWith("Successfully")) Color(0xFF00FF66) else MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                     }
 
                     Button(
                         onClick = {
                             isUpdatingAssets = true
-                            scope.launch {
-                                kotlinx.coroutines.delay(1200)
+                            assetUpdateMsg = null
+                            viewModel.downloadGeoAssetFiles(context.filesDir) { success, msg ->
                                 isUpdatingAssets = false
-                                assetUpdateMsg = "geoip.dat and geosite.dat updated successfully!"
+                                assetUpdateMsg = msg
                             }
                         },
                         enabled = !isUpdatingAssets,

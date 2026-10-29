@@ -695,6 +695,22 @@ class MainViewModel @Inject constructor(
         }
     }
 
+    private fun decodeSubscriptionPayload(raw: String): String {
+        val trimmed = raw.trim()
+        val clean = trimmed.replace("\n", "").replace("\r", "").replace(" ", "")
+        val padded = clean + "=".repeat((4 - clean.length % 4) % 4)
+        for (flags in listOf(android.util.Base64.DEFAULT, android.util.Base64.URL_SAFE, android.util.Base64.NO_WRAP)) {
+            try {
+                val bytes = android.util.Base64.decode(padded, flags)
+                val str = String(bytes, Charsets.UTF_8)
+                if (str.contains("://") || str.contains("\"outbounds\"") || str.contains("vmess") || str.contains("vless") || str.contains("ss://")) {
+                    return str
+                }
+            } catch (_: Exception) {}
+        }
+        return trimmed
+    }
+
     fun updateSubscriptionGroup(groupName: String, url: String, onDone: (Int, String?) -> Unit) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
@@ -709,16 +725,12 @@ class MainViewModel @Inject constructor(
                     return@launch
                 }
                 val raw = conn.inputStream.bufferedReader().use { it.readText() }.trim()
-                val decoded = try {
-                    val cleanB64 = raw.replace("\n", "").replace("\r", "").trim()
-                    val bytes = android.util.Base64.decode(cleanB64, android.util.Base64.DEFAULT)
-                    String(bytes, Charsets.UTF_8)
-                } catch (_: Exception) {
-                    raw
-                }
+                val decoded = decodeSubscriptionPayload(raw)
                 val result = configImporter.parseAndImport(decoded, connectionManager.getDeviceId())
                 if (result is ImportResult.Success && result.profiles.isNotEmpty()) {
                     val group = groupName.ifBlank { "Subscription" }
+                    // Remove existing profiles for this group first to prevent duplicates / stale servers
+                    deleteProfilesMatching { it.subscriptionGroup == group }
                     for (p in result.profiles) {
                         saveProfileUseCase(p.copy(subscriptionId = group))
                     }
@@ -778,12 +790,10 @@ class MainViewModel @Inject constructor(
                         conn.instanceFollowRedirects = true
                         if (conn.responseCode in 200..299) {
                             val raw = conn.inputStream.bufferedReader().use { it.readText() }.trim()
-                            val cleanB64 = raw.replace("\n", "").replace("\r", "").trim()
-                            val decoded = try {
-                                String(android.util.Base64.decode(cleanB64, android.util.Base64.DEFAULT), Charsets.UTF_8)
-                            } catch (_: Exception) { raw }
+                            val decoded = decodeSubscriptionPayload(raw)
                             val result = configImporter.parseAndImport(decoded, connectionManager.getDeviceId())
                             if (result is ImportResult.Success && result.profiles.isNotEmpty()) {
+                                deleteProfilesMatching { it.subscriptionGroup == group }
                                 for (p in result.profiles) {
                                     saveProfileUseCase(p.copy(subscriptionId = group))
                                 }
@@ -798,6 +808,56 @@ class MainViewModel @Inject constructor(
                 }
             }
             withContext(Dispatchers.Main) { onDone(totalCount, errorMsg) }
+        }
+    }
+
+    fun downloadGeoAssetFiles(filesDir: java.io.File, onDone: (Boolean, String) -> Unit) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val sources = listOf(
+                "geoip.dat" to "https://raw.githubusercontent.com/Chocolate4U/Iran-v2ray-rules/release/geoip.dat",
+                "geosite.dat" to "https://raw.githubusercontent.com/Chocolate4U/Iran-v2ray-rules/release/geosite.dat"
+            )
+            val fallbackSources = listOf(
+                "geoip.dat" to "https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geoip.dat",
+                "geosite.dat" to "https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geosite.dat"
+            )
+            var downloadedCount = 0
+            val totalBytes = java.util.concurrent.atomic.AtomicLong(0)
+            for (i in sources.indices) {
+                val (filename, primaryUrl) = sources[i]
+                val targetFile = java.io.File(filesDir, filename)
+                val tempFile = java.io.File(filesDir, "${filename}.tmp")
+                for (urlStr in listOf(primaryUrl, fallbackSources[i].second)) {
+                    try {
+                        val conn = java.net.URL(urlStr).openConnection() as java.net.HttpURLConnection
+                        conn.connectTimeout = 15000
+                        conn.readTimeout = 20000
+                        conn.instanceFollowRedirects = true
+                        conn.setRequestProperty("User-Agent", "Mozilla/5.0 AryanaNG")
+                        if (conn.responseCode in 200..299) {
+                            conn.inputStream.use { input ->
+                                tempFile.outputStream().use { output ->
+                                    val copied = input.copyTo(output)
+                                    totalBytes.addAndGet(copied)
+                                }
+                            }
+                            if (tempFile.length() > 1024) {
+                                tempFile.renameTo(targetFile)
+                                downloadedCount++
+                                break
+                            }
+                        }
+                    } catch (_: Exception) {}
+                }
+            }
+            withContext(Dispatchers.Main) {
+                if (downloadedCount > 0) {
+                    val mb = String.format(java.util.Locale.US, "%.2f", totalBytes.get() / (1024.0 * 1024.0))
+                    onDone(true, "Successfully updated $downloadedCount assets ($mb MB)")
+                } else {
+                    onDone(false, "Download failed. Please check internet connection.")
+                }
+            }
         }
     }
 
