@@ -190,6 +190,14 @@ class ConfigImporter @Inject constructor() {
             }
         }
 
+        // Handle MasterDnsVPN Go Client TOML configurations
+        if (trimmedInput.contains("DOMAINS = [") || trimmedInput.contains("DATA_ENCRYPTION_METHOD") || trimmedInput.contains("MasterDnsVPN Go Client")) {
+            val tomlResult = parseMasterDnsToml(trimmedInput)
+            if (tomlResult is ImportResult.Success && tomlResult.profiles.isNotEmpty()) {
+                return tomlResult
+            }
+        }
+
         // Handle full JSON configurations (Sing-box, Xray outbounds, WhiteDNS JSON)
         var jsonCandidate = trimmedInput
             .removePrefix("\uFEFF")
@@ -2528,7 +2536,8 @@ class ConfigImporter @Inject constructor() {
             val formattedKey = if (scheme == "soar" && encKey.isNotEmpty() && encKey.length > 32 && !encKey.all { it in "0123456789abcdefABCDEF" }) {
                 try {
                     val decodedBytes = Base64.decode(encKey, Base64.DEFAULT)
-                    decodedBytes.joinToString("") { "%02x".format(it) }
+                    val hex = decodedBytes.joinToString("") { "%02x".format(it) }
+                    if (encMethod == 1 && hex.length > 32) hex.take(32) else hex
                 } catch (_: Exception) {
                     encKey
                 }
@@ -2544,16 +2553,29 @@ class ConfigImporter @Inject constructor() {
                 else -> TunnelType.MASTERDNS
             }
 
+            val defaultResolvers = listOf(
+                DnsResolver(host = "45.38.249.16", port = 53),
+                DnsResolver(host = "10.201.33.34", port = 53),
+                DnsResolver(host = "10.202.10.202", port = 53),
+                DnsResolver(host = "217.218.127.127", port = 53),
+                DnsResolver(host = "85.15.1.14", port = 53),
+                DnsResolver(host = "8.8.8.8", port = 53)
+            )
+
             val resolversArray = profileObj.optJSONArray("resolvers")
-            val resolversList = if (resolversArray != null && resolversArray.length() > 0) {
+            val parsedList = if (resolversArray != null && resolversArray.length() > 0) {
                 (0 until resolversArray.length()).map { idx ->
                     val r = resolversArray.getString(idx)
                     val host = if (r.contains(":")) r.substringBefore(":") else r
                     val port = if (r.contains(":")) r.substringAfter(":").toIntOrNull() ?: 53 else 53
                     DnsResolver(host = host, port = port)
                 }
+            } else emptyList()
+
+            val resolversList = if (parsedList.isEmpty() || (parsedList.size == 1 && parsedList.first().host == "8.8.8.8")) {
+                defaultResolvers
             } else {
-                listOf(DnsResolver(host = "8.8.8.8", port = 53))
+                (parsedList + defaultResolvers).distinctBy { "${it.host}:${it.port}" }
             }
 
             ProfileParseResult.Success(
@@ -3225,10 +3247,17 @@ class ConfigImporter @Inject constructor() {
                     }
 
                     val transport = streamSettings?.optString("network", "ws") ?: "ws"
+                    val security = streamSettings?.optString("security", "tls") ?: "tls"
                     val wsSettings = streamSettings?.optJSONObject("wsSettings")
+                    val wsHeaders = wsSettings?.optJSONObject("headers")
+                    val wsHost = wsHeaders?.optString("Host", wsHeaders.optString("host", "")) ?: ""
                     val path = wsSettings?.optString("path", ob.optString("path", "/")) ?: "/"
-                    val sni = streamSettings?.optJSONObject("tlsSettings")?.optString("serverName", "")
+                    var sni = streamSettings?.optJSONObject("tlsSettings")?.optString("serverName", "")
                         ?: streamSettings?.optJSONObject("realitySettings")?.optString("serverName", "") ?: ""
+                    if (sni.isBlank() && wsHost.isNotBlank()) {
+                        sni = wsHost
+                    }
+                    val targetDomain = if (wsHost.isNotBlank()) wsHost else if (sni.isNotBlank()) sni else server
 
                     val profileName = when {
                         rootRemarks.isNotBlank() && i == 0 -> rootRemarks
@@ -3242,12 +3271,13 @@ class ConfigImporter @Inject constructor() {
                             profiles.add(
                                 ServerProfile(
                                     name = profileName,
-                                    domain = server,
+                                    domain = targetDomain,
                                     cdnIp = server,
                                     cdnPort = port,
                                     socks5ServerPort = port,
                                     tunnelType = TunnelType.VLESS,
                                     vlessUuid = uuid,
+                                    vlessSecurity = security,
                                     vlessTransport = transport,
                                     vlessWsPath = path,
                                     vlessSni = sni
@@ -3486,6 +3516,70 @@ class ConfigImporter @Inject constructor() {
                     DnsResolver(host = host, port = port, authoritative = authoritative)
                 } else null
             } else null
+        }
+    }
+
+    /**
+     * Parses MasterDnsVPN Go Client TOML configuration format.
+     */
+    private fun parseMasterDnsToml(content: String): ImportResult {
+        return try {
+            var profileName = "MasterDNS Profile"
+            val lines = content.lines()
+            for (line in lines) {
+                val t = line.trim()
+                if (t.startsWith("# Profile:", ignoreCase = true)) {
+                    val pName = t.substringAfter(":").trim()
+                    if (pName.isNotBlank()) profileName = pName
+                    break
+                }
+            }
+
+            var domain = ""
+            val domainsRegex = Regex("""DOMAINS\s*=\s*\[\s*"([^"]+)"\s*\]""")
+            val domainMatch = domainsRegex.find(content)
+            if (domainMatch != null) {
+                domain = domainMatch.groupValues[1]
+            } else {
+                val singleDomainRegex = Regex("""DOMAINS\s*=\s*"([^"]+)"""")
+                val singleMatch = singleDomainRegex.find(content)
+                if (singleMatch != null) domain = singleMatch.groupValues[1]
+            }
+
+            val keyRegex = Regex("""ENCRYPTION_KEY\s*=\s*"([^"]+)"""")
+            val key = keyRegex.find(content)?.groupValues?.get(1)?.trim() ?: ""
+
+            val methodRegex = Regex("""DATA_ENCRYPTION_METHOD\s*=\s*(\d+)""")
+            val method = methodRegex.find(content)?.groupValues?.get(1)?.toIntOrNull() ?: 1
+
+            val portRegex = Regex("""LISTEN_PORT\s*=\s*(\d+)""")
+            val listenPort = portRegex.find(content)?.groupValues?.get(1)?.toIntOrNull() ?: 18000
+
+            if (domain.isBlank() && key.isBlank()) {
+                return ImportResult.Error("Invalid MasterDNS TOML: missing DOMAINS or ENCRYPTION_KEY")
+            }
+
+            val defaultResolvers = listOf(
+                DnsResolver(host = "45.38.249.16", port = 53),
+                DnsResolver(host = "10.201.33.34", port = 53),
+                DnsResolver(host = "10.202.10.202", port = 53),
+                DnsResolver(host = "217.218.127.127", port = 53),
+                DnsResolver(host = "85.15.1.14", port = 53),
+                DnsResolver(host = "8.8.8.8", port = 53)
+            )
+
+            val profile = ServerProfile(
+                name = profileName,
+                domain = domain.ifBlank { "goi.dhafhdtjdti.site" },
+                tunnelType = TunnelType.MASTERDNS,
+                dnsttPublicKey = key,
+                tunnelEncryptionMethod = method,
+                socks5ServerPort = listenPort,
+                resolvers = defaultResolvers
+            )
+            ImportResult.Success(listOf(profile), emptyList())
+        } catch (e: Exception) {
+            ImportResult.Error("Failed to parse MasterDNS TOML: ${e.message}")
         }
     }
 

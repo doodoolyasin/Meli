@@ -70,6 +70,8 @@ class PreferencesDataStore @Inject constructor(
         val APPEND_HTTP_PROXY_TO_VPN = booleanPreferencesKey("append_http_proxy_to_vpn")
         // Proxy-Only Mode
         val PROXY_ONLY_MODE = booleanPreferencesKey("proxy_only_mode")
+        val MANDATORY_SSH = booleanPreferencesKey("mandatory_ssh")
+        val SUBSCRIPTION_URLS = stringPreferencesKey("subscription_urls_json")
         // Kill Switch
         val KILL_SWITCH = booleanPreferencesKey("kill_switch")
         // Auto-Reconnect
@@ -565,6 +567,58 @@ class PreferencesDataStore @Inject constructor(
     suspend fun setProxyOnlyMode(enabled: Boolean) {
         dataStore.edit { prefs ->
             prefs[Keys.PROXY_ONLY_MODE] = enabled
+        }
+    }
+
+    // Mandatory SSH Mode
+    val mandatorySsh: Flow<Boolean> = dataStore.data.map { prefs ->
+        prefs[Keys.MANDATORY_SSH] ?: true
+    }
+
+    suspend fun setMandatorySsh(enabled: Boolean) {
+        dataStore.edit { prefs ->
+            prefs[Keys.MANDATORY_SSH] = enabled
+        }
+    }
+
+    // Subscription URLs Map
+    val subscriptionUrls: Flow<Map<String, String>> = dataStore.data.map { prefs ->
+        val raw = prefs[Keys.SUBSCRIPTION_URLS] ?: ""
+        if (raw.isBlank()) emptyMap() else {
+            try {
+                val json = org.json.JSONObject(raw)
+                val map = mutableMapOf<String, String>()
+                val keys = json.keys()
+                while (keys.hasNext()) {
+                    val k = keys.next()
+                    map[k] = json.optString(k, "")
+                }
+                map
+            } catch (_: Exception) {
+                emptyMap()
+            }
+        }
+    }
+
+    suspend fun saveSubscriptionUrl(group: String, url: String) {
+        dataStore.edit { prefs ->
+            val raw = prefs[Keys.SUBSCRIPTION_URLS] ?: ""
+            val json = if (raw.isBlank()) org.json.JSONObject() else try { org.json.JSONObject(raw) } catch (_: Exception) { org.json.JSONObject() }
+            json.put(group, url)
+            prefs[Keys.SUBSCRIPTION_URLS] = json.toString()
+        }
+    }
+
+    suspend fun deleteSubscriptionUrl(group: String) {
+        dataStore.edit { prefs ->
+            val raw = prefs[Keys.SUBSCRIPTION_URLS] ?: ""
+            if (raw.isNotBlank()) {
+                try {
+                    val json = org.json.JSONObject(raw)
+                    json.remove(group)
+                    prefs[Keys.SUBSCRIPTION_URLS] = json.toString()
+                } catch (_: Exception) {}
+            }
         }
     }
 

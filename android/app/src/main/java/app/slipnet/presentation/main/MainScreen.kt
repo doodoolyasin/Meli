@@ -190,6 +190,9 @@ import app.slipnet.presentation.common.icons.TorIcon
 import app.slipnet.presentation.common.icons.VlessIcon
 import app.slipnet.presentation.home.DebugLogSheet
 import app.slipnet.presentation.scanner.QrScannerActivity
+import androidx.compose.material.icons.filled.SelectAll
+import androidx.compose.material.icons.filled.CloudDownload
+import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.Timer
 import app.slipnet.presentation.theme.ConnectedGreen
 import app.slipnet.presentation.theme.ConnectingOrange
@@ -292,6 +295,8 @@ fun MainScreen(
     var searchQuery by remember { mutableStateOf("") }
     var isSearchActive by remember { mutableStateOf(false) }
     val searchFocusRequester = remember { FocusRequester() }
+    var isSelectionMode by remember { mutableStateOf(false) }
+    var selectedProfileIds by remember { mutableStateOf(setOf<Long>()) }
     LaunchedEffect(isSearchActive) {
         if (isSearchActive) {
             try {
@@ -730,7 +735,14 @@ fun MainScreen(
             topBar = {
                 TopAppBar(
                     navigationIcon = {
-                        if (isSearchActive) {
+                        if (isSelectionMode) {
+                            IconButton(onClick = {
+                                isSelectionMode = false
+                                selectedProfileIds = emptySet()
+                            }) {
+                                Icon(Icons.Default.Close, contentDescription = "Close selection")
+                            }
+                        } else if (isSearchActive) {
                             IconButton(onClick = {
                                 isSearchActive = false
                                 searchQuery = ""
@@ -744,7 +756,13 @@ fun MainScreen(
                         }
                     },
                     title = {
-                        if (isSearchActive) {
+                        if (isSelectionMode) {
+                            Text(
+                                text = "${selectedProfileIds.size} selected",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        } else if (isSearchActive) {
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -763,11 +781,15 @@ fun MainScreen(
                                     modifier = Modifier.size(18.dp)
                                 )
                                 Spacer(Modifier.width(8.dp))
-                                Box(modifier = Modifier.weight(1f)) {
+                                Box(
+                                    modifier = Modifier.weight(1f),
+                                    contentAlignment = Alignment.CenterStart
+                                ) {
                                     if (searchQuery.isEmpty()) {
                                         Text(
                                             "Search profiles, IP, protocol...",
                                             fontSize = 13.sp,
+                                            lineHeight = 16.sp,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                                         )
                                     }
@@ -777,12 +799,24 @@ fun MainScreen(
                                         singleLine = true,
                                         textStyle = MaterialTheme.typography.bodyMedium.copy(
                                             color = MaterialTheme.colorScheme.onSurface,
-                                            fontSize = 13.sp
+                                            fontSize = 13.sp,
+                                            lineHeight = 16.sp,
+                                            platformStyle = androidx.compose.ui.text.PlatformTextStyle(
+                                                includeFontPadding = false
+                                            )
                                         ),
                                         cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .focusRequester(searchFocusRequester)
+                                            .focusRequester(searchFocusRequester),
+                                        decorationBox = { innerTextField ->
+                                            Box(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                contentAlignment = Alignment.CenterStart
+                                            ) {
+                                                innerTextField()
+                                            }
+                                        }
                                     )
                                 }
                                 if (searchQuery.isNotEmpty()) {
@@ -807,7 +841,43 @@ fun MainScreen(
                         }
                     },
                     actions = {
-                        if (!isSearchActive) {
+                        if (isSelectionMode) {
+                            IconButton(onClick = {
+                                val displayedIds = displayedProfiles.map { it.id }.toSet()
+                                selectedProfileIds = if (selectedProfileIds.containsAll(displayedIds)) emptySet() else displayedIds
+                            }) {
+                                Icon(Icons.Default.SelectAll, contentDescription = "Select all")
+                            }
+                            IconButton(
+                                onClick = {
+                                    if (selectedProfileIds.isNotEmpty()) {
+                                        val str = viewModel.exportProfilesToClipboard { selectedProfileIds.contains(it.id) }
+                                        clipboardManager.setText(AnnotatedString(str))
+                                        val count = selectedProfileIds.size
+                                        scope.launch { snackbarHostState.showSnackbar("Exported $count configs to clipboard") }
+                                        isSelectionMode = false
+                                        selectedProfileIds = emptySet()
+                                    }
+                                },
+                                enabled = selectedProfileIds.isNotEmpty()
+                            ) {
+                                Icon(Icons.Default.ContentCopy, contentDescription = "Export selected")
+                            }
+                            IconButton(
+                                onClick = {
+                                    if (selectedProfileIds.isNotEmpty()) {
+                                        val count = selectedProfileIds.size
+                                        viewModel.deleteProfilesMatching { selectedProfileIds.contains(it.id) }
+                                        scope.launch { snackbarHostState.showSnackbar("Deleted $count selected configs") }
+                                        isSelectionMode = false
+                                        selectedProfileIds = emptySet()
+                                    }
+                                },
+                                enabled = selectedProfileIds.isNotEmpty()
+                            ) {
+                                Icon(Icons.Default.Delete, contentDescription = "Delete selected")
+                            }
+                        } else if (!isSearchActive) {
                             IconButton(onClick = { isSearchActive = true }) {
                                 Icon(Icons.Default.Search, contentDescription = "Search")
                             }
@@ -824,7 +894,7 @@ fun MainScreen(
                                         showAddDropdown = false
                                         activeAddSubmenu = null
                                     },
-                                    offset = DpOffset(0.dp, (-50).dp)
+                                    offset = DpOffset(0.dp, 0.dp)
                                 ) {
                                     Row(modifier = Modifier.height(IntrinsicSize.Min)) {
                                         // Left Submenu (Cascading Left)
@@ -832,7 +902,7 @@ fun MainScreen(
                                             Column(
                                                 modifier = Modifier
                                                     .width(220.dp)
-                                                    .heightIn(max = 480.dp)
+                                                    .heightIn(max = 280.dp)
                                                     .verticalScroll(rememberScrollState())
                                             ) {
                                                 val protocolList = listOf(
@@ -970,7 +1040,7 @@ fun MainScreen(
                                         showOverflowMenu = false
                                         activeOverflowSubmenu = null
                                     },
-                                    offset = DpOffset(0.dp, (-50).dp)
+                                    offset = DpOffset(0.dp, 0.dp)
                                 ) {
                                     Row(modifier = Modifier.height(IntrinsicSize.Min)) {
                                         // Left Submenu (Cascading Left)
@@ -978,7 +1048,7 @@ fun MainScreen(
                                             Column(
                                                 modifier = Modifier
                                                     .width(230.dp)
-                                                    .heightIn(max = 480.dp)
+                                                    .heightIn(max = 280.dp)
                                                     .verticalScroll(rememberScrollState())
                                             ) {
                                                 when (activeOverflowSubmenu) {
@@ -986,7 +1056,17 @@ fun MainScreen(
                                                         DropdownMenuItem(
                                                             modifier = Modifier.heightIn(min = 34.dp),
                                                             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 2.dp),
-                                                            text = { Text("Delete invalid (-1 ms)", fontSize = 12.sp) },
+                                                            text = { Text("Selected configs", fontSize = 12.sp, fontWeight = FontWeight.Medium) },
+                                                            onClick = {
+                                                                showOverflowMenu = false
+                                                                activeOverflowSubmenu = null
+                                                                isSelectionMode = true
+                                                            }
+                                                        )
+                                                        DropdownMenuItem(
+                                                            modifier = Modifier.heightIn(min = 34.dp),
+                                                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 2.dp),
+                                                            text = { Text("Invalid configs (-1 ms)", fontSize = 12.sp) },
                                                             onClick = {
                                                                 showOverflowMenu = false
                                                                 activeOverflowSubmenu = null
@@ -1000,7 +1080,7 @@ fun MainScreen(
                                                         DropdownMenuItem(
                                                             modifier = Modifier.heightIn(min = 34.dp),
                                                             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 2.dp),
-                                                            text = { Text("Delete valid configs", fontSize = 12.sp) },
+                                                            text = { Text("Valid configs", fontSize = 12.sp) },
                                                             onClick = {
                                                                 showOverflowMenu = false
                                                                 activeOverflowSubmenu = null
@@ -1016,7 +1096,7 @@ fun MainScreen(
                                                             DropdownMenuItem(
                                                                 modifier = Modifier.heightIn(min = 34.dp),
                                                                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 2.dp),
-                                                                text = { Text("Delete this subscription", fontSize = 12.sp) },
+                                                                text = { Text("This subscription configs", fontSize = 12.sp) },
                                                                 onClick = {
                                                                     showOverflowMenu = false
                                                                     activeOverflowSubmenu = null
@@ -1028,7 +1108,7 @@ fun MainScreen(
                                                         DropdownMenuItem(
                                                             modifier = Modifier.heightIn(min = 34.dp),
                                                             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 2.dp),
-                                                            text = { Text("Delete all subscription configs", fontSize = 12.sp) },
+                                                            text = { Text("All subscription configs", fontSize = 12.sp) },
                                                             onClick = {
                                                                 showOverflowMenu = false
                                                                 activeOverflowSubmenu = null
@@ -1038,6 +1118,16 @@ fun MainScreen(
                                                         )
                                                     }
                                                     OverflowMenuPage.EXPORT -> {
+                                                        DropdownMenuItem(
+                                                            modifier = Modifier.heightIn(min = 34.dp),
+                                                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 2.dp),
+                                                            text = { Text("Selected configs", fontSize = 12.sp, fontWeight = FontWeight.Medium) },
+                                                            onClick = {
+                                                                showOverflowMenu = false
+                                                                activeOverflowSubmenu = null
+                                                                isSelectionMode = true
+                                                            }
+                                                        )
                                                         DropdownMenuItem(
                                                             modifier = Modifier.heightIn(min = 34.dp),
                                                             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 2.dp),
@@ -1073,7 +1163,7 @@ fun MainScreen(
                                                             DropdownMenuItem(
                                                                 modifier = Modifier.heightIn(min = 34.dp),
                                                                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 2.dp),
-                                                                text = { Text("Export this subscription", fontSize = 12.sp) },
+                                                                text = { Text("This subscription configs", fontSize = 12.sp) },
                                                                 onClick = {
                                                                     showOverflowMenu = false
                                                                     activeOverflowSubmenu = null
@@ -1086,13 +1176,13 @@ fun MainScreen(
                                                         DropdownMenuItem(
                                                             modifier = Modifier.heightIn(min = 34.dp),
                                                             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 2.dp),
-                                                            text = { Text("Export all configs", fontSize = 12.sp) },
+                                                            text = { Text("All subscription configs", fontSize = 12.sp) },
                                                             onClick = {
                                                                 showOverflowMenu = false
                                                                 activeOverflowSubmenu = null
-                                                                val str = viewModel.exportProfilesToClipboard { true }
+                                                                val str = viewModel.exportProfilesToClipboard { it.subscriptionGroup.isNotBlank() }
                                                                 clipboardManager.setText(AnnotatedString(str))
-                                                                scope.launch { snackbarHostState.showSnackbar("Copied all configs to clipboard") }
+                                                                scope.launch { snackbarHostState.showSnackbar("Copied all subscription configs") }
                                                             }
                                                         )
                                                     }
@@ -1181,6 +1271,39 @@ fun MainScreen(
                                                     activeOverflowSubmenu = null
                                                     viewModel.restartService()
                                                     scope.launch { snackbarHostState.showSnackbar("Restarting service...") }
+                                                }
+                                            )
+                                            DropdownMenuItem(
+                                                modifier = Modifier.heightIn(min = 36.dp),
+                                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
+                                                text = { Text("Update subscription", fontSize = 13.sp) },
+                                                leadingIcon = { Icon(Icons.Default.CloudDownload, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                                                onClick = {
+                                                    showOverflowMenu = false
+                                                    activeOverflowSubmenu = null
+                                                    val currentGroup = groupTabs.getOrNull(selectedCategoryIndex)?.first ?: ""
+                                                    viewModel.updateSubscriptionGroup(currentGroup) { count, err ->
+                                                        scope.launch {
+                                                            if (err != null) snackbarHostState.showSnackbar("Update failed: $err")
+                                                            else snackbarHostState.showSnackbar("Updated $count configs")
+                                                        }
+                                                    }
+                                                }
+                                            )
+                                            DropdownMenuItem(
+                                                modifier = Modifier.heightIn(min = 36.dp),
+                                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
+                                                text = { Text("Update all subscriptions", fontSize = 13.sp) },
+                                                leadingIcon = { Icon(Icons.Default.Sync, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                                                onClick = {
+                                                    showOverflowMenu = false
+                                                    activeOverflowSubmenu = null
+                                                    viewModel.updateAllSubscriptions { count, err ->
+                                                        scope.launch {
+                                                            if (err != null) snackbarHostState.showSnackbar("Update failed: $err")
+                                                            else snackbarHostState.showSnackbar("Updated $count configs across all subscriptions")
+                                                        }
+                                                    }
                                                 }
                                             )
                                             DropdownMenuItem(
@@ -1566,10 +1689,20 @@ fun MainScreen(
 
                                     ProfileListItem(
                                         profile = profile,
-                                        isSelected = profile.isActive,
+                                        isSelected = if (isSelectionMode) selectedProfileIds.contains(profile.id) else profile.isActive,
                                         isConnected = isConnected,
                                         pingResult = uiState.pingResults[profile.id],
-                                        onClick = { viewModel.setActiveProfile(profile) },
+                                        onClick = {
+                                            if (isSelectionMode) {
+                                                selectedProfileIds = if (selectedProfileIds.contains(profile.id)) {
+                                                    selectedProfileIds - profile.id
+                                                } else {
+                                                    selectedProfileIds + profile.id
+                                                }
+                                            } else {
+                                                viewModel.setActiveProfile(profile)
+                                            }
+                                        },
                                         onEditClick = { onNavigateToEditProfile(profile.id) },
                                         onDeleteClick = {
                                             if (isConnected) {
@@ -2902,10 +3035,10 @@ fun MainScreen(
                                     showAddSubField = true
                                 } else if (newSubUrl.isNotBlank()) {
                                     val group = newSubName.ifBlank { "Subscription" }
-                                    viewModel.updateSubscriptionGroup(group, newSubUrl) { count, err ->
+                                    viewModel.saveSubscription(group, newSubUrl) { count, err ->
                                         scope.launch {
                                             if (err == null) {
-                                                snackbarHostState.showSnackbar("Fetched $count configs into $group")
+                                                snackbarHostState.showSnackbar("Saved and fetched $count configs into $group")
                                             } else {
                                                 snackbarHostState.showSnackbar("Error: $err")
                                             }
@@ -2925,9 +3058,16 @@ fun MainScreen(
 
                         Button(
                             onClick = {
-                                viewModel.parseImportConfig("")
+                                viewModel.updateAllSubscriptions { count, err ->
+                                    scope.launch {
+                                        if (err != null) {
+                                            snackbarHostState.showSnackbar("Update failed: $err")
+                                        } else {
+                                            snackbarHostState.showSnackbar("Updated $count configs across all subscriptions")
+                                        }
+                                    }
+                                }
                                 showSubscriptionGroupsDialog = false
-                                scope.launch { snackbarHostState.showSnackbar("Updating subscriptions...") }
                             },
                             modifier = Modifier.weight(1f)
                         ) {

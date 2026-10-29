@@ -14,6 +14,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"strings"
 	"time"
 
 	"stormdns-go/internal/arq"
@@ -666,9 +667,10 @@ func (c *Client) asyncReaderWorker(ctx context.Context, id int, conn *net.UDPCon
 			n, addr, err := conn.ReadFromUDP(buf)
 			if err != nil {
 				c.udpBufferPool.Put(buf)
-				if ctx.Err() != nil {
+				if ctx.Err() != nil || errors.Is(err, net.ErrClosed) || strings.Contains(err.Error(), "closed") {
 					return
 				}
+				time.Sleep(50 * time.Millisecond)
 				continue
 			}
 

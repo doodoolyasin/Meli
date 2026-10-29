@@ -734,6 +734,73 @@ class MainViewModel @Inject constructor(
         }
     }
 
+    fun saveSubscription(group: String, url: String, onDone: ((Int, String?) -> Unit)? = null) {
+        viewModelScope.launch {
+            preferencesDataStore.saveSubscriptionUrl(group, url)
+            if (url.isNotBlank()) {
+                updateSubscriptionGroup(group, url) { count, err ->
+                    onDone?.invoke(count, err)
+                }
+            } else {
+                onDone?.invoke(0, null)
+            }
+        }
+    }
+
+    fun updateSubscriptionGroup(groupName: String, onDone: (Int, String?) -> Unit) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val map = preferencesDataStore.subscriptionUrls.first()
+            val url = map[groupName]
+            if (url.isNullOrBlank()) {
+                withContext(Dispatchers.Main) { onDone(0, "No URL configured for group $groupName") }
+            } else {
+                updateSubscriptionGroup(groupName, url, onDone)
+            }
+        }
+    }
+
+    fun updateAllSubscriptions(onDone: (Int, String?) -> Unit) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val map = preferencesDataStore.subscriptionUrls.first()
+            if (map.isEmpty()) {
+                withContext(Dispatchers.Main) { onDone(0, "No saved subscriptions found") }
+                return@launch
+            }
+            var totalCount = 0
+            var errorMsg: String? = null
+            for ((group, url) in map) {
+                if (url.isNotBlank()) {
+                    try {
+                        val conn = java.net.URL(url.trim()).openConnection() as java.net.HttpURLConnection
+                        conn.connectTimeout = 15000
+                        conn.readTimeout = 15000
+                        conn.setRequestProperty("User-Agent", "v2rayNG/1.8.5")
+                        conn.instanceFollowRedirects = true
+                        if (conn.responseCode in 200..299) {
+                            val raw = conn.inputStream.bufferedReader().use { it.readText() }.trim()
+                            val cleanB64 = raw.replace("\n", "").replace("\r", "").trim()
+                            val decoded = try {
+                                String(android.util.Base64.decode(cleanB64, android.util.Base64.DEFAULT), Charsets.UTF_8)
+                            } catch (_: Exception) { raw }
+                            val result = configImporter.parseAndImport(decoded, connectionManager.getDeviceId())
+                            if (result is ImportResult.Success && result.profiles.isNotEmpty()) {
+                                for (p in result.profiles) {
+                                    saveProfileUseCase(p.copy(subscriptionId = group))
+                                }
+                                totalCount += result.profiles.size
+                            }
+                        } else {
+                            errorMsg = "HTTP ${conn.responseCode} on $group"
+                        }
+                    } catch (e: Exception) {
+                        errorMsg = e.message
+                    }
+                }
+            }
+            withContext(Dispatchers.Main) { onDone(totalCount, errorMsg) }
+        }
+    }
+
     fun applyRoutingSettings(
         routingMode: String,
         bypassLan: Boolean,

@@ -3413,6 +3413,10 @@ class SlipNetVpnService : VpnService() {
         val proxyHost = preferencesDataStore.proxyListenAddress.first()
         vpnRepository.setCurrentTunnelType(app.slipnet.domain.model.TunnelType.VLESS)
 
+        val rawCdnTarget = profile.cdnIp.ifBlank { profile.domain }
+        val resolvedCdnIp = resolveToIp(rawCdnTarget)
+        val effectiveCdnIp = if (app.slipnet.domain.routing.DomainRouter.isIpAddress(resolvedCdnIp)) resolvedCdnIp else rawCdnTarget
+
         if (isProxyOnly) {
             VlessBridge.setVpnService(this@SlipNetVpnService)
             VlessBridge.debugLogging = preferencesDataStore.debugLogging.first()
@@ -3420,7 +3424,7 @@ class SlipNetVpnService : VpnService() {
                 VlessBridge.start(
                     listenPort = proxyPort,
                     listenHost = proxyHost,
-                    cdnIp = profile.cdnIp.ifBlank { profile.domain },
+                    cdnIp = effectiveCdnIp,
                     cdnPort = if (profile.cdnPort > 0) profile.cdnPort else 443,
                     serverDomain = profile.domain.ifBlank { profile.cdnIp },
                     vlessUuid = profile.vlessUuid,
@@ -3488,10 +3492,11 @@ class SlipNetVpnService : VpnService() {
             VlessBridge.start(
                 listenPort = proxyPort,
                 listenHost = proxyHost,
-                cdnIp = profile.cdnIp.ifBlank { profile.domain },
+                cdnIp = effectiveCdnIp,
                 cdnPort = if (profile.cdnPort > 0) profile.cdnPort else 443,
                 serverDomain = profile.domain.ifBlank { profile.cdnIp },
                 vlessUuid = profile.vlessUuid,
+                security = profile.vlessSecurity,
                 transport = profile.vlessTransport,
                 wsPath = profile.vlessWsPath,
                 fragmentEnabled = profile.sniFragmentEnabled,

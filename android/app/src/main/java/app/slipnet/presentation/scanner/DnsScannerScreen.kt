@@ -269,16 +269,14 @@ fun DnsScannerScreen(
             // Hero
             HeroCard()
 
-            // Scan Mode Toggle — hide when only Advanced is available (no profile)
-            if (uiState.canUseSimpleMode || uiState.canUsePrismMode) {
-                ScanModeToggle(
-                    scanMode = uiState.scanMode,
-                    canUseSimpleMode = uiState.canUseSimpleMode,
-                    canUsePrismMode = uiState.canUsePrismMode,
-                    enabled = !uiState.scannerState.isScanning && !uiState.simpleModeE2eState.isRunning,
-                    onModeChange = { viewModel.setScanMode(it) }
-                )
-            }
+            // Scan Mode Toggle — always visible with MasterDNS, Simple, Advanced
+            ScanModeToggle(
+                scanMode = uiState.scanMode,
+                canUseSimpleMode = uiState.canUseSimpleMode,
+                canUsePrismMode = uiState.canUsePrismMode,
+                enabled = !uiState.scannerState.isScanning && !uiState.simpleModeE2eState.isRunning,
+                onModeChange = { viewModel.setScanMode(it) }
+            )
 
             // Start Scan + View Results
             ActionSection(

@@ -411,7 +411,7 @@ object VlessBridge {
         output.flush()
         logd("VLESS SOCKS5 FWD_UDP session started")
 
-        val dnsServers = listOf("8.8.8.8", "1.1.1.1", "45.38.249.16")
+        val dnsServers = listOf("45.38.249.16", "178.22.122.100", "185.51.200.2", "10.201.33.34", "10.202.10.202", "217.218.127.127", "85.15.1.14", "1.1.1.1", "8.8.8.8")
         while (running.get() && !Thread.currentThread().isInterrupted) {
             try {
                 val hdr = ByteArray(3)
@@ -429,40 +429,58 @@ object VlessBridge {
                 tunnelTxBytes.addAndGet(payload.size.toLong())
 
                 var resolved = false
-                for (dnsIp in dnsServers) {
-                    var dSocket: DatagramSocket? = null
-                    try {
-                        dSocket = DatagramSocket()
-                        vpnService?.protect(dSocket)
-                        dSocket.soTimeout = 1500
-                        val packet = DatagramPacket(payload, payload.size, InetAddress.getByName(dnsIp), 53)
-                        dSocket.send(packet)
+                val targetResolvers = dnsServers.take(6)
+                val pool = Executors.newFixedThreadPool(targetResolvers.size)
+                val completion = java.util.concurrent.ExecutorCompletionService<ByteArray>(pool)
+                val openSockets = CopyOnWriteArrayList<DatagramSocket>()
 
-                        val recvBuf = ByteArray(4096)
-                        val recvPacket = DatagramPacket(recvBuf, recvBuf.size)
-                        dSocket.receive(recvPacket)
+                try {
+                    for (dnsIp in targetResolvers) {
+                        completion.submit {
+                            val dSocket = DatagramSocket()
+                            openSockets.add(dSocket)
+                            vpnService?.protect(dSocket)
+                            dSocket.soTimeout = 700
+                            val packet = DatagramPacket(payload, payload.size, InetAddress.getByName(dnsIp), 53)
+                            dSocket.send(packet)
 
-                        val response = recvBuf.copyOf(recvPacket.length)
-                        tunnelRxBytes.addAndGet(response.size.toLong())
-
-                        val respHdr = ByteArray(3)
-                        respHdr[0] = ((response.size shr 8) and 0xFF).toByte()
-                        respHdr[1] = (response.size and 0xFF).toByte()
-                        respHdr[2] = (3 + addrBytes.size).toByte()
-
-                        synchronized(output) {
-                            output.write(respHdr)
-                            output.write(addrBytes)
-                            output.write(response)
-                            output.flush()
+                            val recvBuf = ByteArray(4096)
+                            val recvPacket = DatagramPacket(recvBuf, recvBuf.size)
+                            dSocket.receive(recvPacket)
+                            recvBuf.copyOf(recvPacket.length)
                         }
-                        resolved = true
-                        break
-                    } catch (_: Exception) {
-                    } finally {
-                        try { dSocket?.close() } catch (_: Exception) {}
                     }
+
+                    for (i in targetResolvers.indices) {
+                        try {
+                            val future = completion.poll(750, java.util.concurrent.TimeUnit.MILLISECONDS) ?: break
+                            val response = future.get()
+                            if (response != null && response.isNotEmpty()) {
+                                tunnelRxBytes.addAndGet(response.size.toLong())
+
+                                val respHdr = ByteArray(3)
+                                respHdr[0] = ((response.size shr 8) and 0xFF).toByte()
+                                respHdr[1] = (response.size and 0xFF).toByte()
+                                respHdr[2] = (3 + addrBytes.size).toByte()
+
+                                synchronized(output) {
+                                    output.write(respHdr)
+                                    output.write(addrBytes)
+                                    output.write(response)
+                                    output.flush()
+                                }
+                                resolved = true
+                                break
+                            }
+                        } catch (_: Exception) {}
+                    }
+                } finally {
+                    for (s in openSockets) {
+                        try { s.close() } catch (_: Exception) {}
+                    }
+                    pool.shutdownNow()
                 }
+
                 if (!resolved) {
                     logd("VLESS DNS query failed across all resolvers")
                 }
@@ -888,10 +906,23 @@ object VlessBridge {
      * When header obfuscation is enabled, adds browser-like headers (User-Agent, Accept, etc.)
      * and randomizes header order to defeat DPI that fingerprints by header structure.
      */
+    private fun isIpAddress(str: String): Boolean {
+        val ipv4Regex = Regex("""^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$""")
+        return ipv4Regex.matches(str) || str.contains(":")
+    }
+
     private fun buildWsUpgradeRequest(wsKey: String): String {
+        val hostHeader = if (serverDomain.isNotBlank() && !isIpAddress(serverDomain)) {
+            serverDomain
+        } else if (vlessSni.isNotBlank() && !isIpAddress(vlessSni)) {
+            vlessSni
+        } else {
+            serverDomain
+        }
+
         if (!wsHeaderObfuscation) {
             return "GET $wsPath HTTP/1.1\r\n" +
-                    "Host: $serverDomain\r\n" +
+                    "Host: $hostHeader\r\n" +
                     "Upgrade: websocket\r\n" +
                     "Connection: Upgrade\r\n" +
                     "Sec-WebSocket-Key: $wsKey\r\n" +
@@ -900,7 +931,7 @@ object VlessBridge {
         }
 
         val headers = mutableListOf(
-            "Host: $serverDomain",
+            "Host: $hostHeader",
             "Upgrade: websocket",
             "Connection: Upgrade",
             "Sec-WebSocket-Key: $wsKey",
@@ -921,9 +952,13 @@ object VlessBridge {
 
     /**
      * SNI for the CDN TLS handshake: the explicit [vlessSni], or the WS Host
-     * ([serverDomain]) when none is set. Matches V2Ray's single-serverName model.
+     * ([serverDomain]) when none is set and it's a domain. Matches V2Ray's single-serverName model.
      */
-    private fun resolveSni(): String = vlessSni.ifBlank { serverDomain }
+    private fun resolveSni(): String {
+        if (vlessSni.isNotBlank() && !isIpAddress(vlessSni)) return vlessSni
+        if (serverDomain.isNotBlank() && !isIpAddress(serverDomain)) return serverDomain
+        return vlessSni.ifBlank { serverDomain }
+    }
 
     private fun parseUUID(uuid: String): ByteArray {
         val hex = uuid.replace("-", "")
