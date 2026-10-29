@@ -388,7 +388,7 @@ class MainViewModel @Inject constructor(
 
     fun resetConnection() {
         connectionManager.reset()
-        _uiState.update { it.copy(connectionState = ConnectionState.Disconnected, error = null) }
+        _uiState.value = _uiState.value.copy(connectionState = ConnectionState.Disconnected, error = null)
     }
 
     fun toggleConnection() {
@@ -740,7 +740,7 @@ class MainViewModel @Inject constructor(
                     // Synchronously delete all existing profiles for this group first to prevent duplicates / stale servers
                     profileRepository.deleteProfilesByGroup(group)
                     for (p in result.profiles) {
-                        saveProfileUseCase(p.copy(subscriptionId = group, subscriptionGroup = group))
+                        saveProfileUseCase(p.copy(subscriptionId = group))
                     }
                     withContext(Dispatchers.Main) { onDone(result.profiles.size, null) }
                 } else if (result is ImportResult.Error) {
@@ -803,7 +803,7 @@ class MainViewModel @Inject constructor(
                             if (result is ImportResult.Success && result.profiles.isNotEmpty()) {
                                 profileRepository.deleteProfilesByGroup(group)
                                 for (p in result.profiles) {
-                                    saveProfileUseCase(p.copy(subscriptionId = group, subscriptionGroup = group))
+                                    saveProfileUseCase(p.copy(subscriptionId = group))
                                 }
                                 totalCount += result.profiles.size
                             }
