@@ -536,8 +536,9 @@ object VlessBridge {
         logd("${protocol.uppercase()} SOCKS5 FWD_UDP session started")
 
         val dnsServers = listOf("1.1.1.1", "8.8.8.8", "9.9.9.9", "45.38.249.16", "178.22.122.100")
-        while (running.get() && !Thread.currentThread().isInterrupted) {
-            try {
+        val udpPool = Executors.newFixedThreadPool(4)
+        try {
+            while (running.get() && !Thread.currentThread().isInterrupted) {
                 val hdr = ByteArray(3)
                 readFully(input, hdr)
                 val datLen = ((hdr[0].toInt() and 0xFF) shl 8) or (hdr[1].toInt() and 0xFF)
@@ -556,40 +557,45 @@ object VlessBridge {
                     ((addrBytes[addrBytes.size - 2].toInt() and 0xFF) shl 8) or (addrBytes[addrBytes.size - 1].toInt() and 0xFF)
                 } else 53
 
-                var response: ByteArray? = null
+                udpPool.submit {
+                    try {
+                        var response: ByteArray? = null
 
-                if (destPort == 53) {
-                    response = resolveDoh(payload)
+                        if (destPort == 53) {
+                            response = resolveDoh(payload)
+                        }
+
+                        if (response == null || response.isEmpty()) {
+                            if (destPort == 53) {
+                                response = queryUdpDns(payload, dnsServers)
+                            } else {
+                                response = forwardUdpPacket(addrBytes, payload)
+                            }
+                        }
+
+                        if (response != null && response.isNotEmpty()) {
+                            tunnelRxBytes.addAndGet(response.size.toLong())
+
+                            val respHdr = ByteArray(3)
+                            respHdr[0] = ((response.size shr 8) and 0xFF).toByte()
+                            respHdr[1] = (response.size and 0xFF).toByte()
+                            respHdr[2] = (3 + addrBytes.size).toByte()
+
+                            synchronized(output) {
+                                output.write(respHdr)
+                                output.write(addrBytes)
+                                output.write(response)
+                                output.flush()
+                            }
+                        } else if (destPort == 53) {
+                            logd("${protocol.uppercase()} DNS query failed across all resolvers")
+                        }
+                    } catch (_: Exception) {}
                 }
-
-                if (response == null || response.isEmpty()) {
-                    if (destPort == 53) {
-                        response = queryUdpDns(payload, dnsServers)
-                    } else {
-                        response = forwardUdpPacket(addrBytes, payload)
-                    }
-                }
-
-                if (response != null && response.isNotEmpty()) {
-                    tunnelRxBytes.addAndGet(response.size.toLong())
-
-                    val respHdr = ByteArray(3)
-                    respHdr[0] = ((response.size shr 8) and 0xFF).toByte()
-                    respHdr[1] = (response.size and 0xFF).toByte()
-                    respHdr[2] = (3 + addrBytes.size).toByte()
-
-                    synchronized(output) {
-                        output.write(respHdr)
-                        output.write(addrBytes)
-                        output.write(response)
-                        output.flush()
-                    }
-                } else if (destPort == 53) {
-                    logd("${protocol.uppercase()} DNS query failed across all resolvers")
-                }
-            } catch (e: Exception) {
-                break
             }
+        } catch (_: Exception) {
+        } finally {
+            udpPool.shutdownNow()
         }
     }
 
@@ -646,8 +652,10 @@ object VlessBridge {
 
         } catch (e: Exception) {
             Log.e(TAG, "VLESS connect error for $destHost:$destPort: ${e.message}")
+            try { client.close() } catch (_: Exception) {}
         } finally {
             try { raw.close() } catch (_: Exception) {}
+            try { client.close() } catch (_: Exception) {}
         }
     }
 
@@ -718,7 +726,8 @@ object VlessBridge {
         val statusLine = readLine(tunnelIn)
         if (statusLine == null || "101" !in statusLine) {
             Log.w(TAG, "WebSocket upgrade failed: $statusLine")
-            tunnelSocket.close()
+            try { tunnelSocket.close() } catch (_: Exception) {}
+            try { client.close() } catch (_: Exception) {}
             return
         }
         val responseHeaders = mutableListOf(statusLine)
@@ -755,6 +764,7 @@ object VlessBridge {
      * Raw bidirectional relay for TCP transport (no WebSocket framing).
      */
     private fun relayRaw(client: Socket, tlsIn: InputStream, tlsOut: OutputStream) {
+        val doneLatch = java.util.concurrent.CountDownLatch(1)
         val executor = Executors.newFixedThreadPool(2)
         val clientIn = client.getInputStream()
         val clientOut = client.getOutputStream()
@@ -770,7 +780,11 @@ object VlessBridge {
                     tlsOut.flush()
                     tunnelTxBytes.addAndGet(n.toLong())
                 }
-            } catch (_: Exception) {}
+            } catch (_: Exception) {
+            } finally {
+                doneLatch.countDown()
+                try { client.shutdownInput() } catch (_: Exception) {}
+            }
         }
 
         // VLESS server -> Client (raw)
@@ -784,11 +798,17 @@ object VlessBridge {
                     clientOut.flush()
                     tunnelRxBytes.addAndGet(n.toLong())
                 }
-            } catch (_: Exception) {}
+            } catch (_: Exception) {
+            } finally {
+                doneLatch.countDown()
+                try { client.shutdownOutput() } catch (_: Exception) {}
+            }
         }
 
-        try { f1.get() } catch (_: Exception) {}
-        try { f2.get() } catch (_: Exception) {}
+        try { doneLatch.await() } catch (_: Exception) {}
+        try { client.close() } catch (_: Exception) {}
+        try { tlsIn.close() } catch (_: Exception) {}
+        try { tlsOut.close() } catch (_: Exception) {}
         executor.shutdownNow()
     }
 
@@ -882,6 +902,7 @@ object VlessBridge {
         wsOutput: OutputStream,
         stripFirstVlessHeader: Boolean = false
     ) {
+        val doneLatch = java.util.concurrent.CountDownLatch(1)
         val threadCount = if (wsPaddingEnabled) 3 else 2
         val executor = Executors.newFixedThreadPool(threadCount)
         val clientIn = client.getInputStream()
@@ -900,7 +921,11 @@ object VlessBridge {
                     }
                     tunnelTxBytes.addAndGet(n.toLong())
                 }
-            } catch (_: Exception) {}
+            } catch (_: Exception) {
+            } finally {
+                doneLatch.countDown()
+                try { client.shutdownInput() } catch (_: Exception) {}
+            }
         }
 
         // VLESS -> Client (unwrap WS frames)
@@ -926,7 +951,11 @@ object VlessBridge {
                         tunnelRxBytes.addAndGet(toSend.size.toLong())
                     }
                 }
-            } catch (_: Exception) {}
+            } catch (_: Exception) {
+            } finally {
+                doneLatch.countDown()
+                try { client.shutdownOutput() } catch (_: Exception) {}
+            }
         }
 
         // Cover traffic: send random-size WS ping frames at random intervals
@@ -945,9 +974,11 @@ object VlessBridge {
             } catch (_: Exception) {}
         } else null
 
-        try { f1.get() } catch (_: Exception) {}
-        try { f2.get() } catch (_: Exception) {}
-        try { f3?.get() } catch (_: Exception) {}
+        try { doneLatch.await() } catch (_: Exception) {}
+        f3?.cancel(true)
+        try { client.close() } catch (_: Exception) {}
+        try { wsInput.close() } catch (_: Exception) {}
+        try { wsOutput.close() } catch (_: Exception) {}
         executor.shutdownNow()
     }
 
@@ -967,7 +998,7 @@ object VlessBridge {
             len <= 125 -> header.write(0x80 or len)
             len <= 65535 -> {
                 header.write(0x80 or 126)
-                header.write(len shr 8 and 0xFF)
+                header.write((len shr 8) and 0xFF)
                 header.write(len and 0xFF)
             }
             else -> {
@@ -977,9 +1008,9 @@ object VlessBridge {
                 }
             }
         }
-        // Masking key
+        // Masking key: use standard fast PRNG to prevent GC churn on high-throughput transfers
         val mask = ByteArray(4)
-        SecureRandom().nextBytes(mask)
+        kotlin.random.Random.Default.nextBytes(mask)
         header.write(mask)
 
         // Masked payload

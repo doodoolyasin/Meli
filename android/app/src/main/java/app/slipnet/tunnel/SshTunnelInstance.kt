@@ -1096,11 +1096,9 @@ class SshTunnelInstance(val instanceId: String = "default") {
                     }
 
                     // Reject IPv6 CONNECT — remote server typically lacks IPv6.
-                    // Delay before replying so the app's TCP stack backs off
-                    // instead of retrying immediately and burning data.
+                    // Reply 0x08 = Address type not supported (RFC 1928) immediately without blocking.
                     if (addrType == 0x04) {
-                        try { Thread.sleep(2000) } catch (_: InterruptedException) {}
-                        output.write(byteArrayOf(0x05, 0x05, 0x00, 0x01, 0, 0, 0, 0, 0, 0))
+                        output.write(byteArrayOf(0x05, 0x08, 0x00, 0x01, 0, 0, 0, 0, 0, 0))
                         output.flush()
                         return@submit
                     }

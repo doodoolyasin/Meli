@@ -233,27 +233,36 @@ class DomainRouter(
 
     private fun domainMatchesList(input: String): Boolean {
         val normalizedInput = input.lowercase().trimEnd('.')
-        return domains.any { rule ->
-            val normalizedRule = rule.lowercase().trimEnd('.')
-            normalizedInput == normalizedRule || normalizedInput.endsWith(".$normalizedRule")
+        if (domains.contains(normalizedInput)) return true
+        var dotIdx = normalizedInput.indexOf('.')
+        while (dotIdx >= 0 && dotIdx < normalizedInput.length - 1) {
+            val parent = normalizedInput.substring(dotIdx + 1)
+            if (domains.contains(parent) || domains.contains(".$parent")) {
+                return true
+            }
+            dotIdx = normalizedInput.indexOf('.', dotIdx + 1)
         }
+        return false
     }
 
     /**
-     * Suffix-match against geo-bypass domain list.
-     * Handles both TLD entries (e.g., ".ir") and full domains (e.g., "digikala.com").
+     * Suffix-match against geo-bypass domain list in O(k) time via HashSet lookup
+     * instead of O(N) scanning 15,000+ entries.
+     * Handles exact domains, subdomains, and TLD entries (e.g. "ir", ".ir").
      */
     private fun geoBypassDomainMatch(host: String): Boolean {
         val normalized = host.lowercase().trimEnd('.')
-        return geoBypass.domains.any { rule ->
-            val normalizedRule = rule.trimEnd('.')
-            if (normalizedRule.startsWith('.')) {
-                // TLD rule: ".ir" matches "example.ir" and "sub.example.ir"
-                normalized.endsWith(normalizedRule) || normalized == normalizedRule.removePrefix(".")
-            } else {
-                normalized == normalizedRule || normalized.endsWith(".$normalizedRule")
+        if (geoBypass.domains.contains(normalized)) return true
+
+        var dotIdx = normalized.indexOf('.')
+        while (dotIdx >= 0 && dotIdx < normalized.length - 1) {
+            val parent = normalized.substring(dotIdx + 1)
+            if (geoBypass.domains.contains(parent) || geoBypass.domains.contains(".$parent")) {
+                return true
             }
+            dotIdx = normalized.indexOf('.', dotIdx + 1)
         }
+        return false
     }
 
     /**

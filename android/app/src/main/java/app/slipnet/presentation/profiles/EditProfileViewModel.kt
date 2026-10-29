@@ -371,6 +371,9 @@ data class EditProfileUiState(
     val isVlessReality: Boolean
         get() = tunnelType == TunnelType.VLESS_REALITY
 
+    val isVlessOrTrojanOrReality: Boolean
+        get() = isVless || isTrojan || isVlessReality
+
     val showConnectionMethod: Boolean
         get() = !isSshOnly && !isDoh && !isSnowflake && !isSocks5 && !isVless &&
                 tunnelType != TunnelType.PINGTUNNEL &&
@@ -1844,7 +1847,7 @@ class EditProfileViewModel @Inject constructor(
                     congestionControl = state.congestionControl,
                     gsoEnabled = state.gsoEnabled,
                     socksUsername = state.socksUsername.takeIf { it.isNotBlank() },
-                    socksPassword = state.socksPassword.takeIf { it.isNotBlank() },
+                    socksPassword = (if (state.isTrojan && state.socksPassword.isNullOrBlank()) state.vlessUuid else state.socksPassword)?.takeIf { it.isNotBlank() },
                     tunnelType = effectiveTunnelType,
                     dnsttPublicKey = state.dnsttPublicKey.trim(),
                     sshUsername = if (state.useSsh) state.sshUsername.trim() else "",
@@ -1895,18 +1898,18 @@ class EditProfileViewModel @Inject constructor(
                     sshPayload = if (state.isSshOnly && state.sshTransport == SshTransport.DIRECT) state.sshPayload else "",
                     resolverMode = state.resolverMode,
                     rrSpreadCount = state.rrSpreadCount,
-                    vlessUuid = if (state.isVless) state.vlessUuid.trim() else "",
-                    vlessSecurity = if (state.isVless) state.vlessSecurity else "tls",
-                    vlessTransport = if (state.isVless) state.vlessTransport else "ws",
-                    vlessWsPath = if (state.isVless) state.vlessWsPath.ifBlank { "/" } else "/",
-                    cdnIp = if (state.isVless) state.cdnIp.trim() else "",
-                    cdnPort = if (state.isVless) (state.cdnPort.toIntOrNull() ?: 443) else 443,
-                    sniFragmentEnabled = if (state.isVless) state.sniFragmentEnabled else true,
-                    sniFragmentStrategy = if (state.isVless) state.sniFragmentStrategy else "sni_split",
-                    sniFragmentDelayMs = if (state.isVless) (state.sniFragmentDelayMs.toIntOrNull() ?: 300) else 300,
-                    sniSpoofTtl = if (state.isVless) (state.sniSpoofTtl.toIntOrNull()?.coerceIn(1, 64) ?: 8) else 8,
-                    fakeDecoyHost = if (state.isVless) state.fakeDecoyHost.trim() else "",
-                    tcpMaxSeg = if (state.isVless) {
+                    vlessUuid = if (state.isVlessOrTrojanOrReality) state.vlessUuid.trim() else "",
+                    vlessSecurity = if (state.isVlessOrTrojanOrReality) state.vlessSecurity else "tls",
+                    vlessTransport = if (state.isVlessOrTrojanOrReality) state.vlessTransport else "ws",
+                    vlessWsPath = if (state.isVlessOrTrojanOrReality) state.vlessWsPath.ifBlank { "/" } else "/",
+                    cdnIp = if (state.isVlessOrTrojanOrReality) state.cdnIp.trim() else "",
+                    cdnPort = if (state.isVlessOrTrojanOrReality) (state.cdnPort.toIntOrNull() ?: 443) else 443,
+                    sniFragmentEnabled = if (state.isVlessOrTrojanOrReality) state.sniFragmentEnabled else true,
+                    sniFragmentStrategy = if (state.isVlessOrTrojanOrReality) state.sniFragmentStrategy else "sni_split",
+                    sniFragmentDelayMs = if (state.isVlessOrTrojanOrReality) (state.sniFragmentDelayMs.toIntOrNull() ?: 300) else 300,
+                    sniSpoofTtl = if (state.isVlessOrTrojanOrReality) (state.sniSpoofTtl.toIntOrNull()?.coerceIn(1, 64) ?: 8) else 8,
+                    fakeDecoyHost = if (state.isVlessOrTrojanOrReality) state.fakeDecoyHost.trim() else "",
+                    tcpMaxSeg = if (state.isVlessOrTrojanOrReality) {
                         val raw = state.tcpMaxSeg.toIntOrNull() ?: 0
                         when {
                             raw == 0 -> 0
@@ -1914,10 +1917,10 @@ class EditProfileViewModel @Inject constructor(
                             else -> raw.coerceIn(40, 1400)
                         }
                     } else 0,
-                    vlessSni = if (state.isVless) state.vlessSni.trim() else "",
-                    chPaddingEnabled = if (state.isVless) state.chPaddingEnabled else false,
-                    wsHeaderObfuscation = if (state.isVless) state.wsHeaderObfuscation else false,
-                    wsPaddingEnabled = if (state.isVless) state.wsPaddingEnabled else false,
+                    vlessSni = if (state.isVlessOrTrojanOrReality) state.vlessSni.trim() else "",
+                    chPaddingEnabled = if (state.isVlessOrTrojanOrReality) state.chPaddingEnabled else false,
+                    wsHeaderObfuscation = if (state.isVlessOrTrojanOrReality) state.wsHeaderObfuscation else false,
+                    wsPaddingEnabled = if (state.isVlessOrTrojanOrReality) state.wsPaddingEnabled else false,
                     tunnelEncryptionMethod = state.tunnelEncryptionMethod
                 )
 

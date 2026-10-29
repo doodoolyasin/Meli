@@ -52,7 +52,11 @@ object BaleTunnelBridge {
                         // Forward SOCKS5 stream to companion or WebRTC SFU bridge
                         Thread(Runnable {
                             try {
-                                val targetHost = if (companionHost.isNotBlank()) companionHost else "16.171.152.115"
+                                if (companionHost.isBlank()) {
+                                    try { clientSock.close() } catch (_: Exception) {}
+                                    return@Runnable
+                                }
+                                val targetHost = companionHost.trim()
                                 val targetPort = if (companionPort > 0) companionPort else 22
                                 val upstream = Socket(targetHost, targetPort)
 
@@ -60,16 +64,19 @@ object BaleTunnelBridge {
                                     try {
                                         clientSock.getInputStream().copyTo(upstream.getOutputStream())
                                     } catch (_: Exception) {}
+                                    try { upstream.close() } catch (_: Exception) {}
                                 })
                                 val t2 = Thread(Runnable {
                                     try {
                                         upstream.getInputStream().copyTo(clientSock.getOutputStream())
                                     } catch (_: Exception) {}
+                                    try { clientSock.close() } catch (_: Exception) {}
                                 })
                                 t1.start()
                                 t2.start()
                             } catch (e: Exception) {
                                 Log.e(TAG, "Bale bridge connection relay error: ${e.message}")
+                                try { clientSock.close() } catch (_: Exception) {}
                             }
                         }, "Bale-Relay-Worker").start()
                     }

@@ -757,13 +757,10 @@ object SlipstreamSocksBridge {
                         return@Thread
                     }
 
-                    // Reject IPv6 CONNECT early — remote SOCKS server typically
-                    // lacks IPv6, and forwarding wastes tunnel bandwidth.
-                    // Delay before replying so the app's TCP stack backs off
-                    // instead of retrying immediately and burning data.
+                    // Reject IPv6 CONNECT early — remote SOCKS server typically lacks IPv6.
+                    // Reply 0x08 = Address type not supported (RFC 1928) immediately.
                     if (addrType == 0x04) {
-                        try { Thread.sleep(2000) } catch (_: InterruptedException) {}
-                        output.write(byteArrayOf(0x05, 0x05, 0x00, 0x01, 0, 0, 0, 0, 0, 0))
+                        output.write(byteArrayOf(0x05, 0x08, 0x00, 0x01, 0, 0, 0, 0, 0, 0))
                         output.flush()
                         return@Thread
                     }

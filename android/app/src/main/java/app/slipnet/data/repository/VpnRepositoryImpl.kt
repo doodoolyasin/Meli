@@ -1053,11 +1053,24 @@ class VpnRepositoryImpl @Inject constructor(
         Log.i(TAG, "  MTU: $mtu")
         Log.i(TAG, "========================================")
 
-        // Reject non-DNS UDP at TUN level with ICMP Port Unreachable so apps
-        // (e.g. WhatsApp) fall back to TCP instantly instead of waiting for
-        // silent-drop timeouts. DOH is excluded because DohBridge forwards
-        // non-DNS UDP directly via DatagramSocket.
-        val rejectNonDnsUdp = profile.tunnelType != TunnelType.DOH
+        // Reject non-DNS UDP at TUN level with ICMP Port Unreachable ONLY for slow DNS-based tunnels
+        // (DNSTT, MasterDNS, Slipstream, etc.) where UDP throughput cannot sustain VoIP or gaming.
+        // For high-speed tunnels (VLESS, Trojan, Reality, Shadowsocks, SOCKS5, DOH, etc.), allow non-DNS UDP
+        // so VoIP calls (Telegram, WhatsApp) and online games function without interruption.
+        val rejectNonDnsUdp = when (profile.tunnelType) {
+            TunnelType.DNSTT, TunnelType.DNSTT_SSH,
+            TunnelType.NOIZDNS, TunnelType.NOIZDNS_SSH,
+            TunnelType.SLIPSTREAM, TunnelType.SLIPSTREAM_SSH,
+            TunnelType.VAYDNS, TunnelType.VAYDNS_SSH,
+            TunnelType.MASTERDNS, TunnelType.MASTERDNS_SSH,
+            TunnelType.STORMDNS, TunnelType.STORMDNS_SSH,
+            TunnelType.COTTENDNS, TunnelType.COTTENDNS_SSH,
+            TunnelType.SOAR, TunnelType.SOAR_SSH,
+            TunnelType.MELI, TunnelType.MELI_SSH,
+            TunnelType.NOOSHDAROO, TunnelType.NOOSHDAROO_SSH,
+            TunnelType.QWDTT, TunnelType.QWDTT_SSH -> true
+            else -> false
+        }
 
         val hevResult = HevSocks5Tunnel.start(
             tunFd = pfd,

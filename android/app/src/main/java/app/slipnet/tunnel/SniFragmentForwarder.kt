@@ -524,6 +524,7 @@ class SniFragmentForwarder(private val instanceId: String = "default") {
     }
 
     private fun relay(client: Socket, remote: Socket) {
+        val doneLatch = java.util.concurrent.CountDownLatch(1)
         val executor = Executors.newFixedThreadPool(2)
         val clientIn = client.getInputStream()
         val clientOut = client.getOutputStream()
@@ -543,6 +544,7 @@ class SniFragmentForwarder(private val instanceId: String = "default") {
                 }
             } catch (_: Exception) {}
             try { remote.shutdownOutput() } catch (_: Exception) {}
+            doneLatch.countDown()
         }
 
         // remote -> client
@@ -558,14 +560,13 @@ class SniFragmentForwarder(private val instanceId: String = "default") {
                 }
             } catch (_: Exception) {}
             try { client.shutdownOutput() } catch (_: Exception) {}
+            doneLatch.countDown()
         }
 
-        try { f1.get() } catch (_: Exception) {}
-        try { f2.get() } catch (_: Exception) {}
-        executor.shutdownNow()
-
+        try { doneLatch.await() } catch (_: Exception) {}
         try { client.close() } catch (_: Exception) {}
         try { remote.close() } catch (_: Exception) {}
+        executor.shutdownNow()
     }
 
     private fun bindServerSocket(host: String, port: Int): ServerSocket {

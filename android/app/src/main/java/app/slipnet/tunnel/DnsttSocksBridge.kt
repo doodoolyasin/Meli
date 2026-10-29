@@ -886,10 +886,9 @@ object DnsttSocksBridge {
                     // Reject IPv6 CONNECT early — Dante typically lacks IPv6
                     // connectivity, so forwarding these wastes tunnel streams and
                     // generates suspicious burst patterns visible to DPI.
-                    // Reply 0x05 = "Connection refused" so apps fall back to IPv4.
+                    // Reply 0x08 = Address type not supported (RFC 1928) immediately.
                     if (addrType == 0x04) {
-                        try { Thread.sleep(2000) } catch (_: InterruptedException) {}
-                        output.write(byteArrayOf(0x05, 0x05, 0x00, 0x01, 0, 0, 0, 0, 0, 0))
+                        output.write(byteArrayOf(0x05, 0x08, 0x00, 0x01, 0, 0, 0, 0, 0, 0))
                         output.flush()
                         return@Thread
                     }

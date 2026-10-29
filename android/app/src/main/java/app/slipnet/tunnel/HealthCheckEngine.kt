@@ -72,7 +72,7 @@ object HealthCheckEngine {
             }
 
             TunnelType.VLESS, TunnelType.VLESS_REALITY, TunnelType.TROJAN -> {
-                val host = profile.domain.ifEmpty { profile.cdnIp }
+                val host = profile.cdnIp.ifEmpty { profile.domain }
                 val port = if (profile.cdnPort > 0) profile.cdnPort else 443
                 if (host.isNotEmpty()) {
                     checks.add(probeTcp("${profile.tunnelType.displayName} ($host:$port)", "سرور ${profile.tunnelType.displayName}", host, port))
@@ -96,8 +96,8 @@ object HealthCheckEngine {
                     checks.add(probeDnsDelegation(profile.domain, firstResolver.host, firstResolver.port))
                 }
 
-                // 3. Direct server SSH TCP port (check sshHost IP directly)
-                val targetHost = profile.sshHost.ifEmpty { "16.171.152.115" }
+                // 3. Direct server SSH TCP port (check sshHost if configured)
+                val targetHost = profile.sshHost.trim()
                 val targetPort = if (profile.sshPort > 0) profile.sshPort else 22
                 if (targetHost.isNotEmpty()) {
                     checks.add(probeTcp("SSH Server Port ($targetHost:$targetPort)", "ارتباط پورت SSH سرور", targetHost, targetPort))
