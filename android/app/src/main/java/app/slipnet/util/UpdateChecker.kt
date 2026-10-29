@@ -15,7 +15,7 @@ data class AppUpdate(
 
 object UpdateChecker {
     private const val TAG = "UpdateChecker"
-    private const val GITHUB_API = "https://api.github.com/repos/doodoolyasin/Meli/releases/latest"
+    private const val GITHUB_API = "https://api.github.com/repos/doodoolyasin/Meli/releases"
     private const val TIMEOUT_MS = 10_000
     // Only check once per 12 hours
     const val CHECK_INTERVAL_MS = 12 * 60 * 60 * 1000L
@@ -42,36 +42,65 @@ object UpdateChecker {
             val body = conn.inputStream.bufferedReader().use { it.readText() }
             conn.disconnect()
 
-            val json = JSONObject(body)
-            val tagName = json.optString("tag_name", "").removePrefix("v")
-            val htmlUrl = json.optString("html_url", "")
-            val releaseBody = json.optString("body", "").take(500)
+            val releasesList = mutableListOf<JSONObject>()
+            try {
+                val array = org.json.JSONArray(body)
+                for (i in 0 until array.length()) {
+                    releasesList.add(array.getJSONObject(i))
+                }
+            } catch (_: Exception) {
+                releasesList.add(JSONObject(body))
+            }
 
-            var apkUrl = htmlUrl
-            val assets = json.optJSONArray("assets")
-            if (assets != null) {
-                for (i in 0 until assets.length()) {
-                    val asset = assets.optJSONObject(i)
-                    val name = asset?.optString("name", "") ?: ""
-                    val downloadUrl = asset?.optString("browser_download_url", "") ?: ""
-                    if (name.endsWith(".apk") && downloadUrl.isNotBlank()) {
-                        if (name.contains("arm64") || apkUrl == htmlUrl) {
-                            apkUrl = downloadUrl
+            var bestVer = ""
+            var bestUrl = ""
+            var bestNotes = ""
+
+            val verRegex = Regex("""v?(\d+\.\d+\.\d+)""")
+
+            for (json in releasesList) {
+                val tagName = json.optString("tag_name", "").removePrefix("v").trim()
+                val htmlUrl = json.optString("html_url", "")
+                val releaseBody = json.optString("body", "").take(500)
+
+                val assets = json.optJSONArray("assets")
+                if (assets != null) {
+                    for (i in 0 until assets.length()) {
+                        val asset = assets.optJSONObject(i)
+                        val name = asset?.optString("name", "") ?: ""
+                        val downloadUrl = asset?.optString("browser_download_url", "") ?: ""
+                        if (name.endsWith(".apk") && downloadUrl.isNotBlank()) {
+                            val match = verRegex.find(name)
+                            val assetVer = match?.groupValues?.get(1) ?: tagName
+                            if (assetVer.isNotBlank()) {
+                                if (bestVer.isBlank() || isNewer(assetVer, bestVer) ||
+                                    (assetVer == bestVer && (name.contains("arm64") || name.contains("universal")))) {
+                                    bestVer = assetVer
+                                    bestUrl = downloadUrl
+                                    bestNotes = releaseBody
+                                }
+                            }
                         }
                     }
                 }
+
+                if (tagName.isNotBlank() && (bestVer.isBlank() || isNewer(tagName, bestVer))) {
+                    bestVer = tagName
+                    if (bestUrl.isBlank()) bestUrl = htmlUrl
+                    bestNotes = releaseBody
+                }
             }
 
-            if (tagName.isBlank() || htmlUrl.isBlank()) {
+            if (bestVer.isBlank()) {
                 return@withContext null
             }
 
-            if (isNewer(tagName, currentVersionName)) {
-                Log.d(TAG, "Update available: $tagName (current: $currentVersionName)")
+            if (isNewer(bestVer, currentVersionName)) {
+                Log.d(TAG, "Update available: $bestVer (current: $currentVersionName)")
                 AppUpdate(
-                    versionName = tagName,
-                    downloadUrl = apkUrl,
-                    releaseNotes = releaseBody
+                    versionName = bestVer,
+                    downloadUrl = bestUrl,
+                    releaseNotes = bestNotes
                 )
             } else {
                 Log.d(TAG, "Up to date ($currentVersionName)")

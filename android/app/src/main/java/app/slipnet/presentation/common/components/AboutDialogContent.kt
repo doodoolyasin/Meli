@@ -52,11 +52,11 @@ fun AboutDialogContent() {
             color = MaterialTheme.colorScheme.primary
         )
         Text(
-            text = "github.com/anonvector/SlipNet",
+            text = "github.com/doodoolyasin/Meli",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.primary,
             modifier = Modifier.clickable {
-                uriHandler.openUri("https://github.com/anonvector/SlipNet")
+                uriHandler.openUri("https://github.com/doodoolyasin/Meli")
             }
         )
 
@@ -69,11 +69,11 @@ fun AboutDialogContent() {
             color = MaterialTheme.colorScheme.primary
         )
         Text(
-            text = "t.me/SlipNet_app",
+            text = "t.me/AryanaNG",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.primary,
             modifier = Modifier.clickable {
-                uriHandler.openUri("https://t.me/SlipNet_app")
+                uriHandler.openUri("https://t.me/AryanaNG")
             }
         )
 

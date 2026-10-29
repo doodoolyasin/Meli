@@ -135,7 +135,12 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Apps
+import androidx.compose.material.icons.filled.AltRoute
+import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.Save
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.ModalBottomSheet
@@ -608,30 +613,35 @@ fun MainScreen(
                                 style = MaterialTheme.typography.titleLarge,
                                 fontWeight = FontWeight.Bold
                             )
+                            Text(
+                                text = "v${app.slipnet.BuildConfig.VERSION_NAME}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
                     }
 
                     Spacer(Modifier.height(8.dp))
 
                     NavigationDrawerItem(
-                        label = { Text("Subscriptions group settings", fontWeight = FontWeight.Medium) },
+                        label = { Text("Subscription", fontWeight = FontWeight.Medium) },
                         selected = false,
                         onClick = {
                             scope.launch { drawerState.close() }
                             showSubscriptionGroupsDialog = true
                         },
-                        icon = { Icon(Icons.Default.Dns, contentDescription = null) },
+                        icon = { Icon(Icons.Default.Sync, contentDescription = null) },
                         modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
                     )
 
                     NavigationDrawerItem(
-                        label = { Text("Per-app proxy", fontWeight = FontWeight.Medium) },
+                        label = { Text("Per app proxy", fontWeight = FontWeight.Medium) },
                         selected = false,
                         onClick = {
                             scope.launch { drawerState.close() }
                             onNavigateToAppSelector()
                         },
-                        icon = { Icon(Icons.Default.Settings, contentDescription = null) },
+                        icon = { Icon(Icons.Default.Apps, contentDescription = null) },
                         modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
                     )
 
@@ -642,18 +652,18 @@ fun MainScreen(
                             scope.launch { drawerState.close() }
                             showRoutingSettingsDialog = true
                         },
-                        icon = { Icon(Icons.Default.Share, contentDescription = null) },
+                        icon = { Icon(Icons.Default.AltRoute, contentDescription = null) },
                         modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
                     )
 
                     NavigationDrawerItem(
-                        label = { Text("Asset files", fontWeight = FontWeight.Medium) },
+                        label = { Text("Asset file", fontWeight = FontWeight.Medium) },
                         selected = false,
                         onClick = {
                             scope.launch { drawerState.close() }
                             showAssetFilesDialog = true
                         },
-                        icon = { Icon(Icons.Default.FileDownload, contentDescription = null) },
+                        icon = { Icon(Icons.Default.Folder, contentDescription = null) },
                         modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
                     )
 
@@ -668,40 +678,7 @@ fun MainScreen(
                         modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
                     )
 
-                    NavigationDrawerItem(
-                        label = { Text("Resolver scanner", fontWeight = FontWeight.Medium) },
-                        selected = false,
-                        onClick = {
-                            scope.launch { drawerState.close() }
-                            onNavigateToDnsScanner()
-                        },
-                        icon = { Icon(Icons.Default.NetworkPing, contentDescription = null) },
-                        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
-                    )
-
-                    NavigationDrawerItem(
-                        label = { Text("Terminal", fontWeight = FontWeight.Medium) },
-                        selected = false,
-                        onClick = {
-                            scope.launch { drawerState.close() }
-                            onNavigateToTerminal()
-                        },
-                        icon = { Icon(Icons.Default.Dns, contentDescription = null, tint = Color(0xFF00FF66)) },
-                        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
-                    )
-
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 6.dp))
-
-                    NavigationDrawerItem(
-                        label = { Text("Connection LOG", fontWeight = FontWeight.Medium) },
-                        selected = false,
-                        onClick = {
-                            scope.launch { drawerState.close() }
-                            showLogSheet = true
-                        },
-                        icon = { Icon(Icons.Default.BugReport, contentDescription = null) },
-                        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
-                    )
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
                     NavigationDrawerItem(
                         label = { Text("Backup & restore", fontWeight = FontWeight.Medium) },
@@ -710,7 +687,7 @@ fun MainScreen(
                             scope.launch { drawerState.close() }
                             showBackupRestoreDialog = true
                         },
-                        icon = { Icon(Icons.Default.Share, contentDescription = null) },
+                        icon = { Icon(Icons.Default.Save, contentDescription = null) },
                         modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
                     )
 
@@ -725,25 +702,26 @@ fun MainScreen(
                             viewModel.manualCheckForUpdate { update ->
                                 scope.launch {
                                     if (update == null) {
-                                        snackbarHostState.showSnackbar("AryanaNG is up to date (${app.slipnet.BuildConfig.VERSION_NAME})")
+                                        snackbarHostState.showSnackbar("AryanaNG is up to date (v${app.slipnet.BuildConfig.VERSION_NAME})")
                                     } else {
-                                        snackbarHostState.showSnackbar("Update available: v${update.versionName}")
+                                        val res = snackbarHostState.showSnackbar(
+                                            message = "Update available: v${update.versionName}",
+                                            actionLabel = "Download",
+                                            duration = SnackbarDuration.Long
+                                        )
+                                        if (res == SnackbarResult.ActionPerformed) {
+                                            try {
+                                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(update.downloadUrl)).apply {
+                                                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                                                }
+                                                context.startActivity(intent)
+                                            } catch (_: Exception) {}
+                                        }
                                     }
                                 }
                             }
                         },
                         icon = { Icon(Icons.Default.Refresh, contentDescription = null) },
-                        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
-                    )
-
-                    NavigationDrawerItem(
-                        label = { Text("About", fontWeight = FontWeight.Medium) },
-                        selected = false,
-                        onClick = {
-                            scope.launch { drawerState.close() }
-                            showAboutDialog = true
-                        },
-                        icon = { Icon(Icons.Default.Info, contentDescription = null) },
                         modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
                     )
                 }
@@ -4187,19 +4165,19 @@ private fun AddMenuGridItem(
 private fun shareGithubLink(context: Context) {
     val intent = Intent(Intent.ACTION_SEND).apply {
         type = "text/plain"
-        putExtra(Intent.EXTRA_SUBJECT, "SlipNet VPN")
-        putExtra(Intent.EXTRA_TEXT, "Download SlipNet VPN:\nhttps://github.com/anonvector/SlipNet/releases/latest")
+        putExtra(Intent.EXTRA_SUBJECT, "AryanaNG")
+        putExtra(Intent.EXTRA_TEXT, "Download AryanaNG:\nhttps://github.com/doodoolyasin/Meli/releases/latest")
     }
-    context.startActivity(Intent.createChooser(intent, "Share SlipNet"))
+    context.startActivity(Intent.createChooser(intent, "Share AryanaNG"))
 }
 
 private fun shareTelegramLink(context: Context) {
     val intent = Intent(Intent.ACTION_SEND).apply {
         type = "text/plain"
-        putExtra(Intent.EXTRA_SUBJECT, "SlipNet VPN")
-        putExtra(Intent.EXTRA_TEXT, "Join SlipNet VPN on Telegram:\nhttps://t.me/SlipNet_app")
+        putExtra(Intent.EXTRA_SUBJECT, "AryanaNG")
+        putExtra(Intent.EXTRA_TEXT, "Join AryanaNG on Telegram:\nhttps://t.me/AryanaNG")
     }
-    context.startActivity(Intent.createChooser(intent, "Share SlipNet"))
+    context.startActivity(Intent.createChooser(intent, "Share AryanaNG"))
 }
 
 private fun shareApk(context: Context) {
@@ -4211,7 +4189,7 @@ private fun shareApk(context: Context) {
         val splits = appInfo.splitSourceDirs
         if (splits.isNullOrEmpty()) {
             val sourceApk = java.io.File(appInfo.sourceDir)
-            val sharedApk = java.io.File(sharedDir, "SlipNet-v${app.slipnet.BuildConfig.VERSION_NAME}.apk")
+            val sharedApk = java.io.File(sharedDir, "AryanaNG-v${app.slipnet.BuildConfig.VERSION_NAME}.apk")
             sourceApk.copyTo(sharedApk, overwrite = true)
 
             val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", sharedApk)
@@ -4220,9 +4198,9 @@ private fun shareApk(context: Context) {
                 putExtra(Intent.EXTRA_STREAM, uri)
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
-            context.startActivity(Intent.createChooser(intent, "Share SlipNet"))
+            context.startActivity(Intent.createChooser(intent, "Share AryanaNG"))
         } else {
-            val apksFile = java.io.File(sharedDir, "SlipNet-v${app.slipnet.BuildConfig.VERSION_NAME}.apks")
+            val apksFile = java.io.File(sharedDir, "AryanaNG-v${app.slipnet.BuildConfig.VERSION_NAME}.apks")
             java.util.zip.ZipOutputStream(apksFile.outputStream().buffered()).use { zip ->
                 val allApks = listOf(appInfo.sourceDir) + splits
                 for (path in allApks) {
@@ -4239,7 +4217,7 @@ private fun shareApk(context: Context) {
                 putExtra(Intent.EXTRA_STREAM, uri)
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
-            context.startActivity(Intent.createChooser(intent, "Share SlipNet"))
+            context.startActivity(Intent.createChooser(intent, "Share AryanaNG"))
         }
     } catch (_: Exception) { }
 }
