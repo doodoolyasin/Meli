@@ -3422,7 +3422,7 @@ class SlipNetVpnService : VpnService() {
         val isIp = resolvedCdnIp.matches(Regex("""^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$""")) || resolvedCdnIp.contains(":")
         val effectiveCdnIp = if (isIp) resolvedCdnIp else rawCdnTarget
         val authKey = if (profile.tunnelType == app.slipnet.domain.model.TunnelType.TROJAN) {
-            profile.socksPassword.ifBlank { profile.vlessUuid }
+            profile.socksPassword.orEmpty().ifBlank { profile.vlessUuid }
         } else {
             profile.vlessUuid
         }
