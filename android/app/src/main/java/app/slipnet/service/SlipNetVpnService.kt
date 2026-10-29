@@ -3415,7 +3415,8 @@ class SlipNetVpnService : VpnService() {
 
         val rawCdnTarget = profile.cdnIp.ifBlank { profile.domain }
         val resolvedCdnIp = resolveToIp(rawCdnTarget)
-        val effectiveCdnIp = if (app.slipnet.domain.routing.DomainRouter.isIpAddress(resolvedCdnIp)) resolvedCdnIp else rawCdnTarget
+        val isIp = resolvedCdnIp.matches(Regex("""^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$""")) || resolvedCdnIp.contains(":")
+        val effectiveCdnIp = if (isIp) resolvedCdnIp else rawCdnTarget
 
         if (isProxyOnly) {
             VlessBridge.setVpnService(this@SlipNetVpnService)

@@ -330,6 +330,25 @@ fun MainScreen(
         list
     }
 
+    val displayedProfiles = remember(uiState.profiles, selectedCategoryIndex, searchQuery, groupTabs) {
+        val currentGroup = groupTabs.getOrNull(selectedCategoryIndex)?.first ?: "All"
+        uiState.profiles.filter { profile ->
+            val matchesGroup = if (searchQuery.isNotBlank()) true else when (currentGroup) {
+                "All" -> true
+                "Default" -> profile.subscriptionGroup.isBlank()
+                "Chains" -> true
+                else -> profile.subscriptionGroup == currentGroup
+            }
+            val matchesQuery = if (searchQuery.isBlank()) true else {
+                profile.name.contains(searchQuery, ignoreCase = true) ||
+                profile.domain.contains(searchQuery, ignoreCase = true) ||
+                profile.cdnIp.contains(searchQuery, ignoreCase = true) ||
+                profile.tunnelType.displayName.contains(searchQuery, ignoreCase = true)
+            }
+            matchesGroup && matchesQuery
+        }
+    }
+
     var showAboutDialog by remember { mutableStateOf(false) }
     // Export lock dialog state
     var exportLockProfile by remember { mutableStateOf<ServerProfile?>(null) }
@@ -1436,24 +1455,6 @@ fun MainScreen(
                 .padding(paddingValues)
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
-                val displayedProfiles = remember(uiState.profiles, selectedCategoryIndex, searchQuery, groupTabs) {
-                    val currentGroup = groupTabs.getOrNull(selectedCategoryIndex)?.first ?: "All"
-                    uiState.profiles.filter { profile ->
-                        val matchesGroup = if (searchQuery.isNotBlank()) true else when (currentGroup) {
-                            "All" -> true
-                            "Default" -> profile.subscriptionGroup.isBlank()
-                            "Chains" -> true
-                            else -> profile.subscriptionGroup == currentGroup
-                        }
-                        val matchesQuery = if (searchQuery.isBlank()) true else {
-                            profile.name.contains(searchQuery, ignoreCase = true) ||
-                            profile.domain.contains(searchQuery, ignoreCase = true) ||
-                            profile.cdnIp.contains(searchQuery, ignoreCase = true) ||
-                            profile.tunnelType.displayName.contains(searchQuery, ignoreCase = true)
-                        }
-                        matchesGroup && matchesQuery
-                    }
-                }
 
                 // ── PattNG Group Category Pills ──────────────────────────
                 Row(
