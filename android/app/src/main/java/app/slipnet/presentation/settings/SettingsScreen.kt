@@ -234,214 +234,98 @@ fun SettingsScreen(
                 ),
             verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
-            // Donate Card
-            DonateCard()
-
-            // ── MasterDNS Emergency National Intranet Section ─────────────────────
-            var fixCaptivePortal by remember { mutableStateOf(true) }
-            var baleMeetTunnel by remember { mutableStateOf(false) }
-            var ntpPort123 by remember { mutableStateOf(false) }
-            var fcmPush5228 by remember { mutableStateOf(false) }
-
-            EmergencySettingsSection {
-                SwitchSettingItem(
-                    icon = Icons.Default.Shield,
-                    title = "Fix Wi-Fi '!' (Captive Portal 204)",
-                    description = "Clear Wi-Fi exclamation mark by intercepting connectivitycheck.gstatic.com",
-                    checked = fixCaptivePortal,
-                    onCheckedChange = { fixCaptivePortal = it }
-                )
-                SettingsDivider()
-                SwitchSettingItem(
-                    icon = Icons.Default.Dns,
-                    title = "Bale Meet Whitelist Tunnel",
-                    description = "Tunnel through meet.bale.ai WebRTC media stream during total blackouts",
-                    checked = baleMeetTunnel,
-                    onCheckedChange = { baleMeetTunnel = it }
-                )
-                SettingsDivider()
-                SwitchSettingItem(
-                    icon = Icons.Default.Sync,
-                    title = "NTP Time Port 123 Fallback",
-                    description = "Use UDP port 123 (unblockable due to device clock & bank TLS sync)",
-                    checked = ntpPort123,
-                    onCheckedChange = { ntpPort123 = it }
-                )
-                SettingsDivider()
-                SwitchSettingItem(
-                    icon = Icons.Default.Notifications,
-                    title = "FCM Push Notifications Channel (5228)",
-                    description = "Camouflage tunnel packets as banking & 2FA push notifications",
-                    checked = fcmPush5228,
-                    onCheckedChange = { fcmPush5228 = it }
-                )
-            }
-
-            // ── Meli Protocol & Anti-DPI Syllable Engine ────────────────────────
-            var meliSyllableEngine by remember { mutableStateOf(true) }
-            var meliStrictQname by remember { mutableStateOf(true) }
-            var meliAutoTunerAdaptive by remember { mutableStateOf(true) }
-            var meliPortFallback by remember { mutableStateOf(true) }
-
-            SettingsSection(title = "Meli Protocol & Anti-DPI Syllable Engine") {
-                SwitchSettingItem(
-                    icon = Icons.Default.Language,
-                    title = "Natural Syllable Obfuscation",
-                    description = "Encode DNS payload into natural 3-letter English syllables to keep entropy < 2.8 and prevent AI DPI packet drops",
-                    checked = meliSyllableEngine,
-                    onCheckedChange = { meliSyllableEngine = it }
-                )
-                SettingsDivider()
-                SwitchSettingItem(
-                    icon = Icons.Default.VerifiedUser,
-                    title = "Strict RFC 1035 QNAME Guard",
-                    description = "Enforce max 253-character FQDN limit to ensure upstream carrier recursive resolvers never drop queries",
-                    checked = meliStrictQname,
-                    onCheckedChange = { meliStrictQname = it }
-                )
-                SettingsDivider()
-                SwitchSettingItem(
-                    icon = Icons.Default.Speed,
-                    title = "Meli Adaptive Auto-Tuner",
-                    description = "Continuously evaluate resolver response times and packet drop rates to dynamically tune payload size",
-                    checked = meliAutoTunerAdaptive,
-                    onCheckedChange = { meliAutoTunerAdaptive = it }
-                )
-                SettingsDivider()
-                SwitchSettingItem(
-                    icon = Icons.Default.Sync,
-                    title = "Meli Port Fallback (5309 / 853 / 5353)",
-                    description = "Automatically switch to alternate ports when standard DNS port 53 experiences severe packet drops",
-                    checked = meliPortFallback,
-                    onCheckedChange = { meliPortFallback = it }
-                )
-            }
-
-            // Connection Settings
-            SettingsSection(title = "Connection") {
-                SwitchSettingItem(
-                    icon = Icons.Default.PowerSettingsNew,
-                    title = "Auto-connect on boot",
-                    description = "Automatically connect when device starts",
-                    checked = uiState.autoConnectOnBoot,
-                    onCheckedChange = { viewModel.setAutoConnectOnBoot(it) }
-                )
-
-                SettingsDivider()
-
-                SwitchSettingItem(
-                    icon = Icons.Default.SettingsEthernet,
-                    title = "Proxy-only mode",
-                    description = "Expose SOCKS5 proxy without creating VPN tunnel",
-                    checked = uiState.proxyOnlyMode,
-                    onCheckedChange = { viewModel.setProxyOnlyMode(it) }
-                )
-
-                SettingsDivider()
-
-                SwitchSettingItem(
-                    icon = Icons.Default.Shield,
-                    title = "Kill switch",
-                    description = "Block all traffic if VPN connection drops",
-                    checked = uiState.killSwitch,
-                    onCheckedChange = { viewModel.setKillSwitch(it) }
-                )
-
-                SettingsDivider()
-
-                SwitchSettingItem(
-                    icon = Icons.Default.Sync,
-                    title = "Auto-reconnect",
-                    description = "Automatically reconnect if VPN drops unexpectedly",
-                    checked = uiState.autoReconnect,
-                    onCheckedChange = { viewModel.setAutoReconnect(it) }
-                )
-
-                SettingsDivider()
-
-                SwitchSettingItem(
-                    icon = Icons.Default.Notifications,
-                    title = "Notification traffic counter",
-                    description = "Show upload/download speed and data usage in notification",
-                    checked = uiState.showNotificationTraffic,
-                    onCheckedChange = { viewModel.setShowNotificationTraffic(it) }
-                )
-
-                SettingsDivider()
-
-                StepperSettingItem(
-                    icon = Icons.Default.Timer,
-                    title = "Sleep timer",
-                    description = "Auto-disconnect after a set time",
-                    value = uiState.sleepTimerMinutes,
-                    step = 5,
-                    range = 0..120,
-                    valueFormatter = { if (it == 0) "Off" else "$it min" },
-                    onValueChange = { viewModel.setSleepTimerMinutes(it) }
-                )
-
-                SettingsDivider()
-
+            // ── 1. VPN Settings ───────────────────────────────────────────
+            SettingsSection(
+                title = "VPN Settings",
+                subtitle = "Tunnel & network parameters"
+            ) {
+                // System VPN settings
                 ClickableSettingItem(
-                    icon = Icons.Default.BatteryAlert,
-                    title = "Battery optimization",
-                    description = if (isBatteryOptimized) "Not exempted — VPN may disconnect in background"
-                                  else "Exempted — VPN will run reliably in background",
+                    icon = Icons.Default.SettingsEthernet,
+                    title = "System VPN Settings",
+                    description = "Open Android VPN settings to enable Always-on VPN",
                     onClick = {
-                        if (isBatteryOptimized) {
-                            try {
-                                val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-                                    data = Uri.parse("package:${context.packageName}")
-                                }
-                                context.startActivity(intent)
-                            } catch (_: Exception) {
-                                val intent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
-                                context.startActivity(intent)
-                            }
-                        } else {
-                            // Already exempted — open system battery settings so user can change it
-                            val intent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+                        try {
+                            val intent = Intent(Settings.ACTION_VPN_SETTINGS)
                             context.startActivity(intent)
+                        } catch (_: Exception) {
+                            // Fallback
                         }
                     }
                 )
-            }
 
-            // Tools Section
-            if (onNavigateToScanner != null) {
-                SettingsSection(title = "Tools") {
-                    ClickableSettingItem(
-                        icon = Icons.Default.Search,
-                        title = "DNS Resolver Scanner",
-                        description = "Find working DNS resolvers for your profiles",
-                        onClick = onNavigateToScanner
-                    )
-                }
-            }
+                SettingsDivider()
 
-            // Proxy Settings
-            SettingsSection(
-                title = "Proxy Settings",
-                subtitle = "Changes apply on next connection"
-            ) {
-                AddressSettingItem(
-                    value = uiState.proxyListenAddress,
-                    options = addressOptions,
-                    onValueChange = {
-                        viewModel.setProxyListenAddress(it)
-                    }
+                // Custom Remote DNS
+                ClickableSettingItem(
+                    icon = Icons.Default.Dns,
+                    title = "Custom Remote DNS",
+                    description = if (uiState.remoteDnsMode == "custom") {
+                        val primary = uiState.customRemoteDns.ifBlank { "8.8.8.8" }
+                        val fallback = uiState.customRemoteDnsFallback.ifBlank { "1.1.1.1" }
+                        "Custom ($primary, $fallback)"
+                    } else {
+                        "Default (8.8.8.8, 1.1.1.1)"
+                    },
+                    onClick = { showRemoteDnsDialog = true }
                 )
 
                 SettingsDivider()
 
+                // VPN MTU
+                ClickableSettingItem(
+                    icon = Icons.Default.Speed,
+                    title = "VPN MTU",
+                    description = "Packet size: ${uiState.vpnMtu} bytes (1280–1500)",
+                    onClick = { showMtuDialog = true }
+                )
+
+                SettingsDivider()
+
+                // Block IPv6
+                SwitchSettingItem(
+                    icon = Icons.Default.Block,
+                    title = "Block IPv6",
+                    description = "Prevent IPv6 traffic and DNS leakage across tunnel",
+                    checked = uiState.blockIpv6,
+                    onCheckedChange = { viewModel.setBlockIpv6(it) }
+                )
+
+                SettingsDivider()
+
+                // Append HTTP Proxy to VPN
+                SwitchSettingItem(
+                    icon = Icons.Default.Lan,
+                    title = "Append HTTP Proxy to VPN",
+                    description = "Route app traffic directly through HTTP proxy for speed (Android 10+)",
+                    checked = uiState.appendHttpProxyToVpn,
+                    onCheckedChange = { viewModel.setAppendHttpProxyToVpn(it) }
+                )
+            }
+
+            // ── 2. Core & Inbound Proxy Settings ───────────────────────────
+            SettingsSection(
+                title = "Inbound & Local Proxy",
+                subtitle = "SOCKS5 & HTTP inbound servers"
+            ) {
                 val portsConflict = proxyPort.toIntOrNull() == httpProxyPort.toIntOrNull() && proxyPort.isNotBlank()
 
+                // Listen Address (Proxy sharing on LAN)
+                AddressSettingItem(
+                    value = uiState.proxyListenAddress,
+                    options = addressOptions,
+                    onValueChange = { viewModel.setProxyListenAddress(it) }
+                )
+
+                SettingsDivider()
+
+                // SOCKS5 Listen Port
                 TextFieldSettingItem(
                     icon = Icons.Default.Numbers,
-                    title = "Listen Port",
+                    title = "SOCKS5 Port",
                     value = proxyPort,
-                    placeholder = "10880",
-                    supportingText = if (portsConflict) "Must differ from HTTP proxy port" else "Local SOCKS5 proxy port",
+                    placeholder = "10808",
+                    supportingText = if (portsConflict) "Must differ from HTTP proxy port" else "Local SOCKS5 proxy inbound port",
                     isError = portsConflict,
                     keyboardType = KeyboardType.Number,
                     onValueChange = { text ->
@@ -452,11 +336,12 @@ fun SettingsScreen(
 
                 SettingsDivider()
 
+                // SOCKS5 Authentication
                 SwitchSettingItem(
                     icon = Icons.Default.Lock,
-                    title = "Proxy Authentication",
-                    description = if (uiState.proxyAuthEnabled) "Username/password required to use the proxy"
-                        else "Any app can use the local proxy without credentials",
+                    title = "SOCKS5 Authentication",
+                    description = if (uiState.proxyAuthEnabled) "Credentials required to access proxy"
+                                  else "Allow local connections without credentials",
                     checked = uiState.proxyAuthEnabled,
                     onCheckedChange = { viewModel.setProxyAuthEnabled(it) }
                 )
@@ -476,7 +361,6 @@ fun SettingsScreen(
                             },
                             label = { Text("Username") },
                             singleLine = true,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
                             modifier = Modifier.weight(1f)
                         )
                         OutlinedTextField(
@@ -487,38 +371,30 @@ fun SettingsScreen(
                             },
                             label = { Text("Password") },
                             singleLine = true,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
                             modifier = Modifier.weight(1f)
                         )
                     }
-                } else {
-                    Text(
-                        text = "Keeping authentication enabled is recommended for security.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
-                    )
                 }
 
                 SettingsDivider()
 
+                // HTTP Inbound Proxy
                 SwitchSettingItem(
                     icon = Icons.Default.Lan,
-                    title = "HTTP proxy",
-                    description = "Enable HTTP proxy for devices that don't support SOCKS5",
+                    title = "Enable HTTP Proxy",
+                    description = "Enable HTTP proxy inbound for non-SOCKS5 apps and LAN devices",
                     checked = uiState.httpProxyEnabled,
                     onCheckedChange = { viewModel.setHttpProxyEnabled(it) }
                 )
 
                 if (uiState.httpProxyEnabled) {
                     SettingsDivider()
-
                     TextFieldSettingItem(
                         icon = Icons.Default.Numbers,
                         title = "HTTP Proxy Port",
                         value = httpProxyPort,
                         placeholder = "8080",
-                        supportingText = if (portsConflict) "Must differ from SOCKS5 listen port" else "Local HTTP proxy port",
+                        supportingText = if (portsConflict) "Must differ from SOCKS5 port" else "Local HTTP proxy inbound port",
                         isError = portsConflict,
                         keyboardType = KeyboardType.Number,
                         onValueChange = { text ->
@@ -528,338 +404,115 @@ fun SettingsScreen(
                     )
                 }
 
-                if (uiState.proxyListenAddress == "0.0.0.0") {
-                    HotspotInfoCard(
-                        socksPort = uiState.proxyListenPort,
-                        httpProxyEnabled = uiState.httpProxyEnabled,
-                        httpProxyPort = uiState.httpProxyPort
-                    )
-                } else {
-                    LocalProxyInfoCard(
-                        listenAddress = uiState.proxyListenAddress,
-                        socksPort = uiState.proxyListenPort,
-                        httpProxyEnabled = uiState.httpProxyEnabled,
-                        httpProxyPort = uiState.httpProxyPort
-                    )
-                }
-            }
-
-            // DNS Settings
-            SettingsSection(
-                title = "DNS",
-                subtitle = "Changes apply on next connection"
-            ) {
-                // The override only actually applies when the toggle is on AND
-                // the IP list is non-empty (matches SlipNetVpnService's
-                // `parsedGlobalResolvers().takeIf { it.isNotEmpty() }`). When
-                // active, the pool scan is short-circuited in applyDnsPoolIfEnabled.
-                val overrideActive = uiState.globalResolverEnabled &&
-                    uiState.globalResolverList.isNotBlank()
-
-                // Global resolver override
-                SwitchSettingItem(
-                    icon = Icons.Default.AltRoute,
-                    title = "Global resolver override",
-                    description = if (uiState.globalResolverEnabled) {
-                        uiState.globalResolverList.ifBlank { "No IPs set — tap Edit IPs below" }
-                    } else {
-                        "Force a fixed resolver list across all profiles"
-                    },
-                    checked = uiState.globalResolverEnabled,
-                    onCheckedChange = { viewModel.setGlobalResolverEnabled(it) }
-                )
-                if (uiState.globalResolverEnabled) {
-                    IndentedSettingItem(
-                        icon = Icons.Default.Edit,
-                        title = "Edit IPs",
-                        description = uiState.globalResolverList.ifBlank { "Tap to set resolver IPs" },
-                        onClick = { showGlobalResolverDialog = true }
-                    )
-                }
-
-                // DNS pool — muted when the override is actually active
-                SwitchSettingItem(
-                    icon = Icons.Default.AutoAwesome,
-                    title = "DNS pool",
-                    description = "Auto-pick the fastest resolvers on each connect",
-                    checked = uiState.dnsPoolEnabled,
-                    onCheckedChange = { viewModel.setDnsPoolEnabled(it) },
-                    inactive = overrideActive
-                )
-                if (uiState.dnsPoolEnabled) {
-                    IndentedSettingItem(
-                        icon = Icons.Default.Edit,
-                        title = "Edit pool",
-                        description = "Tap to manage the candidate list",
-                        onClick = { showDnsPoolDialog = true },
-                        inactive = overrideActive
-                    )
-                    SwitchSettingItem(
-                        icon = Icons.Default.VerifiedUser,
-                        title = "HTTP/SSH verification",
-                        description = if (uiState.dnsPoolFullVerification)
-                            "Verifies real traffic through tunnel — 18s timeout per resolver"
-                        else
-                            "Handshake-only — faster scan, 10s timeout per resolver",
-                        checked = uiState.dnsPoolFullVerification,
-                        onCheckedChange = { viewModel.setDnsPoolFullVerification(it) },
-                        inactive = overrideActive
-                    )
-                }
-
-                // Conflict notice — only when override is *actually* active
-                if (overrideActive && uiState.dnsPoolEnabled) {
-                    InfoNoticeRow(
-                        text = "Override active — pool is ignored."
-                    )
-                }
-
-                // Remote DNS server (always shown — system-level fallback)
-                ClickableSettingItem(
-                    icon = Icons.Default.Dns,
-                    title = "Remote DNS server",
-                    description = if (uiState.remoteDnsMode == "custom") {
-                        val primary = uiState.customRemoteDns.ifBlank { "8.8.8.8" }
-                        val fallback = uiState.customRemoteDnsFallback.ifBlank { "1.1.1.1" }
-                        "Custom ($primary, $fallback)"
-                    } else {
-                        "Default (8.8.8.8, 1.1.1.1)"
-                    },
-                    onClick = { showRemoteDnsDialog = true }
-                )
-
                 SettingsDivider()
 
-                ClickableSettingItem(
-                    icon = Icons.Default.Hub,
-                    title = "DNS workers",
-                    description = buildString {
-                        append("${uiState.dnsWorkerMode.displayName} (DNSTT/Slipstream, SSH always uses 5)")
-                        if (uiState.dnsWorkerMode.poolSize >= 3) append(" — may increase data usage")
-                    },
-                    onClick = { showDnsWorkerDialog = true }
-                )
-            }
-
-            // Network Settings
-            SettingsSection(
-                title = "Network",
-                subtitle = "Changes apply on next connection"
-            ) {
+                // Disable QUIC
                 SwitchSettingItem(
                     icon = Icons.Default.Block,
                     title = "Disable QUIC",
-                    description = "Block QUIC protocol to force TCP (faster page loads over tunnels)",
+                    description = "Block QUIC/UDP 443 to force TCP and avoid carrier packet drops",
                     checked = uiState.disableQuic,
                     onCheckedChange = { viewModel.setDisableQuic(it) }
                 )
 
                 SettingsDivider()
 
-                ClickableSettingItem(
+                // Core Log Level / Debug Logging
+                SwitchSettingItem(
+                    icon = Icons.Default.BugReport,
+                    title = "Verbose Logging",
+                    description = "Log detailed connection handshakes in Connection LOG",
+                    checked = uiState.debugLogging,
+                    onCheckedChange = { viewModel.setDebugLogging(it) }
+                )
+            }
+
+            // ── 3. Mode & Connection Settings ──────────────────────────────
+            SettingsSection(
+                title = "Mode & Connection",
+                subtitle = "App lifecycle and network behavior"
+            ) {
+                // Proxy-only mode vs VPN Service
+                SwitchSettingItem(
                     icon = Icons.Default.SettingsEthernet,
-                    title = "VPN MTU",
-                    description = "VPN packet size: ${uiState.vpnMtu}. Lower values improve compatibility on mobile networks.",
-                    onClick = { showMtuDialog = true }
+                    title = "Proxy-only Mode",
+                    description = "Expose local SOCKS5 proxy without establishing VPN interface",
+                    checked = uiState.proxyOnlyMode,
+                    onCheckedChange = { viewModel.setProxyOnlyMode(it) }
                 )
 
                 SettingsDivider()
 
-                ClickableSettingItem(
-                    icon = Icons.Default.Speed,
-                    title = "Bandwidth Limit",
-                    description = run {
-                        val ul = if (uiState.uploadLimitKbps > 0) "${uiState.uploadLimitKbps} KB/s" else "Unlimited"
-                        val dl = if (uiState.downloadLimitKbps > 0) "${uiState.downloadLimitKbps} KB/s" else "Unlimited"
-                        "Upload: $ul / Download: $dl"
-                    },
-                    onClick = { showBandwidthLimitDialog = true }
+                // Auto-connect on boot
+                SwitchSettingItem(
+                    icon = Icons.Default.PowerSettingsNew,
+                    title = "Auto-connect on Boot",
+                    description = "Automatically connect to active profile on system startup",
+                    checked = uiState.autoConnectOnBoot,
+                    onCheckedChange = { viewModel.setAutoConnectOnBoot(it) }
                 )
 
                 SettingsDivider()
 
+                // Auto-reconnect
                 SwitchSettingItem(
-                    icon = Icons.Default.Lan,
-                    title = "Append HTTP Proxy to VPN",
-                    description = "Route app traffic through HTTP proxy directly, bypassing TUN for better speeds (Android 10+)",
-                    checked = uiState.appendHttpProxyToVpn,
-                    onCheckedChange = { viewModel.setAppendHttpProxyToVpn(it) }
-                )
-
-                if (uiState.appendHttpProxyToVpn && !uiState.httpProxyEnabled) {
-                    Text(
-                        text = "To also share the HTTP proxy with other devices, enable \"HTTP proxy\" in Proxy Settings above.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(start = 56.dp, end = 16.dp, bottom = 8.dp)
-                    )
-                }
-            }
-
-            // Split Tunneling Settings
-            SettingsSection(
-                title = "Split Tunneling",
-                subtitle = "Changes apply on next connection"
-            ) {
-                SwitchSettingItem(
-                    icon = Icons.Default.CallSplit,
-                    title = "Enable split tunneling",
-                    description = "Choose which apps use the VPN",
-                    checked = uiState.splitTunnelingEnabled,
-                    onCheckedChange = { viewModel.setSplitTunnelingEnabled(it) }
-                )
-
-                if (uiState.splitTunnelingEnabled) {
-                    SettingsDivider()
-
-                    ClickableSettingItem(
-                        icon = Icons.Default.FilterList,
-                        title = "Mode",
-                        description = when (uiState.splitTunnelingMode) {
-                            SplitTunnelingMode.DISALLOW -> "Selected apps bypass VPN"
-                            SplitTunnelingMode.ALLOW -> "Only selected apps use VPN"
-                        },
-                        onClick = { showSplitModeDialog = true }
-                    )
-
-                    SettingsDivider()
-
-                    ClickableSettingItem(
-                        icon = Icons.Default.Apps,
-                        title = "Select apps",
-                        description = "${uiState.splitTunnelingApps.size} apps selected",
-                        onClick = onNavigateToAppSelector
-                    )
-                }
-            }
-
-            // Domain Routing Settings
-            SettingsSection(
-                title = "Domain Routing",
-                subtitle = "Changes apply on next connection"
-            ) {
-                SwitchSettingItem(
-                    icon = Icons.Default.Language,
-                    title = "Enable domain routing",
-                    description = "Route specific domains through or around the VPN",
-                    checked = uiState.domainRoutingEnabled,
-                    onCheckedChange = { viewModel.setDomainRoutingEnabled(it) }
-                )
-
-                if (uiState.domainRoutingEnabled) {
-                    SettingsDivider()
-
-                    ClickableSettingItem(
-                        icon = Icons.Default.FilterList,
-                        title = "Routing mode",
-                        description = when (uiState.domainRoutingMode) {
-                            DomainRoutingMode.BYPASS -> "Listed domains bypass VPN"
-                            DomainRoutingMode.ONLY_VPN -> "Only listed domains use VPN"
-                        },
-                        onClick = { showDomainRoutingModeDialog = true }
-                    )
-
-                    SettingsDivider()
-
-                    ClickableSettingItem(
-                        icon = Icons.Default.TravelExplore,
-                        title = "Manage domains",
-                        description = "${uiState.domainRoutingDomains.size} domains configured",
-                        onClick = { showDomainManagementDialog = true }
-                    )
-                }
-            }
-
-            // Geo-Bypass Settings
-            SettingsSection(
-                title = "Geo-Bypass",
-                subtitle = "Changes apply on next connection"
-            ) {
-                SwitchSettingItem(
-                    icon = Icons.Default.Public,
-                    title = "Enable geo-bypass",
-                    description = "Route domestic traffic directly, bypass VPN for local sites",
-                    checked = uiState.geoBypassEnabled,
-                    onCheckedChange = { viewModel.setGeoBypassEnabled(it) }
-                )
-
-                if (uiState.geoBypassEnabled) {
-                    SettingsDivider()
-
-                    ClickableSettingItem(
-                        icon = Icons.Default.Language,
-                        title = "Country",
-                        description = uiState.geoBypassCountry.displayName,
-                        onClick = { showGeoBypassCountryDialog = true }
-                    )
-                }
-            }
-
-            // SSH Tunnel Settings
-            SettingsSection(
-                title = "SSH Tunnel",
-                subtitle = "Changes apply on next connection"
-            ) {
-                ClickableSettingItem(
-                    icon = Icons.Default.Lock,
-                    title = "Cipher",
-                    description = when (uiState.sshCipher) {
-                        SshCipher.AUTO -> "Auto (Fastest)"
-                        SshCipher.AES_128_GCM -> "AES-128-GCM"
-                        SshCipher.CHACHA20 -> "ChaCha20-Poly1305"
-                        SshCipher.AES_128_CTR -> "AES-128-CTR (Legacy)"
-                    },
-                    onClick = { showSshCipherDialog = true }
+                    icon = Icons.Default.Sync,
+                    title = "Auto-reconnect",
+                    description = "Automatically reconnect when network connection changes or drops",
+                    checked = uiState.autoReconnect,
+                    onCheckedChange = { viewModel.setAutoReconnect(it) }
                 )
 
                 SettingsDivider()
 
-                SwitchSettingItem(
-                    icon = Icons.Default.Compress,
-                    title = "Compression",
-                    description = "Compress data through SSH (helps on slow links, hurts with HTTPS)",
-                    checked = uiState.sshCompression,
-                    onCheckedChange = { viewModel.setSshCompression(it) }
-                )
-
-                SettingsDivider()
-
-                SliderSettingItem(
-                    icon = Icons.Default.Hub,
-                    title = "Max Channels",
-                    subtitle = when {
-                        !uiState.sshMaxChannelsIsCustom -> "Auto (adapts per tunnel type)"
-                        uiState.sshMaxChannels > 12 -> "High values may cause instability on DNS tunnels"
-                        else -> null
-                    },
-                    subtitleColor = if (uiState.sshMaxChannelsIsCustom && uiState.sshMaxChannels > 12) Color(0xFFFF9800) else null,
-                    value = uiState.sshMaxChannels,
-                    valueRange = 1f..64f,
-                    steps = 63,
-                    valueFormatter = { "${it.roundToInt()}" },
-                    onValueChange = { viewModel.setSshMaxChannels(it.roundToInt()) },
-                    onReset = if (uiState.sshMaxChannelsIsCustom) {{ viewModel.resetSshMaxChannelsToAuto() }} else null
-                )
-
-                SettingsDivider()
-
+                // Kill switch
                 SwitchSettingItem(
                     icon = Icons.Default.Shield,
-                    title = "Prevent DNS Fallback",
-                    description = if (uiState.preventDnsFallback)
-                        "DNS queries fail if SSH tunnel is down (no leak)"
-                    else
-                        "Falls back to direct DNS if SSH fails (may expose queries)",
-                    checked = uiState.preventDnsFallback,
-                    onCheckedChange = { viewModel.setPreventDnsFallback(it) }
+                    title = "Kill Switch",
+                    description = "Block all internet traffic if VPN disconnects unexpectedly",
+                    checked = uiState.killSwitch,
+                    onCheckedChange = { viewModel.setKillSwitch(it) }
+                )
+
+                SettingsDivider()
+
+                // Battery optimization
+                ClickableSettingItem(
+                    icon = Icons.Default.BatteryAlert,
+                    title = "Battery Optimization",
+                    description = if (isBatteryOptimized) "Not exempted — system may terminate VPN in background"
+                                  else "Exempted — background tunnel runs without sleep interruptions",
+                    onClick = {
+                        try {
+                            val intent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+                            context.startActivity(intent)
+                        } catch (_: Exception) {
+                            // Fallback
+                        }
+                    }
                 )
             }
 
-            // Appearance Settings
-            SettingsSection(title = "Appearance") {
+            // ── 4. UI & Display Settings ───────────────────────────────────
+            SettingsSection(
+                title = "UI & Display",
+                subtitle = "Theme and notification counters"
+            ) {
+                // Real-time speed display in notification
+                SwitchSettingItem(
+                    icon = Icons.Default.Notifications,
+                    title = "Speed in Notification",
+                    description = "Show real-time upload and download speeds in status bar notification",
+                    checked = uiState.showNotificationTraffic,
+                    onCheckedChange = { viewModel.setShowNotificationTraffic(it) }
+                )
+
+                SettingsDivider()
+
+                // Dark mode
                 ClickableSettingItem(
                     icon = Icons.Default.DarkMode,
-                    title = "Dark mode",
+                    title = "Theme Mode",
                     description = when (uiState.darkMode) {
                         DarkMode.LIGHT -> "Light"
                         DarkMode.DARK -> "Dark"
@@ -870,108 +523,29 @@ fun SettingsScreen(
                 )
             }
 
-            // Debug Settings
-            SettingsSection(title = "Debug") {
-                SwitchSettingItem(
-                    icon = Icons.Default.BugReport,
-                    title = "Debug logging",
-                    description = "Enable verbose logging for troubleshooting",
-                    checked = uiState.debugLogging,
-                    onCheckedChange = { viewModel.setDebugLogging(it) }
-                )
-            }
-
-            // Reset Settings
+            // ── 5. Reset Settings ──────────────────────────────────────────
             SettingsSection(title = "Reset") {
                 ClickableSettingItem(
                     icon = Icons.Default.RestartAlt,
-                    title = "Reset all settings",
-                    description = "Restore all settings to their default values",
+                    title = "Reset All Settings",
+                    description = "Restore all VPN and proxy settings to factory defaults",
                     onClick = { showResetSettingsDialog = true }
                 )
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // Device ID
-            val deviceId = remember {
-                app.slipnet.util.DeviceIdUtil.getScrambledDeviceId(context)
-            }
-            Row(
+            // App Version Footer
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.Center
-            ) {
-                Text(
-                    text = "Device ID: $deviceId",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                IconButton(
-                    onClick = {
-                        val clipboardManager = context.getSystemService(android.content.ClipboardManager::class.java)
-                        clipboardManager?.setPrimaryClip(android.content.ClipData.newPlainText("Device ID", deviceId))
-                    },
-                    modifier = Modifier.size(32.dp)
-                ) {
-                    Icon(
-                        Icons.Default.ContentCopy,
-                        contentDescription = "Copy device ID",
-                        modifier = Modifier.size(14.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-
-            // App Info + Check for updates
-            Column(
-                modifier = Modifier.fillMaxWidth(),
+                    .padding(vertical = 12.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
-                    text = "Aryana VPN v${BuildConfig.VERSION_NAME}",
+                    text = "AryanaNG v${BuildConfig.VERSION_NAME}",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                Spacer(modifier = Modifier.height(4.dp))
-                when (uiState.updateCheckResult) {
-                    UpdateCheckResult.CHECKING -> {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(14.dp),
-                                strokeWidth = 2.dp
-                            )
-                            Text(
-                                text = "Checking...",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                    UpdateCheckResult.UP_TO_DATE -> {
-                        Text(
-                            text = "You're up to date",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    }
-                    else -> {
-                        TextButton(onClick = { viewModel.checkForUpdate() }) {
-                            Text(
-                                text = "Check for updates",
-                                style = MaterialTheme.typography.bodySmall
-                            )
-                        }
-                    }
-                }
             }
-
-            Spacer(modifier = Modifier.height(8.dp))
         }
     }
 
@@ -1769,17 +1343,6 @@ private fun RemoteDnsDialog(
 }
 
 @Composable
-private fun EmergencySettingsSection(
-    content: @Composable () -> Unit
-) {
-    SettingsSection(
-        title = "National Intranet Bypass",
-        subtitle = "Emergency shutdown bypass mode",
-        content = content
-    )
-}
-
-@Composable
 private fun SettingsSection(
     title: String,
     subtitle: String? = null,
@@ -2544,148 +2107,6 @@ private fun BandwidthLimitDialog(
             }
         }
     )
-}
-
-@Composable
-private fun DonateCard() {
-    val clipboardManager = LocalClipboardManager.current
-    val donationAddress = "0xd4140058389572D50dC8716e768e687C050Dd5C9"
-    var showDonateDialog by remember { mutableStateOf(false) }
-
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { showDonateDialog = true },
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
-        )
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                imageVector = Icons.Default.Favorite,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(20.dp)
-            )
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(horizontal = 12.dp)
-            ) {
-                Text(
-                    text = "Support Aryana",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Text(
-                    text = "Help keep this project free and maintained",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            Icon(
-                imageVector = Icons.Default.Favorite,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
-                modifier = Modifier.size(16.dp)
-            )
-        }
-    }
-
-    if (showDonateDialog) {
-        AlertDialog(
-            onDismissRequest = { showDonateDialog = false },
-            title = { Text("Support Aryana") },
-            text = {
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Text(
-                        text = "Aryana is free, source-available, and built to fight internet censorship. No ads, no data collection, no subscriptions. Your donation helps keep this tool free and improving for everyone who needs it.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-                    Text(
-                        text = "USDT (BEP20 / ERC20 / Arbitrum)",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = donationAddress,
-                            style = MaterialTheme.typography.bodySmall,
-                            modifier = Modifier.weight(1f),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        IconButton(
-                            onClick = {
-                                clipboardManager.setText(AnnotatedString(donationAddress))
-                            },
-                            modifier = Modifier.size(32.dp)
-                        ) {
-                            Icon(
-                                Icons.Default.ContentCopy,
-                                contentDescription = "Copy address",
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
-                    }
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-                    val xmrAddress = "48wa9asF4AdZCq8KvPqBmqN3s98XFQ2MG7pL8MY6hAc6ZXBd8D61LArebdmAwCk5jBBbR2BuiHkSraEYFhx5AdDqLxDB4GU"
-                    Text(
-                        text = "Monero (XMR)",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = xmrAddress,
-                            style = MaterialTheme.typography.bodySmall,
-                            modifier = Modifier.weight(1f),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        IconButton(
-                            onClick = {
-                                clipboardManager.setText(AnnotatedString(xmrAddress))
-                            },
-                            modifier = Modifier.size(32.dp)
-                        ) {
-                            Icon(
-                                Icons.Default.ContentCopy,
-                                contentDescription = "Copy address",
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
-                    }
-                    Text(
-                        text = "Even a small amount makes a difference. Thank you.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { showDonateDialog = false }) {
-                    Text("Close")
-                }
-            }
-        )
-    }
 }
 
 @Composable

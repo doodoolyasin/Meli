@@ -2309,7 +2309,7 @@ fun MainScreen(
             title = { Text("Aryana Lite") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("SlipNet Lite is a lightweight version with a smaller app size.")
+                    Text("AryanaNG Lite is a lightweight version with a smaller app size.")
                     Text("Included protocols:", fontWeight = FontWeight.Bold)
                     Text("• Slipstream / Slipstream + SSH")
                     Text("• DNSTT / DNSTT + SSH")

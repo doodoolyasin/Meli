@@ -105,7 +105,7 @@ fun MethodPermissionsSection(
                 icon = Icons.Default.Shield,
                 titleEn = "VPN connection",
                 titleFa = "اجازه اتصال VPN",
-                detailEn = "Android must allow SlipNet to create the VPN tunnel. This dialog appears only the first time.",
+                detailEn = "Android must allow AryanaNG to create the VPN tunnel. This dialog appears only the first time.",
                 detailFa = "اندروید باید اجازه ساخت تونل VPN را بدهد. این درخواست فقط بار اول نشان داده می‌شود.",
                 granted = vpnOk.value,
                 actionLabel = "Grant"
