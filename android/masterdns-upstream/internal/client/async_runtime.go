@@ -325,6 +325,7 @@ func (c *Client) StartAsyncRuntime(parentCtx context.Context) error {
 			return fmt.Errorf("failed to open tunnel socket %d/%d: %w", i+1, c.tunnelRX_TX_Workers, err)
 		}
 		conns = append(conns, conn)
+		ProtectUDPConn(conn)
 	}
 
 	c.tunnelConns = conns

@@ -241,7 +241,12 @@ func dialUDPResolver(resolverLabel string) (*net.UDPConn, error) {
 	if err != nil {
 		return nil, err
 	}
-	return net.DialUDP("udp", nil, addr)
+	conn, err := net.DialUDP("udp", nil, addr)
+	if err != nil {
+		return nil, err
+	}
+	ProtectUDPConn(conn) // جلوگیری قطعی از برگشت پکت به داخل tun0
+	return conn, nil
 }
 
 // normalizeTimeout ensures the timeout is positive, falling back to a default if necessary.
@@ -263,6 +268,7 @@ func newUDPQueryTransport(resolverLabel string) (*udpQueryTransport, error) {
 	if err != nil {
 		return nil, err
 	}
+	ProtectUDPConn(conn)
 
 	return &udpQueryTransport{
 		conn: conn,

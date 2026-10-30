@@ -5325,7 +5325,32 @@ class SlipNetVpnService : VpnService() {
         }
 
 
-        val needsSelfExclusion = currentTunnelType != TunnelType.DOH
+        val isMasterOrDnsTunnel = when (currentTunnelType) {
+            TunnelType.MASTERDNS, TunnelType.MASTERDNS_SSH,
+            TunnelType.STORMDNS, TunnelType.STORMDNS_SSH,
+            TunnelType.COTTENDNS, TunnelType.COTTENDNS_SSH,
+            TunnelType.SOAR, TunnelType.SOAR_SSH,
+            TunnelType.MELI, TunnelType.MELI_SSH,
+            TunnelType.DNSTT, TunnelType.DNSTT_SSH,
+            TunnelType.NOIZDNS, TunnelType.NOIZDNS_SSH,
+            TunnelType.VAYDNS, TunnelType.VAYDNS_SSH,
+            TunnelType.SLIPSTREAM, TunnelType.SLIPSTREAM_SSH,
+            TunnelType.NOOSHDAROO, TunnelType.NOOSHDAROO_SSH,
+            TunnelType.QWDTT, TunnelType.QWDTT_SSH -> true
+            else -> false
+        }
+
+        // Unconditionally exclude self package for MasterDNS and DNS tunnels to prevent routing loop
+        if (isMasterOrDnsTunnel) {
+            try {
+                builder.addDisallowedApplication(packageName)
+                Log.i(TAG, "Excluded self from VPN for DNS tunnel: $packageName")
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to exclude self from VPN", e)
+            }
+        }
+
+        val needsSelfExclusion = currentTunnelType != TunnelType.DOH && !isMasterOrDnsTunnel
 
         val splitEnabled = preferencesDataStore.splitTunnelingEnabled.first()
         val splitMode = preferencesDataStore.splitTunnelingMode.first()
@@ -5351,15 +5376,19 @@ class SlipNetVpnService : VpnService() {
                     Log.d(TAG, "Split tunneling: disallow mode, ${splitApps.size} apps bypass VPN")
                 }
                 SplitTunnelingMode.ALLOW -> {
-                    // Only selected apps use VPN. Self is automatically excluded
-                    // (not in the allowed list) — which is what tunnel types need.
-                    for (pkg in splitApps) {
-                        if (pkg == packageName) continue // don't route our own traffic through VPN
-                        try {
-                            builder.addAllowedApplication(pkg)
-                        } catch (_: Exception) { }
+                    if (!isMasterOrDnsTunnel) {
+                        // Only selected apps use VPN. Self is automatically excluded
+                        // (not in the allowed list) — which is what tunnel types need.
+                        for (pkg in splitApps) {
+                            if (pkg == packageName) continue // don't route our own traffic through VPN
+                            try {
+                                builder.addAllowedApplication(pkg)
+                            } catch (_: Exception) { }
+                        }
+                        Log.d(TAG, "Split tunneling: allow mode, ${splitApps.size} apps use VPN")
+                    } else {
+                        Log.w(TAG, "Split tunneling allow mode bypassed for DNS tunnel to guarantee self-exclusion")
                     }
-                    Log.d(TAG, "Split tunneling: allow mode, ${splitApps.size} apps use VPN")
                 }
             }
         } else {
