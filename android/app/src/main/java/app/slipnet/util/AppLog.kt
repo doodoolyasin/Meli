@@ -31,16 +31,17 @@ object AppLog {
     fun initPersistentLog(context: android.content.Context) {
         try {
             if (logFile == null) {
-                logFile = java.io.File(context.filesDir, "crash_trace.log")
-                if (logFile?.exists() == true) {
-                    logFile?.bufferedReader()?.useLines { linesSeq ->
-                        linesSeq.takeLast(1000).forEach { line ->
-                            val id = nextId.getAndIncrement()
-                            val level = if (line.length > 20) line[19] else 'I'
-                            synchronized(buffer) {
-                                buffer.addLast(LogEntry(id, line, level))
-                                while (buffer.size > MAX_LINES) buffer.removeFirst()
-                            }
+                val file = java.io.File(context.filesDir, "crash_trace.log")
+                logFile = file
+                if (file.exists()) {
+                    val allLines = file.readLines()
+                    val tail = if (allLines.size > 1000) allLines.takeLast(1000) else allLines
+                    tail.forEach { line ->
+                        val id = nextId.getAndIncrement()
+                        val level = if (line.length > 20) line[19] else 'I'
+                        synchronized(buffer) {
+                            buffer.addLast(LogEntry(id, line, level))
+                            while (buffer.size > MAX_LINES) buffer.removeFirst()
                         }
                     }
                     synchronized(buffer) {
