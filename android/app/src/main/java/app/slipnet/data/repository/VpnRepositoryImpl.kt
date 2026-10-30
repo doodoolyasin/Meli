@@ -1072,6 +1072,14 @@ class VpnRepositoryImpl @Inject constructor(
             else -> false
         }
 
+        val useStandardUdpAssociate = when (profile.tunnelType) {
+            TunnelType.MASTERDNS, TunnelType.MASTERDNS_SSH,
+            TunnelType.STORMDNS, TunnelType.STORMDNS_SSH,
+            TunnelType.COTTENDNS, TunnelType.COTTENDNS_SSH,
+            TunnelType.SOAR, TunnelType.SOAR_SSH -> true
+            else -> false
+        }
+
         val hevResult = HevSocks5Tunnel.start(
             tunFd = pfd,
             socksAddress = "127.0.0.1",
@@ -1083,7 +1091,8 @@ class VpnRepositoryImpl @Inject constructor(
             ipv4Address = "10.255.255.1",
             ipv6Address = "fd00::1",
             disableQuic = disableQuic,
-            rejectNonDnsUdp = rejectNonDnsUdp
+            rejectNonDnsUdp = rejectNonDnsUdp,
+            useStandardUdpAssociate = useStandardUdpAssociate
         )
 
         return if (hevResult.isSuccess) {

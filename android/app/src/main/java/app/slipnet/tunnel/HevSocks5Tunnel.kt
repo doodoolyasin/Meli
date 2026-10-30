@@ -49,7 +49,8 @@ object HevSocks5Tunnel {
         ipv4Address: String = "10.255.255.1",
         ipv6Address: String = "fd00::1",
         disableQuic: Boolean = true,
-        rejectNonDnsUdp: Boolean = false
+        rejectNonDnsUdp: Boolean = false,
+        useStandardUdpAssociate: Boolean = false
     ): Result<Unit> {
         if (!isLibraryLoaded) {
             return Result.failure(IllegalStateException("Native library not loaded"))
@@ -69,7 +70,8 @@ object HevSocks5Tunnel {
             enableUdpTunneling = enableUdpTunneling,
             mtu = mtu,
             ipv4Address = ipv4Address,
-            ipv6Address = ipv6Address
+            ipv6Address = ipv6Address,
+            useStandardUdpAssociate = useStandardUdpAssociate
         )
 
         Log.i(TAG, "========================================")
@@ -178,7 +180,8 @@ object HevSocks5Tunnel {
         enableUdpTunneling: Boolean,
         mtu: Int,
         ipv4Address: String,
-        ipv6Address: String
+        ipv6Address: String,
+        useStandardUdpAssociate: Boolean = false
     ): String {
         val sb = StringBuilder()
 
@@ -191,10 +194,12 @@ object HevSocks5Tunnel {
         sb.appendLine("socks5:")
         sb.appendLine("  address: $socksAddress")
         sb.appendLine("  port: $socksPort")
-        // UDP tunneling via 'tcp' mode sends FWD_UDP (cmd 0x05) to the SOCKS5 proxy.
-        // Supported by: SSH SOCKS5, DohBridge, SlipstreamSocksBridge, DNSTT (remote Dante).
         if (enableUdpTunneling) {
-            sb.appendLine("  udp: 'tcp'")
+            if (useStandardUdpAssociate) {
+                sb.appendLine("  udp: 'udp'")
+            } else {
+                sb.appendLine("  udp: 'tcp'")
+            }
         }
 
         if (!socksUsername.isNullOrBlank() && !socksPassword.isNullOrBlank()) {

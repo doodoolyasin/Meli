@@ -13,6 +13,7 @@ import (
 	"io"
 	"net"
 	"slices"
+	"sync"
 	"time"
 
 	"masterdnsvpn-go/internal/arq"
@@ -35,6 +36,7 @@ const (
 
 	SOCKS5_CMD_CONNECT       = 0x01
 	SOCKS5_CMD_UDP_ASSOCIATE = 0x03
+	SOCKS5_CMD_FWD_UDP       = 0x05
 
 	SOCKS5_ATYP_IPV4   = 0x01
 	SOCKS5_ATYP_DOMAIN = 0x03
@@ -245,6 +247,11 @@ func (c *Client) handleSOCKS5Request(ctx context.Context, conn net.Conn) {
 
 	if cmd == SOCKS5_CMD_UDP_ASSOCIATE {
 		c.handleSocksUDPAssociate(ctx, conn, addr, port, atyp)
+		return
+	}
+
+	if cmd == SOCKS5_CMD_FWD_UDP {
+		c.handleFwdUdpSession(ctx, conn)
 		return
 	}
 
@@ -681,6 +688,104 @@ func (c *Client) handleSocksUDPAssociate(ctx context.Context, conn net.Conn, cli
 			c.log.Debugf("🧳 <yellow>SOCKS5 DNS Miss or Pending - Closing association to trigger client retry.</yellow>")
 			return
 		}
+	}
+}
+
+func (c *Client) handleFwdUdpSession(ctx context.Context, conn net.Conn) {
+	defer conn.Close()
+
+	if err := c.sendSocksReply(conn, SOCKS5_REPLY_SUCCESS, SOCKS5_ATYP_IPV4, net.IPv4zero, 0); err != nil {
+		return
+	}
+
+	c.log.Infof("📡 <green>SOCKS5 FWD_UDP (CMD 0x05) session established from <cyan>%s</cyan></green>", conn.RemoteAddr())
+
+	var writeMu sync.Mutex
+	lenBuf := make([]byte, 2)
+	buf := make([]byte, 4096)
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
+
+		_ = conn.SetReadDeadline(time.Now().Add(c.cfg.SOCKSUDPAssociateReadTimeout()))
+		if _, err := io.ReadFull(conn, lenBuf); err != nil {
+			return
+		}
+		packetLen := binary.BigEndian.Uint16(lenBuf)
+		if packetLen == 0 || int(packetLen) > len(buf) {
+			return
+		}
+
+		payload := buf[:packetLen]
+		if _, err := io.ReadFull(conn, payload); err != nil {
+			return
+		}
+
+		if packetLen < 6 || payload[2] != 0x00 {
+			continue
+		}
+
+		payloadOffset := 0
+		var targetPort uint16
+		var targetAddr string
+		switch payload[3] {
+		case SOCKS5_ATYP_IPV4:
+			if packetLen < 10 {
+				continue
+			}
+			payloadOffset = 10
+			targetAddr = net.IP(payload[4:8]).String()
+			targetPort = binary.BigEndian.Uint16(payload[8:10])
+		case SOCKS5_ATYP_DOMAIN:
+			if packetLen < 5 {
+				continue
+			}
+			domainLen := int(payload[4])
+			payloadOffset = 4 + 1 + domainLen + 2
+			if payloadOffset > int(packetLen) || 5+domainLen > int(packetLen) {
+				continue
+			}
+			targetAddr = string(payload[5 : 5+domainLen])
+			targetPort = binary.BigEndian.Uint16(payload[4+1+domainLen : payloadOffset])
+		case SOCKS5_ATYP_IPV6:
+			if packetLen < 22 {
+				continue
+			}
+			payloadOffset = 22
+			targetAddr = net.IP(payload[4:20]).String()
+			targetPort = binary.BigEndian.Uint16(payload[20:22])
+		default:
+			continue
+		}
+
+		if payloadOffset > int(packetLen) {
+			continue
+		}
+
+		if targetPort != 53 {
+			continue
+		}
+
+		dnsQuery := payload[payloadOffset:packetLen]
+		c.log.Infof("📡 <green>Received DNS Query from SOCKS5 FWD_UDP: <cyan>%d bytes</cyan>, Target: <cyan>%s:%d</cyan></green>", len(dnsQuery), targetAddr, targetPort)
+
+		c.ProcessDNSQuery(dnsQuery, conn.RemoteAddr(), func(resp []byte) {
+			header := []byte{0x00, 0x00, 0x00, SOCKS5_ATYP_IPV4, 0, 0, 0, 0, 0, 53}
+			fullResp := append(header, resp...)
+			frameLen := uint16(len(fullResp))
+			outBuf := make([]byte, 2+len(fullResp))
+			binary.BigEndian.PutUint16(outBuf[:2], frameLen)
+			copy(outBuf[2:], fullResp)
+
+			writeMu.Lock()
+			_ = conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
+			_, _ = conn.Write(outBuf)
+			writeMu.Unlock()
+		})
 	}
 }
 
