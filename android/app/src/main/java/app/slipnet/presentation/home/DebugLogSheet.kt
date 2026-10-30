@@ -53,6 +53,7 @@ fun DebugLogSheet(onDismiss: () -> Unit) {
     val listState = rememberLazyListState()
     val packetListState = rememberLazyListState()
     val clipboardManager = LocalClipboardManager.current
+    val context = androidx.compose.ui.platform.LocalContext.current
 
     // Filter lines based on user query
     val filteredLines = remember(lines, filterText) {
@@ -104,11 +105,17 @@ fun DebugLogSheet(onDismiss: () -> Unit) {
                     // 1-Click Export Full Diagnostic Report
                     IconButton(onClick = {
                         val report = generateDiagnosticReport(lines, packetLogs, activeResolvers)
-                        clipboardManager.setText(AnnotatedString(report))
+                        val sendIntent = android.content.Intent().apply {
+                            action = android.content.Intent.ACTION_SEND
+                            putExtra(android.content.Intent.EXTRA_TEXT, report)
+                            type = "text/plain"
+                        }
+                        val shareIntent = android.content.Intent.createChooser(sendIntent, "Share Diagnostic Report")
+                        context.startActivity(shareIntent)
                     }) {
                         Icon(
                             Icons.Default.Share,
-                            contentDescription = "Export Full Report",
+                            contentDescription = "Share Full Report",
                             tint = Color(0xFF00E5FF)
                         )
                     }
@@ -588,7 +595,7 @@ private fun generateDiagnosticReport(
         appendLine("==================================================")
         appendLine("Report Time: $dateStr")
         appendLine("Device: ${Build.MANUFACTURER} ${Build.MODEL} (Android ${Build.VERSION.RELEASE}, API ${Build.VERSION.SDK_INT})")
-        appendLine("App Version: v2.5.5 (arm64-v8a)")
+        appendLine("App Version: v${app.slipnet.BuildConfig.VERSION_NAME} (code ${app.slipnet.BuildConfig.VERSION_CODE})")
         appendLine("Active Profile: ${AppLog.currentProfileName}")
         appendLine("Tunnel Type: ${AppLog.currentTunnelType}")
         appendLine("Active Resolvers (${resolvers.size}): ${resolvers.joinToString(", ").ifEmpty { "System Gateway" }}")

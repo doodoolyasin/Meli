@@ -2861,6 +2861,18 @@ class SlipNetVpnService : VpnService() {
         )
         val masterDnsPort = if (useSsh) proxyPort + 1 else proxyPort
 
+        if (!isProxyOnly) {
+            vpnInterface = establishVpnInterface("1.1.1.1")
+            if (vpnInterface == null) {
+                Log.e(TAG, "Failed to establish VPN interface for MasterDNS")
+                connectionManager.onVpnError("Failed to establish VPN interface")
+                if (useSsh) SshTunnelBridge.stop()
+                MasterDnsBridge.stopClient()
+                return
+            }
+            delay(200)
+        }
+
         MasterDnsBridge.setVpnService(this@SlipNetVpnService, isProxyOnly = isProxyOnly)
         MasterDnsBridge.stopClient()
 
@@ -2874,6 +2886,8 @@ class SlipNetVpnService : VpnService() {
             val err = proxyResult.exceptionOrNull()?.message ?: "Failed to start MasterDNS proxy"
             Log.e(TAG, "MasterDNS proxy startup error: $err")
             connectionManager.onVpnError(err)
+            vpnInterface?.close()
+            vpnInterface = null
             return
         }
 
@@ -2884,6 +2898,8 @@ class SlipNetVpnService : VpnService() {
             Log.e(TAG, "$tunnelName failed to become ready on port $actualPort: $lastErr")
             connectionManager.onVpnError("$tunnelName startup failed: $lastErr")
             MasterDnsBridge.stopClient()
+            vpnInterface?.close()
+            vpnInterface = null
             return
         }
 
@@ -2924,6 +2940,8 @@ class SlipNetVpnService : VpnService() {
                 Log.e(TAG, err)
                 connectionManager.onVpnError(err)
                 MasterDnsBridge.stopClient()
+                vpnInterface?.close()
+                vpnInterface = null
                 return
             }
 
@@ -2932,6 +2950,8 @@ class SlipNetVpnService : VpnService() {
                 connectionManager.onVpnError("SSH tunnel failed to start over MasterDNS")
                 SshTunnelBridge.stop()
                 MasterDnsBridge.stopClient()
+                vpnInterface?.close()
+                vpnInterface = null
                 return
             }
         }
@@ -2942,17 +2962,6 @@ class SlipNetVpnService : VpnService() {
             finishConnection()
             return
         }
-
-        // Establish TUN interface ONLY AFTER MasterDNS local proxy is active and verified
-        vpnInterface = establishVpnInterface(dnsServer)
-        if (vpnInterface == null) {
-            Log.e(TAG, "Failed to establish VPN interface for MasterDNS")
-            connectionManager.onVpnError("Failed to establish VPN interface")
-            if (useSsh) SshTunnelBridge.stop()
-            MasterDnsBridge.stopClient()
-            return
-        }
-        delay(200)
 
         val socksPort = if (useSsh) proxyPort else masterDnsPort
         val tun2socksResult = vpnRepository.startTun2Socks(profile, vpnInterface!!, socksPortOverride = socksPort)
@@ -5307,23 +5316,6 @@ class SlipNetVpnService : VpnService() {
 
     private suspend fun establishVpnInterface(dnsServer: String): ParcelFileDescriptor? {
         val mtu = try { preferencesDataStore.vpnMtu.first() } catch (_: Exception) { VPN_MTU }
-        val builder = Builder()
-            .setSession("SlipNet VPN")
-            .setMtu(mtu)
-            .addAddress(VPN_ADDRESS, 32)
-            .addDnsServer(dnsServer)
-            .addDnsServer("8.8.8.8")
-            .addDnsServer("1.1.1.1")
-            .setBlocking(false)
-
-        // DoH mode: only route DNS traffic through the VPN so local network
-        // (mDNS, Cast, SMB, LAN) and app traffic (VoIP, push) bypass it entirely.
-        if (currentTunnelType == TunnelType.DOH) {
-            builder.addRoute(dnsServer, 32)
-        } else {
-            builder.addRoute(VPN_ROUTE, 0)
-        }
-
 
         val isMasterOrDnsTunnel = when (currentTunnelType) {
             TunnelType.MASTERDNS, TunnelType.MASTERDNS_SSH,
@@ -5338,6 +5330,24 @@ class SlipNetVpnService : VpnService() {
             TunnelType.NOOSHDAROO, TunnelType.NOOSHDAROO_SSH,
             TunnelType.QWDTT, TunnelType.QWDTT_SSH -> true
             else -> false
+        }
+        val safeDns = if (isMasterOrDnsTunnel) "1.1.1.1" else dnsServer
+
+        val builder = Builder()
+            .setSession("SlipNet VPN")
+            .setMtu(mtu)
+            .addAddress(VPN_ADDRESS, 32)
+            .addDnsServer(safeDns)
+            .addDnsServer("8.8.8.8")
+            .addDnsServer("1.1.1.1")
+            .setBlocking(false)
+
+        // DoH mode: only route DNS traffic through the VPN so local network
+        // (mDNS, Cast, SMB, LAN) and app traffic (VoIP, push) bypass it entirely.
+        if (currentTunnelType == TunnelType.DOH) {
+            builder.addRoute(dnsServer, 32)
+        } else {
+            builder.addRoute(VPN_ROUTE, 0)
         }
 
         // Unconditionally exclude self package for MasterDNS and DNS tunnels to prevent routing loop
