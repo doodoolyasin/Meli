@@ -2906,7 +2906,7 @@ class SlipNetVpnService : VpnService() {
 
         if (useSsh) {
             configureSshBridge()
-            val targetHost = if (profile.sshHost.isBlank() || profile.sshHost == "127.0.0.1") "45.38.249.16" else profile.sshHost
+            val targetHost = if (profile.sshHost.isNotBlank() && profile.sshHost != "127.0.0.1") profile.sshHost else profile.domain.ifBlank { "127.0.0.1" }
             var sshResult: Result<Unit> = Result.failure(RuntimeException("SSH not attempted"))
             for (attempt in 1..SSH_OVER_TUNNEL_RETRIES) {
                 sshResult = withContext(Dispatchers.IO) {
@@ -3053,7 +3053,7 @@ class SlipNetVpnService : VpnService() {
         val useSsh = profile.tunnelType == TunnelType.MELI_SSH
         if (useSsh) {
             configureSshBridge()
-            val targetHost = if (profile.sshHost.isBlank() || profile.sshHost == "127.0.0.1") "45.38.249.16" else profile.sshHost
+            val targetHost = if (profile.sshHost.isNotBlank() && profile.sshHost != "127.0.0.1") profile.sshHost else profile.domain.ifBlank { "127.0.0.1" }
             var sshResult: Result<Unit> = Result.failure(RuntimeException("SSH not attempted"))
             for (attempt in 1..SSH_OVER_TUNNEL_RETRIES) {
                 sshResult = withContext(Dispatchers.IO) {
@@ -5270,6 +5270,13 @@ class SlipNetVpnService : VpnService() {
             TunnelType.SNOWFLAKE -> { /* Snowflake: no bridge reference to clear */ }
             TunnelType.SOCKS5 -> { /* SOCKS5: no bridge reference to clear */ }
             TunnelType.VLESS -> { /* VLESS: no VpnService reference to clear */ }
+            TunnelType.MASTERDNS, TunnelType.MASTERDNS_SSH,
+            TunnelType.STORMDNS, TunnelType.STORMDNS_SSH,
+            TunnelType.COTTENDNS, TunnelType.COTTENDNS_SSH,
+            TunnelType.SOAR, TunnelType.SOAR_SSH,
+            TunnelType.MELI, TunnelType.MELI_SSH -> {
+                MasterDnsBridge.setVpnService(null)
+            }
             else -> {}
         }
     }
@@ -5300,6 +5307,16 @@ class SlipNetVpnService : VpnService() {
             TunnelType.SNOWFLAKE -> SnowflakeBridge.isClientHealthy() && TorSocksBridge.isClientHealthy()
             TunnelType.SOCKS5 -> Socks5ProxyBridge.isRunning() && Socks5ProxyBridge.isClientHealthy()
             TunnelType.VLESS, TunnelType.VLESS_REALITY, TunnelType.TROJAN -> VlessBridge.isRunning() && VlessBridge.isClientHealthy()
+            TunnelType.MASTERDNS,
+            TunnelType.STORMDNS,
+            TunnelType.COTTENDNS,
+            TunnelType.SOAR,
+            TunnelType.MELI -> MasterDnsBridge.isRunning()
+            TunnelType.MASTERDNS_SSH,
+            TunnelType.STORMDNS_SSH,
+            TunnelType.COTTENDNS_SSH,
+            TunnelType.SOAR_SSH,
+            TunnelType.MELI_SSH -> MasterDnsBridge.isRunning() && SshTunnelBridge.isClientHealthy()
             else -> true
         }
     }

@@ -40,6 +40,9 @@ func randomBytes(length int) ([]byte, error) {
 
 // fragmentPayload splits a payload into chunks of max mtu size.
 func fragmentPayload(payload []byte, mtu int) [][]byte {
+	if mtu <= 0 {
+		mtu = 1200 // Safe default fallback when MTU is uninitialized or non-positive
+	}
 	if len(payload) <= mtu {
 		return [][]byte{payload}
 	}

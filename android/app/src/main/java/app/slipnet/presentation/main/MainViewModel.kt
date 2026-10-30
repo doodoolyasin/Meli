@@ -154,7 +154,7 @@ class MainViewModel @Inject constructor(
                     connectionState = state,
                     connectedProfileId = if (chainId != null) null else connectedId,
                     connectedChainId = chainId,
-                    error = if (state is ConnectionState.Error) state.message else _uiState.value.error
+                    error = if (state is ConnectionState.Error) state.message else null
                 )
                 if (state is ConnectionState.Connecting) {
                     startBootstrapPolling()

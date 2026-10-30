@@ -165,19 +165,6 @@ func NewClient(
 	pingLazy := 0.75
 	baseEncode := false
 
-	if v, err := strconv.Atoi(tuningOpts["min_up"]); err == nil && v > 0 {
-		minUploadMtu = v
-	}
-	if v, err := strconv.Atoi(tuningOpts["max_up"]); err == nil && v > 0 {
-		maxUploadMtu = v
-	}
-	if v, err := strconv.Atoi(tuningOpts["min_down"]); err == nil && v > 0 {
-		minDownloadMtu = v
-	}
-	if v, err := strconv.Atoi(tuningOpts["max_down"]); err == nil && v > 0 {
-		maxDownloadMtu = v
-	}
-
 	mode := strings.ToLower(tuningOpts["mode"])
 	switch mode {
 	case "micro", "microslice":
@@ -205,6 +192,20 @@ func NewClient(
 		baseEncode = true
 		pingAggressive = 0.200
 		pingCooldown = 2.0
+	}
+
+	// User explicit MTU and concurrency overrides take precedence over preset modes
+	if v, err := strconv.Atoi(tuningOpts["min_up"]); err == nil && v > 0 {
+		minUploadMtu = v
+	}
+	if v, err := strconv.Atoi(tuningOpts["max_up"]); err == nil && v > 0 {
+		maxUploadMtu = v
+	}
+	if v, err := strconv.Atoi(tuningOpts["min_down"]); err == nil && v > 0 {
+		minDownloadMtu = v
+	}
+	if v, err := strconv.Atoi(tuningOpts["max_down"]); err == nil && v > 0 {
+		maxDownloadMtu = v
 	}
 
 	if dupStr := tuningOpts["dup"]; dupStr != "" {

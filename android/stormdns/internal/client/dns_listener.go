@@ -341,7 +341,11 @@ func (c *Client) dispatchDNSQueryToTunnel(query []byte) {
 	}
 
 	// Calculate target MTU for fragments
-	fragments := fragmentPayload(query, c.syncedUploadMTU)
+	mtu := c.syncedUploadMTU
+	if mtu <= 0 {
+		mtu = 1200
+	}
+	fragments := fragmentPayload(query, mtu)
 	total := uint8(len(fragments))
 
 	// Generate a unique sequence number for this DNS query
