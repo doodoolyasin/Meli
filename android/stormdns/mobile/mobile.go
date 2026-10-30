@@ -20,7 +20,37 @@ import (
 
 	"stormdns-go/internal/client"
 	"stormdns-go/internal/config"
+	"stormdns-go/internal/logger"
 )
+
+// LogCallback receives real-time log messages from StormDNS Go engine.
+type LogCallback interface {
+	OnLog(level string, message string)
+}
+
+var (
+	globalLogCallback LogCallback
+	logCallbackMu     sync.RWMutex
+)
+
+// SetLogCallback registers a callback to receive all engine logs.
+func SetLogCallback(cb LogCallback) {
+	logCallbackMu.Lock()
+	defer logCallbackMu.Unlock()
+	globalLogCallback = cb
+	if cb != nil {
+		logger.SetGlobalLogHook(func(level string, message string) {
+			logCallbackMu.RLock()
+			currentCb := globalLogCallback
+			logCallbackMu.RUnlock()
+			if currentCb != nil {
+				currentCb.OnLog(level, message)
+			}
+		})
+	} else {
+		logger.SetGlobalLogHook(nil)
+	}
+}
 
 // SocketProtector protects sockets from VPN routing on Android.
 type SocketProtector interface {

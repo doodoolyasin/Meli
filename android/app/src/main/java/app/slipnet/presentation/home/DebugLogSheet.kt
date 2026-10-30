@@ -104,14 +104,29 @@ fun DebugLogSheet(onDismiss: () -> Unit) {
 
                     // 1-Click Export Full Diagnostic Report
                     IconButton(onClick = {
-                        val report = generateDiagnosticReport(lines, packetLogs, activeResolvers)
-                        val sendIntent = android.content.Intent().apply {
-                            action = android.content.Intent.ACTION_SEND
-                            putExtra(android.content.Intent.EXTRA_TEXT, report)
-                            type = "text/plain"
+                        try {
+                            val report = generateDiagnosticReport(lines, packetLogs, activeResolvers)
+                            val logDir = java.io.File(context.cacheDir, "logs").apply { mkdirs() }
+                            val logFile = java.io.File(logDir, "aryana_diagnostic_report.txt")
+                            logFile.writeText(report)
+
+                            val fileUri = androidx.core.content.FileProvider.getUriForFile(
+                                context,
+                                "${context.packageName}.fileprovider",
+                                logFile
+                            )
+
+                            val sendIntent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                                type = "text/plain"
+                                putExtra(android.content.Intent.EXTRA_STREAM, fileUri)
+                                putExtra(android.content.Intent.EXTRA_SUBJECT, "Aryana Diagnostic Report")
+                                addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                            }
+                            val shareIntent = android.content.Intent.createChooser(sendIntent, "Share Diagnostic Report")
+                            context.startActivity(shareIntent)
+                        } catch (e: Exception) {
+                            android.util.Log.e("DebugLogSheet", "Failed to share report file", e)
                         }
-                        val shareIntent = android.content.Intent.createChooser(sendIntent, "Share Diagnostic Report")
-                        context.startActivity(shareIntent)
                     }) {
                         Icon(
                             Icons.Default.Share,

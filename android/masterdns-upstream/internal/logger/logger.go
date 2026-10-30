@@ -41,6 +41,25 @@ const (
 	LevelError = levelError
 )
 
+type LogHookFunc func(level string, message string)
+
+var (
+	globalLogHook LogHookFunc
+	globalHookMu  sync.RWMutex
+)
+
+func SetGlobalLogHook(hook LogHookFunc) {
+	globalHookMu.Lock()
+	defer globalHookMu.Unlock()
+	globalLogHook = hook
+}
+
+func GetGlobalLogHook() LogHookFunc {
+	globalHookMu.RLock()
+	defer globalHookMu.RUnlock()
+	return globalLogHook
+}
+
 var colorTagCodes = map[string]string{
 	"black":   "\x1b[30m",
 	"red":     "\x1b[31m",
@@ -123,6 +142,24 @@ func (l *Logger) logf(level int, format string, args ...any) {
 	plainMsg := msg
 	if strings.IndexByte(msg, '<') >= 0 {
 		plainMsg = stripColorTags(msg)
+	}
+
+	globalHookMu.RLock()
+	hook := globalLogHook
+	globalHookMu.RUnlock()
+	if hook != nil {
+		lvlName := "INFO"
+		switch level {
+		case levelDebug:
+			lvlName = "DEBUG"
+		case levelInfo:
+			lvlName = "INFO"
+		case levelWarn:
+			lvlName = "WARN"
+		case levelError:
+			lvlName = "ERROR"
+		}
+		hook(lvlName, plainMsg)
 	}
 
 	l.mu.Lock()

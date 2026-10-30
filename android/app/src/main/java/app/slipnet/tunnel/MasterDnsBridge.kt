@@ -72,6 +72,21 @@ object MasterDnsBridge {
 
         stopClient()
 
+        try {
+            Stormdns.setLogCallback(object : stormdns.LogCallback {
+                override fun onLog(level: String, message: String) {
+                    when (level.uppercase()) {
+                        "ERROR" -> Log.e("StormDNS", message)
+                        "WARN", "WARNING" -> Log.w("StormDNS", message)
+                        "DEBUG" -> Log.d("StormDNS", message)
+                        else -> Log.i("StormDNS", message)
+                    }
+                }
+            })
+        } catch (e: Throwable) {
+            Log.w(TAG, "Failed to register log callback: ${e.message}")
+        }
+
         return try {
             currentPort = listenPort
             val configDir = context.filesDir.absolutePath
@@ -111,6 +126,9 @@ object MasterDnsBridge {
             Log.w(TAG, "Error stopping MasterDNS client: ${e.message}")
         } finally {
             client = null
+            try {
+                Stormdns.setLogCallback(null)
+            } catch (_: Throwable) {}
         }
     }
 
