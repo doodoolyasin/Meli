@@ -213,6 +213,7 @@ class SlipNetVpnService : VpnService() {
 
     override fun onCreate() {
         super.onCreate()
+        app.slipnet.util.AppLog.initPersistentLog(applicationContext)
         connectivityManager = getSystemService(ConnectivityManager::class.java)
         prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     }

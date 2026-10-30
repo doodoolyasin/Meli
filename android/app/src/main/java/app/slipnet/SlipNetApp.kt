@@ -21,6 +21,7 @@ class SlipNetApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        app.slipnet.util.AppLog.initPersistentLog(applicationContext)
         createNotificationChannels()
         appScope.launch { preferencesDataStore.ensureProxyPortInitialized() }
     }

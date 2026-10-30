@@ -25,6 +25,32 @@ object AppLog {
     private val nextId = AtomicLong(0)
     private val buffer = ArrayDeque<LogEntry>()
 
+    @Volatile var logFile: java.io.File? = null
+    private val fileWriterLock = Any()
+
+    fun initPersistentLog(context: android.content.Context) {
+        try {
+            if (logFile == null) {
+                logFile = java.io.File(context.filesDir, "crash_trace.log")
+                if (logFile?.exists() == true) {
+                    logFile?.bufferedReader()?.useLines { linesSeq ->
+                        linesSeq.takeLast(1000).forEach { line ->
+                            val id = nextId.getAndIncrement()
+                            val level = if (line.length > 20) line[19] else 'I'
+                            synchronized(buffer) {
+                                buffer.addLast(LogEntry(id, line, level))
+                                while (buffer.size > MAX_LINES) buffer.removeFirst()
+                            }
+                        }
+                    }
+                    synchronized(buffer) {
+                        _lines.value = ArrayList(buffer)
+                    }
+                }
+            }
+        } catch (_: Throwable) {}
+    }
+
     /** When true, credentials and private keys are scrubbed from the in-app log buffer. */
     @Volatile var redactSensitive = true
 
@@ -117,6 +143,17 @@ object AppLog {
         if (observerCount > 0) {
             dirty.set(true)
         }
+
+        logFile?.let { file ->
+            try {
+                synchronized(fileWriterLock) {
+                    java.io.FileOutputStream(file, true).bufferedWriter().use { writer ->
+                        writer.appendLine("$ts $level/$tag: $safeMsg")
+                        writer.flush()
+                    }
+                }
+            } catch (_: Throwable) {}
+        }
     }
 
     fun flushIfDirty() {
@@ -188,6 +225,14 @@ object AppLog {
         rxCount.set(0)
         dropCount.set(0)
         lastErrorDetail = ""
+
+        logFile?.let { file ->
+            try {
+                synchronized(fileWriterLock) {
+                    if (file.exists()) file.delete()
+                }
+            } catch (_: Throwable) {}
+        }
     }
 }
 

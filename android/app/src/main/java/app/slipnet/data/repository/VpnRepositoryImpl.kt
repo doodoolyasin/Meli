@@ -1064,14 +1064,14 @@ class VpnRepositoryImpl @Inject constructor(
         // For high-speed tunnels (VLESS, Trojan, Reality, Shadowsocks, SOCKS5, DOH, etc.), allow non-DNS UDP
         // so VoIP calls (Telegram, WhatsApp) and online games function without interruption.
         val rejectNonDnsUdp = when (profile.tunnelType) {
+            TunnelType.MASTERDNS, TunnelType.MASTERDNS_SSH,
+            TunnelType.STORMDNS, TunnelType.STORMDNS_SSH,
+            TunnelType.COTTENDNS, TunnelType.COTTENDNS_SSH,
+            TunnelType.SOAR, TunnelType.SOAR_SSH -> false
             TunnelType.DNSTT, TunnelType.DNSTT_SSH,
             TunnelType.NOIZDNS, TunnelType.NOIZDNS_SSH,
             TunnelType.SLIPSTREAM, TunnelType.SLIPSTREAM_SSH,
             TunnelType.VAYDNS, TunnelType.VAYDNS_SSH,
-            TunnelType.MASTERDNS, TunnelType.MASTERDNS_SSH,
-            TunnelType.STORMDNS, TunnelType.STORMDNS_SSH,
-            TunnelType.COTTENDNS, TunnelType.COTTENDNS_SSH,
-            TunnelType.SOAR, TunnelType.SOAR_SSH,
             TunnelType.MELI, TunnelType.MELI_SSH,
             TunnelType.NOOSHDAROO, TunnelType.NOOSHDAROO_SSH,
             TunnelType.QWDTT, TunnelType.QWDTT_SSH -> true
