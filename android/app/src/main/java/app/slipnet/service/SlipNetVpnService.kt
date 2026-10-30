@@ -2904,6 +2904,21 @@ class SlipNetVpnService : VpnService() {
             return
         }
 
+        // Wait up to 15s for Go engine MTU testing and session handshake to complete
+        withContext(Dispatchers.IO) {
+            for (attempt in 1..60) {
+                if (MasterDnsBridge.isSessionReady()) {
+                    Log.i(TAG, "$tunnelName session handshake ready (attempt $attempt)")
+                    break
+                }
+                if (!MasterDnsBridge.isRunning()) {
+                    Log.w(TAG, "$tunnelName stopped while waiting for session")
+                    break
+                }
+                delay(250)
+            }
+        }
+
         if (useSsh) {
             configureSshBridge()
             val targetHost = if (profile.sshHost.isNotBlank() && profile.sshHost != "127.0.0.1") profile.sshHost else profile.domain.ifBlank { "127.0.0.1" }
@@ -3946,7 +3961,10 @@ class SlipNetVpnService : VpnService() {
                     }
                     TunnelType.VLESS, TunnelType.VLESS_REALITY, TunnelType.TROJAN -> VlessBridge.isRunning()
                     TunnelType.MASTERDNS, TunnelType.MASTERDNS_SSH,
-                    TunnelType.STORMDNS, TunnelType.STORMDNS_SSH -> MasterDnsBridge.isRunning()
+                    TunnelType.STORMDNS, TunnelType.STORMDNS_SSH,
+                    TunnelType.COTTENDNS, TunnelType.COTTENDNS_SSH,
+                    TunnelType.SOAR, TunnelType.SOAR_SSH,
+                    TunnelType.MELI, TunnelType.MELI_SSH -> MasterDnsBridge.isRunning()
                     else -> true
                 }
 

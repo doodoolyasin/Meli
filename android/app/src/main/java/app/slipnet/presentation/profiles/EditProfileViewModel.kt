@@ -707,6 +707,7 @@ class EditProfileViewModel @Inject constructor(
                     wsHeaderObfuscation = profile.wsHeaderObfuscation,
                     wsPaddingEnabled = profile.wsPaddingEnabled,
                     tunnelEncryptionMethod = profile.tunnelEncryptionMethod,
+                    masterDnsMaxUploadMtu = if (profile.dnsPayloadSize in 20..1500) profile.dnsPayloadSize.toString() else "150",
                     isLoading = false
                 )
             } else {
@@ -1874,7 +1875,13 @@ class EditProfileViewModel @Inject constructor(
                     dnsttAuthoritative = if (state.isDnsttOrNoizBased) state.dnsttAuthoritative else false,
                     noizdnsStealth = if (state.isNoizdnsBased) state.noizdnsStealth else false,
                     dnsAutoTune = if (state.isDnsttOrNoizOrVaydnsBased) state.dnsAutoTune else false,
-                    dnsPayloadSize = if (state.isDnsttOrNoizOrVaydnsBased) state.dnsPayloadSize else 0,
+                    dnsPayloadSize = if (state.isDnsttOrNoizOrVaydnsBased) {
+                        state.dnsPayloadSize
+                    } else if (state.isMasterDns || state.isStormDns || state.isCottenDns || state.isSoar || state.isMeli) {
+                        state.masterDnsMaxUploadMtu.toIntOrNull()?.coerceIn(20, 1500) ?: 150
+                    } else {
+                        0
+                    },
                     naivePort = if (state.isNaiveBased) (state.naivePort.toIntOrNull() ?: 443) else 443,
                     naiveUsername = if (state.isNaiveBased) state.naiveUsername.trim() else "",
                     naivePassword = if (state.isNaiveBased) state.naivePassword else "",

@@ -332,6 +332,26 @@ func readNullTerminatedSocksField(conn net.Conn) ([]byte, error) {
 }
 
 func (c *Client) handleSOCKSConnect(ctx context.Context, conn net.Conn, addr string, port uint16, atyp byte, socksVersion byte) {
+	if !c.SessionReady() {
+		c.log.Infof("⏳ <yellow>Waiting for MasterDNS session handshake before opening SOCKS stream to %s:%d...</yellow>", addr, port)
+		waitStart := time.Now()
+		for !c.SessionReady() {
+			select {
+			case <-ctx.Done():
+				_ = c.sendSocksReply(conn, SOCKS5_REPLY_GENERAL_FAILURE, SOCKS5_ATYP_IPV4, net.IPv4zero, 0)
+				_ = conn.Close()
+				return
+			case <-time.After(100 * time.Millisecond):
+			}
+			if time.Since(waitStart) > 20*time.Second {
+				c.log.Warnf("⚠️ <red>SOCKS connection rejected: tunnel session not ready after 20s</red>")
+				_ = c.sendSocksReply(conn, SOCKS5_REPLY_NETWORK_UNREACHABLE, SOCKS5_ATYP_IPV4, net.IPv4zero, 0)
+				_ = conn.Close()
+				return
+			}
+		}
+	}
+
 	streamID, ok := c.get_new_stream_id()
 	if !ok {
 		c.log.Errorf("❌ <red>Failed to get new Stream ID for SOCKS CONNECT</red>")

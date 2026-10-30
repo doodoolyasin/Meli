@@ -606,7 +606,8 @@ class VpnRepositoryImpl @Inject constructor(
             }
             // Explicit MTU boundaries matching working MasterDnsVPN config
             add("min_up=38")
-            add("max_up=150")
+            val maxUp = if (profile.dnsPayloadSize in 20..1500) profile.dnsPayloadSize else 150
+            add("max_up=$maxUp")
             add("min_down=100")
             add("max_down=500")
         }.joinToString(";")
