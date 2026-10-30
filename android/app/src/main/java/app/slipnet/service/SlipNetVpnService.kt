@@ -2855,9 +2855,13 @@ class SlipNetVpnService : VpnService() {
     ) {
         val proxyPort = preferencesDataStore.proxyListenPort.first()
         val proxyHost = preferencesDataStore.proxyListenAddress.first()
-        val masterDnsPort = proxyPort + 1
+        val useSsh = profile.tunnelType in setOf(
+            TunnelType.MASTERDNS_SSH, TunnelType.STORMDNS_SSH,
+            TunnelType.COTTENDNS_SSH, TunnelType.SOAR_SSH
+        )
+        val masterDnsPort = if (useSsh) proxyPort + 1 else proxyPort
 
-        MasterDnsBridge.setVpnService(this@SlipNetVpnService)
+        MasterDnsBridge.setVpnService(this@SlipNetVpnService, isProxyOnly = isProxyOnly)
         MasterDnsBridge.stopClient()
 
         val proxyResult = vpnRepository.startMasterDnsProxy(
@@ -2883,10 +2887,6 @@ class SlipNetVpnService : VpnService() {
             return
         }
 
-        val useSsh = profile.tunnelType in setOf(
-            TunnelType.MASTERDNS_SSH, TunnelType.STORMDNS_SSH,
-            TunnelType.COTTENDNS_SSH, TunnelType.SOAR_SSH
-        )
         if (useSsh) {
             configureSshBridge()
             val targetHost = if (profile.sshHost.isBlank() || profile.sshHost == "127.0.0.1") "45.38.249.16" else profile.sshHost
@@ -2954,7 +2954,7 @@ class SlipNetVpnService : VpnService() {
         }
         delay(200)
 
-        val socksPort = if (useSsh) proxyPort else actualPort
+        val socksPort = if (useSsh) proxyPort else masterDnsPort
         val tun2socksResult = vpnRepository.startTun2Socks(profile, vpnInterface!!, socksPortOverride = socksPort)
         if (tun2socksResult.isFailure) {
             val err = tun2socksResult.exceptionOrNull()?.message ?: "Failed to start tunnel"

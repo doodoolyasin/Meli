@@ -17,13 +17,17 @@ object MasterDnsBridge {
     private var currentPort: Int = 0
     private var vpnService: android.net.VpnService? = null
 
-    fun setVpnService(service: android.net.VpnService?) {
+    fun setVpnService(service: android.net.VpnService?, isProxyOnly: Boolean = false) {
         vpnService = service
         try {
-            if (service != null) {
+            if (service != null && !isProxyOnly) {
                 Stormdns.setSocketProtector(object : stormdns.SocketProtector {
                     override fun protect(fd: Long): Boolean {
-                        return service.protect(fd.toInt())
+                        return try {
+                            service.protect(fd.toInt())
+                        } catch (_: Throwable) {
+                            true
+                        }
                     }
                 })
             } else {

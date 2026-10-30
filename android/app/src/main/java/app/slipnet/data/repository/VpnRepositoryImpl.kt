@@ -1038,7 +1038,13 @@ class VpnRepositoryImpl @Inject constructor(
         val disableQuic = preferencesDataStore.disableQuic.first()
         // Local proxy auth: hev-socks5-tunnel authenticates with the bridge
         val proxyAuthEnabled = preferencesDataStore.proxyAuthEnabled.first()
-        val enableUdpTunneling = true
+        val enableUdpTunneling = when (profile.tunnelType) {
+            TunnelType.MASTERDNS, TunnelType.MASTERDNS_SSH,
+            TunnelType.STORMDNS, TunnelType.STORMDNS_SSH,
+            TunnelType.COTTENDNS, TunnelType.COTTENDNS_SSH,
+            TunnelType.SOAR, TunnelType.SOAR_SSH -> false
+            else -> true
+        }
         val socksUsername = if (proxyAuthEnabled) preferencesDataStore.proxyAuthUsername.first().ifEmpty { null } else null
         val socksPassword = if (proxyAuthEnabled) preferencesDataStore.proxyAuthPassword.first().ifEmpty { null } else null
 
