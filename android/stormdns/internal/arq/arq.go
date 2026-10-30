@@ -1501,8 +1501,10 @@ func (a *ARQ) writeLoop() {
 		// while we were writing, so data can be ready without a new signal.
 		a.mu.RLock()
 		hasReady := false
-		if _, ok := a.rcvBuf[a.rcvNxt]; ok {
-			hasReady = true
+		if a.ioReady && !a.closed {
+			if _, ok := a.rcvBuf[a.rcvNxt]; ok {
+				hasReady = true
+			}
 		}
 		a.mu.RUnlock()
 
@@ -1520,8 +1522,13 @@ func (a *ARQ) writeLoop() {
 			}
 
 			a.mu.Lock()
-			if !a.ioReady || a.closed {
+			if a.closed {
 				a.mu.Unlock()
+				return
+			}
+			if !a.ioReady {
+				a.mu.Unlock()
+				time.Sleep(10 * time.Millisecond)
 				break
 			}
 
