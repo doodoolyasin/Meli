@@ -4101,7 +4101,12 @@ class SlipNetVpnService : VpnService() {
                         currentTunnelType == TunnelType.NOIZDNS_SSH ||
                         currentTunnelType == TunnelType.VAYDNS_SSH ||
                         currentTunnelType == TunnelType.SLIPSTREAM_SSH ||
-                        currentTunnelType == TunnelType.NAIVE_SSH
+                        currentTunnelType == TunnelType.NAIVE_SSH ||
+                        currentTunnelType == TunnelType.MASTERDNS_SSH ||
+                        currentTunnelType == TunnelType.STORMDNS_SSH ||
+                        currentTunnelType == TunnelType.COTTENDNS_SSH ||
+                        currentTunnelType == TunnelType.SOAR_SSH ||
+                        currentTunnelType == TunnelType.MELI_SSH
                 if (usesSsh && healthCheckCount % SSH_PROBE_INTERVAL == 0) {
                     val alive = SshTunnelBridge.probeSessionAlive()
                     if (!alive) {
@@ -5329,12 +5334,12 @@ class SlipNetVpnService : VpnService() {
             TunnelType.STORMDNS,
             TunnelType.COTTENDNS,
             TunnelType.SOAR,
-            TunnelType.MELI -> MasterDnsBridge.isRunning()
+            TunnelType.MELI -> MasterDnsBridge.isRunning() && MasterDnsBridge.isSessionReady()
             TunnelType.MASTERDNS_SSH,
             TunnelType.STORMDNS_SSH,
             TunnelType.COTTENDNS_SSH,
             TunnelType.SOAR_SSH,
-            TunnelType.MELI_SSH -> MasterDnsBridge.isRunning() && SshTunnelBridge.isClientHealthy()
+            TunnelType.MELI_SSH -> MasterDnsBridge.isRunning() && MasterDnsBridge.isSessionReady() && SshTunnelBridge.isClientHealthy()
             else -> true
         }
     }

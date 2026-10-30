@@ -129,6 +129,9 @@ object MasterDnsBridge {
             try {
                 Stormdns.setLogCallback(null)
             } catch (_: Throwable) {}
+            try {
+                setVpnService(null)
+            } catch (_: Throwable) {}
         }
     }
 

@@ -112,7 +112,8 @@ class ProfileMapper @Inject constructor(
             chPaddingEnabled = entity.chPaddingEnabled,
             wsHeaderObfuscation = entity.wsHeaderObfuscation,
             wsPaddingEnabled = entity.wsPaddingEnabled,
-            dnsAutoTune = entity.dnsAutoTune
+            dnsAutoTune = entity.dnsAutoTune,
+            tunnelEncryptionMethod = entity.tunnelEncryptionMethod
         )
     }
 
@@ -202,7 +203,8 @@ class ProfileMapper @Inject constructor(
             chPaddingEnabled = profile.chPaddingEnabled,
             wsHeaderObfuscation = profile.wsHeaderObfuscation,
             wsPaddingEnabled = profile.wsPaddingEnabled,
-            dnsAutoTune = profile.dnsAutoTune
+            dnsAutoTune = profile.dnsAutoTune,
+            tunnelEncryptionMethod = profile.tunnelEncryptionMethod
         )
     }
 

@@ -40,24 +40,8 @@ type pooledUDPConn struct {
 }
 
 func (c *Client) drainStaleUDPResponses(conn *net.UDPConn, buffer []byte) error {
-	if conn == nil || len(buffer) == 0 {
-		return nil
-	}
-
-	for drained := 0; drained < runtimeUDPMaxMismatchedResponses*2; drained++ {
-		if err := conn.SetReadDeadline(time.Now().Add(runtimeUDPDrainGrace)); err != nil {
-			return err
-		}
-
-		_, err := conn.Read(buffer)
-		if err != nil {
-			if ne, ok := err.(net.Error); ok && ne.Timeout() {
-				return nil
-			}
-			return err
-		}
-	}
-
+	// Stale or mismatched DNS transaction IDs are skipped naturally in exchangeUDPQueryWithConn
+	// without incurring a blocking pre-query delay.
 	return nil
 }
 

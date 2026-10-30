@@ -288,7 +288,9 @@ class ConfigExporter @Inject constructor() {
             // v28: Single TLS SNI for VLESS. Empty = the bridge falls back to
             // profile.domain (the WS Host). Replaces the legacy position-71
             // field that v25–v27 used.
-            sanitize(profile.vlessSni)
+            sanitize(profile.vlessSni),
+            // v28+: Tunnel encryption method (0=None, 1=XOR, 2=ChaCha20, etc.)
+            profile.tunnelEncryptionMethod.toString()
         ).joinToString(FIELD_DELIMITER)
     }
 

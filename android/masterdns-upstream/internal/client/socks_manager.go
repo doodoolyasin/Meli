@@ -99,6 +99,7 @@ func (c *Client) HandleSOCKS5(ctx context.Context, conn net.Conn) {
 }
 
 func (c *Client) handleSOCKS5Request(ctx context.Context, conn net.Conn) {
+	_ = conn.SetDeadline(time.Now().Add(15 * time.Second))
 	header := make([]byte, 1)
 	if _, err := io.ReadFull(conn, header); err != nil {
 		_ = conn.Close()
@@ -239,6 +240,7 @@ func (c *Client) handleSOCKS5Request(ctx context.Context, conn net.Conn) {
 		return
 	}
 	port := binary.BigEndian.Uint16(portBuf)
+	_ = conn.SetDeadline(time.Time{})
 
 	if cmd == SOCKS5_CMD_CONNECT {
 		c.handleSOCKSConnect(ctx, conn, addr, port, atyp, SOCKS5_VERSION)
@@ -702,16 +704,11 @@ func (c *Client) handleSocksUDPAssociate(ctx context.Context, conn net.Conn, cli
 
 		dnsQuery := buf[payloadOffset:n]
 
-		isHit := c.ProcessDNSQuery(dnsQuery, peerAddr, func(resp []byte) {
+		c.ProcessDNSQuery(dnsQuery, peerAddr, func(resp []byte) {
 			header := []byte{0x00, 0x00, 0x00, SOCKS5_ATYP_IPV4, 0, 0, 0, 0, 0, 53}
 			fullResp := append(header, resp...)
 			_, _ = udpConn.WriteToUDP(fullResp, peerAddr)
 		})
-
-		if !isHit {
-			c.log.Debugf("🧳 <yellow>SOCKS5 DNS Miss or Pending - Closing association to trigger client retry.</yellow>")
-			return
-		}
 	}
 }
 

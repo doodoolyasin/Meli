@@ -2890,7 +2890,8 @@ class ConfigImporter @Inject constructor() {
         if (baseResult !is ProfileParseResult.Success) return baseResult
 
         return if (fields.size > 78) {
-            ProfileParseResult.Success(baseResult.profile.copy(vlessSni = fields[78]))
+            val encMethod = if (fields.size > 79) fields[79].toIntOrNull() ?: baseResult.profile.tunnelEncryptionMethod else baseResult.profile.tunnelEncryptionMethod
+            ProfileParseResult.Success(baseResult.profile.copy(vlessSni = fields[78], tunnelEncryptionMethod = encMethod))
         } else {
             baseResult
         }
