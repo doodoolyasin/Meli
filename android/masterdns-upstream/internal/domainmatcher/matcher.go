@@ -89,7 +89,8 @@ func (m *Matcher) Match(parsed DnsParser.LitePacket) Decision {
 		}
 	}
 
-	if q0.Type != Enums.DNS_RECORD_TYPE_TXT {
+	if q0.Type != Enums.DNS_RECORD_TYPE_TXT && q0.Type != Enums.DNS_RECORD_TYPE_NS &&
+		q0.Type != Enums.DNS_RECORD_TYPE_CNAME && q0.Type != Enums.DNS_RECORD_TYPE_SRV {
 		return Decision{
 			Action:       ActionNoData,
 			Reason:       "unsupported-qtype",

@@ -254,11 +254,18 @@ func (c *Client) HandleDNSQueryAck(packet VpnProto.Packet) error {
 
 func (c *Client) HandleDNSQueryRes(packet VpnProto.Packet) error {
 	key := dnsFragmentKey{
-		SessionID:   c.sessionID,
+		SessionID:   c.SessionID(),
 		SequenceNum: packet.SequenceNum,
 	}
 
-	assembled, ready, _ := c.dnsResponses.Collect(key, packet.Payload, packet.FragmentID, packet.TotalFragments, time.Now(), c.cfg.DNSResponseFragmentTimeout())
+	c.dnsResponsesMu.RLock()
+	dnsStore := c.dnsResponses
+	c.dnsResponsesMu.RUnlock()
+	if dnsStore == nil {
+		return nil
+	}
+
+	assembled, ready, _ := dnsStore.Collect(key, packet.Payload, packet.FragmentID, packet.TotalFragments, time.Now(), c.cfg.DNSResponseFragmentTimeout())
 	if !ready {
 		return nil
 	}
@@ -268,14 +275,66 @@ func (c *Client) HandleDNSQueryRes(packet VpnProto.Packet) error {
 		if err == nil && lite.HasQuestion {
 			cacheKey := dnsCache.BuildKey(lite.FirstQuestion.Name, lite.FirstQuestion.Type, lite.FirstQuestion.Class)
 			c.localDNSCache.SetReady(cacheKey, lite.FirstQuestion.Name, lite.FirstQuestion.Type, lite.FirstQuestion.Class, assembled, time.Now())
+			c.resolvePendingDNSQueries(cacheKey, assembled)
 		}
 	}
 
 	return nil
 }
 
+type pendingDNSCallback struct {
+	query     []byte
+	respond   func([]byte)
+	createdAt time.Time
+}
+
+func (c *Client) registerPendingDNSQuery(key string, query []byte, respond func([]byte), now time.Time) {
+	if respond == nil {
+		return
+	}
+	c.pendingDNSMu.Lock()
+	defer c.pendingDNSMu.Unlock()
+	if c.pendingDNSQueries == nil {
+		c.pendingDNSQueries = make(map[string][]pendingDNSCallback)
+	}
+
+	// Prune stale pending queries (> 15 seconds) to prevent memory leak
+	for k, list := range c.pendingDNSQueries {
+		var active []pendingDNSCallback
+		for _, item := range list {
+			if now.Sub(item.createdAt) < 15*time.Second {
+				active = append(active, item)
+			}
+		}
+		if len(active) == 0 {
+			delete(c.pendingDNSQueries, k)
+		} else {
+			c.pendingDNSQueries[k] = active
+		}
+	}
+
+	c.pendingDNSQueries[key] = append(c.pendingDNSQueries[key], pendingDNSCallback{
+		query:     append([]byte(nil), query...),
+		respond:   respond,
+		createdAt: now,
+	})
+}
+
+func (c *Client) resolvePendingDNSQueries(key string, assembled []byte) {
+	c.pendingDNSMu.Lock()
+	callbacks := c.pendingDNSQueries[key]
+	delete(c.pendingDNSQueries, key)
+	c.pendingDNSMu.Unlock()
+
+	for _, cb := range callbacks {
+		if cb.respond != nil {
+			resp := dnsCache.PatchResponseForQuery(assembled, cb.query)
+			cb.respond(resp)
+		}
+	}
+}
+
 // ProcessDNSQuery handles a DNS query by checking the local cache or dispatching to the tunnel.
-// It only responds on cache hits and uses "fire-and-forget" for misses.
 func (c *Client) ProcessDNSQuery(query []byte, addr net.Addr, respond func([]byte)) bool {
 	if c == nil || !c.SessionReady() {
 		return false
@@ -307,6 +366,10 @@ func (c *Client) ProcessDNSQuery(query []byte, addr net.Addr, respond func([]byt
 			return true
 		}
 
+		if respond != nil {
+			c.registerPendingDNSQuery(key, query, respond, now)
+		}
+
 		if res.Status == dnsCache.StatusPending && !res.DispatchNeeded {
 			// Already pending in tunnel, don't re-dispatch
 			if c.log != nil {
@@ -314,6 +377,9 @@ func (c *Client) ProcessDNSQuery(query []byte, addr net.Addr, respond func([]byt
 			}
 			return false
 		}
+	} else if respond != nil {
+		key := dnsCache.BuildKey(question.Name, question.Type, question.Class)
+		c.registerPendingDNSQuery(key, query, respond, now)
 	}
 
 	// 3. Dispatch to Tunnel

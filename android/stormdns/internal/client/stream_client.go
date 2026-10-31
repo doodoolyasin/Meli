@@ -159,7 +159,7 @@ func (c *Client) new_stream(streamID uint16, conn net.Conn, targetPayload []byte
 		IsClient:                    true,
 	}
 
-	a := arq.NewARQ(streamID, c.sessionID, s, conn, mtu, c.log, arqCfg)
+	a := arq.NewARQ(streamID, c.SessionID(), s, conn, mtu, c.log, arqCfg)
 	s.Stream = a
 	a.Start()
 
@@ -593,7 +593,7 @@ func (c *Client) InitVirtualStream0() {
 	}
 
 	conn := newFakeConn()
-	a := arq.NewARQ(streamID, c.sessionID, s, conn, mtu, c.log, arqCfg)
+	a := arq.NewARQ(streamID, c.SessionID(), s, conn, mtu, c.log, arqCfg)
 	s.Stream = a
 	c.active_streams[streamID] = s
 	a.Start()

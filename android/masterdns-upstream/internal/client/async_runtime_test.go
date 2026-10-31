@@ -49,8 +49,10 @@ func createTestClient(t *testing.T) *Client {
 func TestResetRuntimeBindings(t *testing.T) {
 	c := createTestClient(t)
 	c.last_stream_id = 10
+	c.sessionMu.Lock()
 	c.sessionID = 1
 	c.sessionReady = true
+	c.sessionMu.Unlock()
 	c.socksRateLimit.RecordFailure("10.0.0.1")
 	oldLimiter := c.socksRateLimit
 
@@ -60,11 +62,11 @@ func TestResetRuntimeBindings(t *testing.T) {
 		t.Errorf("expected last_stream_id 0, got %d", c.last_stream_id)
 	}
 
-	if c.sessionID != 0 {
-		t.Errorf("expected sessionID 0, got %d", c.sessionID)
+	if c.SessionID() != 0 {
+		t.Errorf("expected sessionID 0, got %d", c.SessionID())
 	}
 
-	if c.sessionReady {
+	if c.SessionReady() {
 		t.Error("expected sessionReady false")
 	}
 

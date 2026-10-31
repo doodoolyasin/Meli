@@ -89,11 +89,11 @@ func TestApplySessionInitPacketAppliesServerClientPolicy(t *testing.T) {
 		t.Fatalf("applySessionInitPacket returned error: %v", err)
 	}
 
-	if !c.sessionReady {
+	if !c.SessionReady() {
 		t.Fatal("expected session to become ready")
 	}
-	if c.sessionID != 7 || c.sessionCookie != 9 {
-		t.Fatalf("unexpected session identity: id=%d cookie=%d", c.sessionID, c.sessionCookie)
+	if c.SessionID() != 7 || c.SessionCookie() != 9 {
+		t.Fatalf("unexpected session identity: id=%d cookie=%d", c.SessionID(), c.SessionCookie())
 	}
 	if c.cfg.PacketDuplicationCount != 5 {
 		t.Fatalf("unexpected packet duplication clamp: got=%d want=%d", c.cfg.PacketDuplicationCount, 5)
@@ -178,7 +178,7 @@ func TestApplySessionInitPacketAcceptsLegacySessionAcceptPayload(t *testing.T) {
 	if err != nil {
 		t.Fatalf("legacy session accept should still work, got error: %v", err)
 	}
-	if !c.sessionReady {
+	if !c.SessionReady() {
 		t.Fatal("expected legacy session accept to mark session ready")
 	}
 }

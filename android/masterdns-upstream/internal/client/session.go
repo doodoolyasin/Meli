@@ -157,7 +157,9 @@ func (c *Client) applySessionInitPacket(packet VpnProto.Packet, initPayload []by
 		c.initStateMu.Lock()
 		defer c.initStateMu.Unlock()
 
+		c.sessionMu.Lock()
 		if c.sessionReady {
+			c.sessionMu.Unlock()
 			return nil
 		}
 
@@ -169,6 +171,7 @@ func (c *Client) applySessionInitPacket(packet VpnProto.Packet, initPayload []by
 			c.applySessionClientPolicy(sessionAccept.ClientPolicy)
 		}
 		c.sessionReady = true
+		c.sessionMu.Unlock()
 		c.applySessionCompressionPolicy()
 		c.clearSessionInitBusyUntil()
 		c.resetSessionInitStateLocked()
@@ -269,7 +272,9 @@ func (c *Client) syncSessionPolicyDerivedState() {
 	c.encodedTXChannel = make(chan writerTask, max(24, c.cfg.RX_TX_Workers*24))
 	c.rxChannel = make(chan asyncReadPacket, c.cfg.EffectiveRXChannelSize())
 	c.orphanQueue = mlq.New[VpnProto.Packet](c.cfg.EffectiveOrphanQueueInitialCapacity())
+	c.dnsResponsesMu.Lock()
 	c.dnsResponses = fragmentStore.New[dnsFragmentKey](c.cfg.EffectiveDNSResponseFragmentStoreCap())
+	c.dnsResponsesMu.Unlock()
 }
 
 func deriveSessionPolicyTunnelProcessWorkers(current int, rxWorkers int) int {
@@ -473,7 +478,7 @@ func (c *Client) clearSessionResetPending() {
 }
 
 func (c *Client) notifySessionCloseBurst(timeout time.Duration) {
-	if c == nil || !c.SessionReady() || c.sessionID == 0 {
+	if c == nil || !c.SessionReady() || c.SessionID() == 0 {
 		return
 	}
 	if !c.sessionResetPending.CompareAndSwap(false, true) {
@@ -518,7 +523,7 @@ func (c *Client) notifySessionCloseBurst(timeout time.Duration) {
 	if c.log != nil {
 		c.log.Debugf(
 			"\U0001F6AA <yellow>Client Session Close Burst Sent</yellow> <magenta>|</magenta> <blue>Session</blue>: <cyan>%d</cyan> <magenta>|</magenta> <blue>Targets</blue>: <cyan>%d</cyan>",
-			c.sessionID,
+			c.SessionID(),
 			len(targets),
 		)
 	}
@@ -556,8 +561,8 @@ func (c *Client) sendSessionCloseRound(targets []Connection, deadline time.Time)
 		go func() {
 			defer wg.Done()
 			query, err := c.buildTunnelTXTQueryRaw(conn.Domain, VpnProto.BuildOptions{
-				SessionID:     c.sessionID,
-				SessionCookie: c.sessionCookie,
+				SessionID:     c.SessionID(),
+				SessionCookie: c.SessionCookie(),
 				PacketType:    Enums.PACKET_SESSION_CLOSE,
 			})
 			if err != nil {

@@ -176,8 +176,9 @@ type ARQ struct {
 	IsClient bool
 
 	// Backpressure
-	windowSize    int
-	limit         int
+	windowSize        int
+	receiveWindowSize int
+	limit             int
 	windowNotFull chan struct{} // Acts as asyncio.Event
 	writeLock     sync.Mutex    // equivalent to asyncio.Lock for writer
 
@@ -239,7 +240,7 @@ const (
 const (
 	ioRetryBackoff         = 100 * time.Millisecond
 	ioTransientReadBudget  = 3 * time.Second
-	ioTransientWriteBudget = 3
+	ioTransientWriteBudget = 10
 )
 
 func classifyIOError(err error) ioErrorClass {
@@ -330,6 +331,7 @@ func NewARQ(streamID uint16, sessionID uint8, enqueuer PacketEnqueuer, localConn
 	}
 
 	windowSize := max(cfg.WindowSize, 300)
+	receiveWindowSize := max(windowSize, windowSize*2)
 
 	limit := max(int(float64(windowSize)*0.8), 50)
 
@@ -349,8 +351,9 @@ func NewARQ(streamID uint16, sessionID uint8, enqueuer PacketEnqueuer, localConn
 		state:        StateOpen,
 		lastActivity: time.Now(),
 
-		windowSize:    windowSize,
-		limit:         limit,
+		windowSize:        windowSize,
+		receiveWindowSize: receiveWindowSize,
+		limit:             limit,
 		windowNotFull: make(chan struct{}, 1),
 		writeLock:     sync.Mutex{},
 		flushSignal:   make(chan struct{}, 1),
@@ -920,6 +923,42 @@ func (a *ARQ) MarkRstReceived() {
 	a.mu.Unlock()
 }
 
+func (a *ARQ) contiguousReadyLocked() int {
+	ready := 0
+	for curr := a.rcvNxt; ; curr++ {
+		if _, ok := a.rcvBuf[curr]; !ok {
+			break
+		}
+		ready++
+	}
+	return ready
+}
+
+func (a *ARQ) tryFinalizePeerResetDrain() bool {
+	a.mu.Lock()
+	if !a.rstReceived || a.closed {
+		a.mu.Unlock()
+		return false
+	}
+
+	contiguousReady := a.contiguousReadyLocked()
+	rcvBufLen := len(a.rcvBuf)
+	a.mu.Unlock()
+
+	if contiguousReady > 0 {
+		a.signalFlushReady()
+		return false
+	}
+
+	if rcvBufLen > 0 {
+		a.Close("peer reset received with non-contiguous buffered data", CloseOptions{Force: true})
+		return true
+	}
+
+	a.Close("peer reset received", CloseOptions{Force: true})
+	return true
+}
+
 func (a *ARQ) markRstAcked() {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -1437,14 +1476,14 @@ func (a *ARQ) processReceivedDataBatch(batch []rxPayload) {
 			continue
 		}
 
-		if int(diff) > a.windowSize {
+		if int(diff) > a.receiveWindowSize {
 			// Beyond receive window — silently drop
 			results[i] = rxResult{sn: sn}
 			continue
 		}
 
 		_, exists := a.rcvBuf[sn]
-		if !exists && len(a.rcvBuf) >= a.windowSize && sn != a.rcvNxt {
+		if !exists && len(a.rcvBuf) >= a.receiveWindowSize && sn != a.rcvNxt {
 			// Window full and not the expected next — drop
 			results[i] = rxResult{sn: sn}
 			continue
@@ -1606,7 +1645,7 @@ func (a *ARQ) writeLoop() {
 					transientRetries := 0
 					for len(remaining) > 0 {
 						if wd, ok := conn.(writeDeadlineSetter); ok {
-							_ = wd.SetWriteDeadline(time.Now().Add(500 * time.Millisecond))
+							_ = wd.SetWriteDeadline(time.Now().Add(2500 * time.Millisecond))
 						}
 						a.writeLock.Lock()
 						n, err := conn.Write(remaining)
@@ -2314,9 +2353,7 @@ func (a *ARQ) handleTerminalRetransmitState(now time.Time) bool {
 	// RST_ACK arrives.
 	if a.rstReceived && !a.closed {
 		a.mu.Unlock()
-		a.MarkRstReceived()
-		a.Close("Peer reset signaled", CloseOptions{Force: true})
-		return true
+		return a.tryFinalizePeerResetDrain()
 	}
 
 	shouldInitiateCloseWriteAfterEOF := a.IsClient &&

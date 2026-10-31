@@ -9,6 +9,7 @@ package main
 import (
 	"bufio"
 	"context"
+	"crypto/sha256"
 	"errors"
 	"flag"
 	"fmt"
@@ -188,7 +189,8 @@ func main() {
 		)
 	}
 
-	log.Infof("\U0001F511 <green>Active Encryption Key: <yellow>%s</yellow></green>", keyInfo.Key)
+	keyHash := sha256.Sum256([]byte(keyInfo.Key))
+	log.Infof("\U0001F511 <green>Active Encryption Key Fingerprint: <yellow>%x</yellow></green>", keyHash[:4])
 	log.Debugf("\u25B6\uFE0F <green>Starting UDP Server...</green>")
 
 	if err := srv.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {

@@ -72,6 +72,7 @@ type Client struct {
 	streamResolverFailoverCooldown        time.Duration
 
 	// Session States
+	sessionMu             sync.RWMutex
 	sessionID             uint8
 	sessionCookie         uint8
 	responseMode          uint8
@@ -125,12 +126,15 @@ type Client struct {
 
 	// DNS Management
 	localDNSCache          *dnsCache.Store
+	dnsResponsesMu         sync.RWMutex
 	dnsResponses           *fragmentStore.Store[dnsFragmentKey]
 	localDNSCachePersist   bool
 	localDNSCachePath      string
 	localDNSCacheFlushTick time.Duration
 	localDNSCacheLoadOnce  sync.Once
 	localDNSCacheFlushOnce sync.Once
+	pendingDNSMu           sync.Mutex
+	pendingDNSQueries      map[string][]pendingDNSCallback
 
 	// SOCKS5 brute-force rate limiter
 	socksRateLimit *socksRateLimiter
@@ -300,6 +304,7 @@ func New(cfg config.ClientConfig, log *logger.Logger, codec *security.Codec) *Cl
 		orphanQueue:            mlq.New[VpnProto.Packet](cfg.EffectiveOrphanQueueInitialCapacity()),
 		sessionResetSignal:     make(chan struct{}, 1),
 		socksRateLimit:         newSocksRateLimiter(),
+		pendingDNSQueries:      make(map[string][]pendingDNSCallback),
 	}
 
 	if c.streamResolverFailoverResendThreshold < 1 {
@@ -397,7 +402,7 @@ func (c *Client) Run(ctx context.Context) error {
 				c.ShortPrintBanner()
 			}
 
-			if !c.sessionReady {
+			if !c.SessionReady() {
 				retries := c.cfg.MTUTestRetries
 				if retries < 1 {
 					retries = 3
@@ -417,7 +422,7 @@ func (c *Client) Run(ctx context.Context) error {
 					}
 					continue
 				}
-				c.log.Infof("<green>✅ Session Initialized Successfully (ID: <cyan>%d</cyan>)</green>", c.sessionID)
+				c.log.Infof("<green>✅ Session Initialized Successfully (ID: <cyan>%d</cyan>)</green>", c.SessionID())
 
 				sessionInitRetryFailures = 0
 				sessionInitRetryDelay = 0

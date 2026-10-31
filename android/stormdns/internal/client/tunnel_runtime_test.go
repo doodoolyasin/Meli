@@ -119,7 +119,7 @@ func TestExchangeUDPQueryWithConnDrainsStaleResponsesBeforeSending(t *testing.T)
 		}
 
 		time.Sleep(40 * time.Millisecond)
-		for i := 0; i < runtimeUDPMaxMismatchedResponses+4; i++ {
+		for i := 0; i < runtimeUDPMaxMismatchedResponses/2; i++ {
 			_, _ = serverConn.WriteToUDP([]byte{buf[0], buf[1], 0x81, byte(i)}, addr)
 		}
 

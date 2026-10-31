@@ -74,7 +74,9 @@ func buildPingWatchdogClient(t *testing.T, watchdogTimeout time.Duration, server
 	c := buildTestClientWithResolvers(config.ClientConfig{
 		PingWatchdogTimeoutSeconds: watchdogTimeout.Seconds(),
 	})
+	c.sessionMu.Lock()
 	c.sessionReady = true
+	c.sessionMu.Unlock()
 	c.sessionResetSignal = make(chan struct{}, 1)
 
 	p := newPingManager(c)

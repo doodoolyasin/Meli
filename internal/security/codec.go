@@ -10,15 +10,13 @@ package security
 import (
 	"crypto/aes"
 	"crypto/cipher"
-	"crypto/md5"
 	"crypto/rand"
 	"crypto/sha256"
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"sync"
 
-	"golang.org/x/crypto/chacha20"
+	"golang.org/x/crypto/chacha20poly1305"
 
 	baseCodec "github.com/doodoolyasin/meli/internal/basecodec"
 	"github.com/doodoolyasin/meli/internal/config"
@@ -82,19 +80,20 @@ func NewCodec(method int, rawKey string) (*Codec, error) {
 	case 0:
 		codec.encrypt = codec.noCrypto
 		codec.decrypt = codec.noCrypto
-	case 1:
-		codec.encrypt = codec.xorCrypto
-		codec.decrypt = codec.xorCrypto
-	case 2:
-		codec.encrypt = codec.chachaEncrypt
-		codec.decrypt = codec.chachaDecrypt
+	case 1, 2:
+		aead, err := chacha20poly1305.New(derivedKey)
+		if err != nil {
+			return nil, fmt.Errorf("create chacha20poly1305 cipher: %w", err)
+		}
+		codec.encrypt = codec.makeAEADEncryptor(aead)
+		codec.decrypt = codec.makeAEADDecryptor(aead)
 	case 3, 4, 5:
 		aead, err := newAESGCM(derivedKey)
 		if err != nil {
 			return nil, err
 		}
-		codec.encrypt = codec.makeAESEncryptor(aead)
-		codec.decrypt = codec.makeAESDecryptor(aead)
+		codec.encrypt = codec.makeAEADEncryptor(aead)
+		codec.decrypt = codec.makeAEADDecryptor(aead)
 	default:
 		return nil, ErrInvalidCodecMethod
 	}
@@ -241,64 +240,23 @@ func (c *Codec) xorCrypto(dst, data []byte) ([]byte, error) {
 }
 
 func (c *Codec) chachaEncrypt(dst, data []byte) ([]byte, error) {
-	if len(data) == 0 {
-		if cap(dst) == 0 {
-			dst = make([]byte, 0)
-		} else {
-			dst = dst[:0]
-		}
-		return dst, nil
-	}
-
-	reqSize := chachaNonceSize + len(data)
-	if cap(dst) < reqSize {
-		dst = make([]byte, reqSize)
-	} else {
-		dst = dst[:reqSize]
-	}
-
-	nonce := dst[:chachaNonceSize]
-	if _, err := rand.Read(nonce); err != nil {
-		return nil, fmt.Errorf("generate chacha20 nonce: %w", err)
-	}
-
-	stream, err := chacha20.NewUnauthenticatedCipher(c.key, nonce[4:])
+	aead, err := chacha20poly1305.New(c.key)
 	if err != nil {
 		return nil, err
 	}
-	stream.SetCounter(binary.LittleEndian.Uint32(nonce[:4]))
-	stream.XORKeyStream(dst[chachaNonceSize:], data)
-	return dst, nil
+	return c.makeAEADEncryptor(aead)(dst, data)
 }
 
 func (c *Codec) chachaDecrypt(dst, data []byte) ([]byte, error) {
-	if len(data) == 0 {
-		return nil, nil // Return nil per original intention
-	}
-	if len(data) <= chachaNonceSize {
-		return nil, ErrInvalidCiphertext
-	}
-
-	nonce := data[:chachaNonceSize]
-	ciphertext := data[chachaNonceSize:]
-
-	if cap(dst) < len(ciphertext) {
-		dst = make([]byte, len(ciphertext))
-	} else {
-		dst = dst[:len(ciphertext)]
-	}
-
-	stream, err := chacha20.NewUnauthenticatedCipher(c.key, nonce[4:])
+	aead, err := chacha20poly1305.New(c.key)
 	if err != nil {
 		return nil, err
 	}
-	stream.SetCounter(binary.LittleEndian.Uint32(nonce[:4]))
-
-	stream.XORKeyStream(dst, ciphertext)
-	return dst, nil
+	return c.makeAEADDecryptor(aead)(dst, data)
 }
 
-func (c *Codec) makeAESEncryptor(aead cipher.AEAD) func(dst, src []byte) ([]byte, error) {
+func (c *Codec) makeAEADEncryptor(aead cipher.AEAD) func(dst, src []byte) ([]byte, error) {
+	nonceSize := aead.NonceSize()
 	return func(dst, src []byte) ([]byte, error) {
 		if len(src) == 0 {
 			if cap(dst) == 0 {
@@ -309,16 +267,16 @@ func (c *Codec) makeAESEncryptor(aead cipher.AEAD) func(dst, src []byte) ([]byte
 			return dst, nil
 		}
 
-		reqSize := aesNonceSize + len(src) + aead.Overhead()
+		reqSize := nonceSize + len(src) + aead.Overhead()
 		if cap(dst) < reqSize {
-			dst = make([]byte, aesNonceSize, reqSize)
+			dst = make([]byte, nonceSize, reqSize)
 		} else {
-			dst = dst[:aesNonceSize]
+			dst = dst[:nonceSize]
 		}
 
-		nonce := dst[:aesNonceSize]
+		nonce := dst[:nonceSize]
 		if _, err := rand.Read(nonce); err != nil {
-			return nil, fmt.Errorf("generate aes-gcm nonce: %w", err)
+			return nil, fmt.Errorf("generate aead nonce: %w", err)
 		}
 
 		dst = aead.Seal(dst, nonce, src, nil)
@@ -326,17 +284,18 @@ func (c *Codec) makeAESEncryptor(aead cipher.AEAD) func(dst, src []byte) ([]byte
 	}
 }
 
-func (c *Codec) makeAESDecryptor(aead cipher.AEAD) func(dst, src []byte) ([]byte, error) {
+func (c *Codec) makeAEADDecryptor(aead cipher.AEAD) func(dst, src []byte) ([]byte, error) {
+	nonceSize := aead.NonceSize()
 	return func(dst, src []byte) ([]byte, error) {
 		if len(src) == 0 {
 			return nil, nil
 		}
-		if len(src) <= aesNonceSize {
+		if len(src) <= nonceSize {
 			return nil, ErrInvalidCiphertext
 		}
 
-		nonce := src[:aesNonceSize]
-		ciphertext := src[aesNonceSize:]
+		nonce := src[:nonceSize]
+		ciphertext := src[nonceSize:]
 
 		if cap(dst) == 0 {
 			dst = make([]byte, 0, len(ciphertext))
@@ -350,6 +309,14 @@ func (c *Codec) makeAESDecryptor(aead cipher.AEAD) func(dst, src []byte) ([]byte
 		}
 		return plaintext, nil
 	}
+}
+
+func (c *Codec) makeAESEncryptor(aead cipher.AEAD) func(dst, src []byte) ([]byte, error) {
+	return c.makeAEADEncryptor(aead)
+}
+
+func (c *Codec) makeAESDecryptor(aead cipher.AEAD) func(dst, src []byte) ([]byte, error) {
+	return c.makeAEADDecryptor(aead)
 }
 
 func newAESGCM(key []byte) (cipher.AEAD, error) {
@@ -369,15 +336,22 @@ func deriveKey(method int, rawKey string) []byte {
 	targetLen := requiredDerivedKeyLength(method)
 
 	switch method {
-	case 2, 5:
+	case 1, 2, 5:
 		sum := sha256.Sum256(bKey)
 		return sum[:]
 	case 3:
-		sum := md5.Sum(bKey)
-		return sum[:]
+		sum := sha256.Sum256(bKey)
+		return sum[:16]
+	case 4:
+		sum := sha256.Sum256(bKey)
+		return sum[:24]
 	default:
+		sum := sha256.Sum256(bKey)
+		if targetLen <= 32 {
+			return sum[:targetLen]
+		}
 		key := make([]byte, targetLen)
-		copy(key, bKey)
+		copy(key, sum[:])
 		return key
 	}
 }

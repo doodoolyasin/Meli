@@ -244,7 +244,7 @@ const (
 const (
 	ioRetryBackoff         = 100 * time.Millisecond
 	ioTransientReadBudget  = 3 * time.Second
-	ioTransientWriteBudget = 3
+	ioTransientWriteBudget = 10
 )
 
 func classifyIOError(err error) ioErrorClass {
@@ -1740,7 +1740,7 @@ func (a *ARQ) writeLoop() {
 					transientRetries := 0
 					for len(remaining) > 0 {
 						if wd, ok := conn.(writeDeadlineSetter); ok {
-							_ = wd.SetWriteDeadline(time.Now().Add(500 * time.Millisecond))
+							_ = wd.SetWriteDeadline(time.Now().Add(2500 * time.Millisecond))
 						}
 						a.writeLock.Lock()
 						n, err := conn.Write(remaining)

@@ -383,8 +383,8 @@ dispatchLoop:
 		c.pingManager.NotifyPacket(finalPacketType, false)
 
 		opts := VpnProto.BuildOptions{
-			SessionID:     c.sessionID,
-			SessionCookie: c.sessionCookie,
+			SessionID:     c.SessionID(),
+			SessionCookie: c.SessionCookie(),
 			PacketType:    finalPacketType,
 			CompressionType: func() uint8 {
 				if wasPacked {

@@ -362,6 +362,7 @@ func (c *Client) handleSOCKSConnect(ctx context.Context, conn net.Conn, addr str
 		} else {
 			_ = c.sendSocksReply(conn, SOCKS5_REPLY_GENERAL_FAILURE, SOCKS5_ATYP_IPV4, net.IPv4zero, 0)
 		}
+		_ = conn.Close()
 		return
 	}
 
@@ -415,6 +416,7 @@ func (c *Client) handleSOCKSConnect(ctx context.Context, conn net.Conn, addr str
 		} else {
 			_ = c.sendSocksReply(conn, SOCKS5_REPLY_GENERAL_FAILURE, SOCKS5_ATYP_IPV4, net.IPv4zero, 0)
 		}
+		_ = conn.Close()
 		return
 	}
 
@@ -422,6 +424,7 @@ func (c *Client) handleSOCKSConnect(ctx context.Context, conn net.Conn, addr str
 
 	arqObj, ok := s.Stream.(*arq.ARQ)
 	if !ok {
+		_ = conn.Close()
 		return
 	}
 
@@ -607,6 +610,7 @@ func (c *Client) rejectSocksUDPAssociateUnsupportedTarget(conn net.Conn, targetA
 }
 
 func (c *Client) handleSocksUDPAssociate(ctx context.Context, conn net.Conn, clientAddr string, clientPort uint16, atyp byte) {
+	defer conn.Close()
 	replyIP := net.ParseIP(c.cfg.ListenIP)
 	if tcpAddr, ok := conn.LocalAddr().(*net.TCPAddr); ok && tcpAddr != nil && tcpAddr.IP != nil {
 		replyIP = tcpAddr.IP

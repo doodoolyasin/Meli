@@ -10,6 +10,8 @@ import (
 	"encoding/binary"
 	"errors"
 	"strings"
+
+	Enums "masterdnsvpn-go/internal/enums"
 )
 
 var (
@@ -51,12 +53,13 @@ type Question struct {
 }
 
 type ResourceRecord struct {
-	Name  string
-	Type  uint16
-	Class uint16
-	TTL   uint32
-	RDLen uint16
-	RData []byte
+	Name      string
+	Type      uint16
+	Class     uint16
+	TTL       uint32
+	RDLen     uint16
+	RData     []byte
+	RDataName string // decoded rdata name for name-type records (NS/CNAME at offset 0, SRV target at offset 6); "" when n/a, root, or undecodable
 }
 
 type Packet struct {
@@ -278,10 +281,35 @@ func parseResourceRecords(data []byte, offset int, count int) ([]ResourceRecord,
 			RDLen: rdLen,
 			RData: data[offset:end],
 		}
+
+		// NS/CNAME rdata is a domain name starting at offset 0; SRV rdata
+		// carries its target name after the 6-byte priority/weight/port
+		// prefix. Decode it so tunnel payloads carried in those names can be
+		// read. A decode failure (or a name that overruns rdLen) leaves
+		// RDataName empty and never fails the whole packet parse.
+		if nameOffset := nameRDataNameOffset(rType); nameOffset >= 0 && offset+nameOffset < end {
+			if nameText, nameNext, nameErr := parseName(data, offset+nameOffset); nameErr == nil && nameNext <= end {
+				records[i].RDataName = nameText
+			}
+		}
 		offset = end
 	}
 
 	return records, offset, nil
+}
+
+// nameRDataNameOffset returns the offset of the domain name inside the rdata
+// for record types that carry a name payload. -1 means the type does not carry
+// a name payload we decode.
+func nameRDataNameOffset(recordType uint16) int {
+	switch recordType {
+	case Enums.DNS_RECORD_TYPE_NS, Enums.DNS_RECORD_TYPE_CNAME:
+		return 0
+	case Enums.DNS_RECORD_TYPE_SRV:
+		return 6 // 2-byte priority + 2-byte weight + 2-byte port
+	default:
+		return -1
+	}
 }
 
 func parseName(data []byte, offset int) (string, int, error) {

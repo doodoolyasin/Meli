@@ -78,15 +78,21 @@ func (c *Client) initializeSessionOnce() error {
 		c.setSessionInitBusyUntil(time.Now().Add(c.cfg.SessionInitBusyRetryInterval()))
 		return ErrSessionInitBusy
 	case Enums.PACKET_SESSION_ACCEPT:
-		if len(packet.Payload) < sessionAcceptPayloadSize || !bytes.Equal(packet.Payload[3:7], verifyCode[:]) {
+		sessionAccept, err := VpnProto.DecodeSessionAcceptPayload(packet.Payload)
+		if err != nil || !bytes.Equal(sessionAccept.VerifyCode[:], verifyCode[:]) {
 			return ErrSessionInitFailed
 		}
 
-		c.sessionID = packet.Payload[0]
-		c.sessionCookie = packet.Payload[1]
+		c.sessionMu.Lock()
+		c.sessionID = sessionAccept.SessionID
+		c.sessionCookie = sessionAccept.SessionCookie
 		c.responseMode = initPayload[0]
-		c.uploadCompression, c.downloadCompression = compression.SplitPair(packet.Payload[2])
+		c.uploadCompression, c.downloadCompression = compression.SplitPair(sessionAccept.CompressionPair)
+		if sessionAccept.HasClientPolicySync {
+			c.applySessionClientPolicy(sessionAccept.ClientPolicy)
+		}
 		c.sessionReady = true
+		c.sessionMu.Unlock()
 		c.applySessionCompressionPolicy()
 		c.clearSessionInitBusyUntil()
 		c.resetSessionInitState()
@@ -94,6 +100,47 @@ func (c *Client) initializeSessionOnce() error {
 		return nil
 	default:
 		return ErrSessionInitFailed
+	}
+}
+
+func (c *Client) applySessionClientPolicy(policy VpnProto.SessionAcceptClientPolicy) {
+	if c == nil {
+		return
+	}
+
+	before := VpnProto.SessionAcceptClientSettings{
+		PacketDuplicationCount:      c.cfg.UploadPacketDuplicationCount,
+		SetupPacketDuplicationCount: c.cfg.UploadSetupPacketDuplicationCount,
+		MaxUploadMTU:                c.cfg.MaxUploadMTU,
+		MaxDownloadMTU:              c.cfg.MaxDownloadMTU,
+		MaxPacketsPerBatch:          c.cfg.MaxPacketsPerBatch,
+		ARQWindowSize:               c.cfg.ARQWindowSize,
+		ARQDataNackMaxGap:           c.cfg.ARQDataNackMaxGap,
+		CompressionMinSize:          c.cfg.CompressionMinSize,
+		ARQInitialRTOSeconds:        c.cfg.ARQInitialRTOSeconds,
+		ARQControlInitialRTOSeconds: c.cfg.ARQControlInitialRTOSeconds,
+	}
+
+	settings := VpnProto.ApplySessionAcceptClientPolicy(before, policy)
+
+	c.cfg.UploadPacketDuplicationCount = settings.PacketDuplicationCount
+	c.cfg.UploadSetupPacketDuplicationCount = settings.SetupPacketDuplicationCount
+	c.cfg.MaxUploadMTU = settings.MaxUploadMTU
+	c.cfg.MaxDownloadMTU = settings.MaxDownloadMTU
+	c.cfg.MaxPacketsPerBatch = settings.MaxPacketsPerBatch
+	c.cfg.ARQWindowSize = settings.ARQWindowSize
+	c.cfg.ARQDataNackMaxGap = settings.ARQDataNackMaxGap
+	c.cfg.CompressionMinSize = settings.CompressionMinSize
+	c.cfg.ARQInitialRTOSeconds = settings.ARQInitialRTOSeconds
+	c.cfg.ARQControlInitialRTOSeconds = settings.ARQControlInitialRTOSeconds
+
+	if c.log != nil {
+		c.log.Infof(
+			"\U0001F6E1 <green>Session Policy Applied: UploadMTU: %d, DownloadMTU: %d, ARQWindow: %d</green>",
+			c.cfg.MaxUploadMTU,
+			c.cfg.MaxDownloadMTU,
+			c.cfg.ARQWindowSize,
+		)
 	}
 }
 
@@ -219,7 +266,7 @@ func (c *Client) clearSessionResetPending() {
 }
 
 func (c *Client) notifySessionCloseBurst(timeout time.Duration) {
-	if c == nil || !c.SessionReady() || c.sessionID == 0 {
+	if c == nil || !c.SessionReady() || c.SessionID() == 0 {
 		return
 	}
 	if !c.sessionResetPending.CompareAndSwap(false, true) {
@@ -264,7 +311,7 @@ func (c *Client) notifySessionCloseBurst(timeout time.Duration) {
 	if c.log != nil {
 		c.log.Debugf(
 			"\U0001F6AA <yellow>Client Session Close Burst Sent</yellow> <magenta>|</magenta> <blue>Session</blue>: <cyan>%d</cyan> <magenta>|</magenta> <blue>Targets</blue>: <cyan>%d</cyan>",
-			c.sessionID,
+			c.SessionID(),
 			len(targets),
 		)
 	}
@@ -302,8 +349,8 @@ func (c *Client) sendSessionCloseRound(targets []Connection, deadline time.Time)
 		go func() {
 			defer wg.Done()
 			query, err := c.buildTunnelTXTQueryRaw(conn.Domain, VpnProto.BuildOptions{
-				SessionID:     c.sessionID,
-				SessionCookie: c.sessionCookie,
+				SessionID:     c.SessionID(),
+				SessionCookie: c.SessionCookie(),
 				PacketType:    Enums.PACKET_SESSION_CLOSE,
 			})
 			if err != nil {

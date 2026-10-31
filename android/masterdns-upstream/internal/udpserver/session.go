@@ -212,6 +212,8 @@ type sessionStore struct {
 	sessionInitTTL         time.Duration
 	recentlyClosedTTL      time.Duration
 	recentlyClosedCap      int
+	initRateWindowSec      int64
+	initRateCount          int
 }
 
 func newSessionStore(orphanQueueCap int, streamQueueCap int, options ...any) *sessionStore {
@@ -280,8 +282,8 @@ func (s *sessionStore) findOrCreate(
 	if sessionID, ok := s.bySig[signature]; ok {
 		if existing := s.byID[sessionID]; existing != nil {
 			if nowUnixNano <= existing.reuseUntilUnixNano {
-				existing.setLastActivityUnixNano(nowUnixNano)
-				return existing, true, nil
+				// Anti-replay: Reject replayed handshake with duplicate signature to prevent hijacking
+				return nil, false, nil
 			}
 		}
 		delete(s.bySig, signature)
@@ -291,6 +293,16 @@ func (s *sessionStore) findOrCreate(
 	if slot < 0 {
 		return nil, false, ErrSessionTableFull
 	}
+
+	nowSec := nowUnixNano / 1e9
+	if s.initRateWindowSec != nowSec {
+		s.initRateWindowSec = nowSec
+		s.initRateCount = 0
+	}
+	if s.initRateCount >= 30 {
+		return nil, false, ErrSessionTableFull
+	}
+	s.initRateCount++
 
 	record := &sessionRecord{
 		ID:                         uint8(slot),
@@ -493,8 +505,21 @@ func (s *sessionStore) Cleanup(now time.Time, idleTimeout time.Duration, closedR
 			continue
 		}
 
+		effectiveIdleNanos := idleTimeoutNanos
+		record.StreamsMu.RLock()
+		numStreams := len(record.Streams)
+		hasDataStreams := numStreams > 1 || (numStreams == 1 && record.Streams[0] == nil)
+		record.StreamsMu.RUnlock()
+
+		if !hasDataStreams {
+			noDataTimeoutNanos := (15 * time.Second).Nanoseconds()
+			if noDataTimeoutNanos < effectiveIdleNanos {
+				effectiveIdleNanos = noDataTimeoutNanos
+			}
+		}
+
 		lastActivityUnixNano := record.lastActivity()
-		if lastActivityUnixNano != 0 && nowUnixNano-lastActivityUnixNano < idleTimeoutNanos {
+		if lastActivityUnixNano != 0 && nowUnixNano-lastActivityUnixNano < effectiveIdleNanos {
 			continue
 		}
 
@@ -578,16 +603,11 @@ func (s *sessionStore) allocateSlotLocked() int {
 }
 
 func (s *sessionStore) randomCookieLocked() uint8 {
-	if s.cookieIndex >= len(s.cookieBytes) {
-		if _, err := rand.Read(s.cookieBytes[:]); err != nil {
-			s.cookieIndex = len(s.cookieBytes)
-			return 0
-		}
-		s.cookieIndex = 0
+	var b [1]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		return uint8(time.Now().UnixNano() & 0xFF)
 	}
-	value := s.cookieBytes[s.cookieIndex]
-	s.cookieIndex++
-	return value
+	return b[0]
 }
 
 func (s *sessionStore) updateNextReuseSweepLocked(reuseUntilUnixNano int64) {

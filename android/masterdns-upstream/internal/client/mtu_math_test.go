@@ -18,7 +18,10 @@ func TestEncodedCharsForPayloadUsesWorstCaseUploadPacketType(t *testing.T) {
 func TestEncodedCharsForPayloadMatchesMaxUploadProbeCapacityModel(t *testing.T) {
 	c := createTestClient(t)
 
-	payloadLen := 120
+	payloadLen := c.maxUploadMTUPayload("example.com")
+	if payloadLen <= 0 {
+		t.Fatal("expected positive max upload MTU payload")
+	}
 	if !c.canBuildUploadPayload("example.com", payloadLen) {
 		t.Fatalf("expected payload length %d to fit generated upload MTU question", payloadLen)
 	}

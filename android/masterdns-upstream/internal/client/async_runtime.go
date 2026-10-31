@@ -102,7 +102,9 @@ func (c *Client) resetRuntimeBindings(resetSession bool) {
 	c.streamsMu.Unlock()
 	c.bumpStreamSetVersion()
 
+	c.dnsResponsesMu.Lock()
 	c.dnsResponses = fragmentStore.New[dnsFragmentKey](c.cfg.EffectiveDNSResponseFragmentStoreCap())
+	c.dnsResponsesMu.Unlock()
 
 	if c.localDNSCache != nil {
 		c.localDNSCache.ClearPending()
@@ -240,12 +242,14 @@ func (c *Client) resetSessionState(resetSessionCookie bool) {
 	if c == nil {
 		return
 	}
+	c.sessionMu.Lock()
 	c.sessionReady = false
 	c.sessionID = 0
 	if resetSessionCookie {
 		c.sessionCookie = 0
 	}
 	c.responseMode = 0
+	c.sessionMu.Unlock()
 	c.clearSessionInitBusyUntil()
 	c.resetSessionInitState()
 }
@@ -405,8 +409,11 @@ func (c *Client) asyncStreamCleanupWorker(ctx context.Context) {
 			fragmentPurgeCounter++
 			if fragmentPurgeCounter >= 10 {
 				fragmentPurgeCounter = 0
-				if c.dnsResponses != nil {
-					c.dnsResponses.Purge(now, c.cfg.DNSResponseFragmentTimeout())
+				c.dnsResponsesMu.RLock()
+				dnsStore := c.dnsResponses
+				c.dnsResponsesMu.RUnlock()
+				if dnsStore != nil {
+					dnsStore.Purge(now, c.cfg.DNSResponseFragmentTimeout())
 				}
 			}
 
@@ -898,7 +905,7 @@ func (c *Client) handleInboundPacket(data []byte, addr *net.UDPAddr, localAddr s
 	// c.log.Debugf("Inbound packet from %v (%d bytes)", addr, len(data))
 
 	// 1. Extract VPN Packet from DNS Response
-	vpnPacket, err := DnsParser.ExtractVPNResponse(data, c.responseMode == mtuProbeBase64Reply)
+	vpnPacket, err := DnsParser.ExtractVPNResponse(data, c.ResponseMode() == mtuProbeBase64Reply)
 	if err != nil {
 		if errors.Is(err, DnsParser.ErrTXTAnswerMissing) {
 			receivedAt := time.Now()

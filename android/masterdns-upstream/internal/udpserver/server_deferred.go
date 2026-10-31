@@ -421,7 +421,7 @@ func (s *Server) processDeferredSOCKS5Syn(ctx context.Context, vpnPacket VpnProt
 	}
 
 	if !s.shouldExecuteDeferredPacket(vpnPacket) {
-		_ = upstreamConn.Close()
+		stream.closeUpstreamOnly("CLOSED")
 		s.finalizeStreamArtifacts(vpnPacket.SessionID, vpnPacket.StreamID)
 		return
 	}

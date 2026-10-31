@@ -247,23 +247,16 @@ func decompressZSTD(data []byte) ([]byte, error) {
 	decoder := zstdDecoderPool.Get().(*zstd.Decoder)
 	defer zstdDecoderPool.Put(decoder)
 
-	if err := decoder.Reset(bytes.NewReader(data)); err != nil {
+	out, err := decoder.DecodeAll(data, nil)
+	if err != nil {
 		return nil, err
 	}
 
-	buffer := deflateBufferPool.Get().(*bytes.Buffer)
-	buffer.Reset()
-	defer deflateBufferPool.Put(buffer)
-
-	if _, err := io.Copy(buffer, io.LimitReader(decoder, maxDecompressedSize+1)); err != nil {
-		return nil, err
-	}
-
-	if buffer.Len() > maxDecompressedSize {
+	if len(out) > maxDecompressedSize {
 		return nil, ErrDecompressedTooLarge
 	}
 
-	return bytes.Clone(buffer.Bytes()), nil
+	return out, nil
 }
 
 func compressLZ4(data []byte) ([]byte, error) {

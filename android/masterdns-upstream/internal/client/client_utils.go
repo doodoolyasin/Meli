@@ -168,11 +168,27 @@ func (c *Client) SessionReady() bool {
 	if c == nil {
 		return false
 	}
+	c.sessionMu.RLock()
+	defer c.sessionMu.RUnlock()
 	return c.sessionReady
 }
 
 func (c *Client) SessionID() uint8 {
+	if c == nil {
+		return 0
+	}
+	c.sessionMu.RLock()
+	defer c.sessionMu.RUnlock()
 	return c.sessionID
+}
+
+func (c *Client) SessionCookie() uint8 {
+	if c == nil {
+		return 0
+	}
+	c.sessionMu.RLock()
+	defer c.sessionMu.RUnlock()
+	return c.sessionCookie
 }
 
 func (c *Client) IsSessionReady() bool {
@@ -180,6 +196,11 @@ func (c *Client) IsSessionReady() bool {
 }
 
 func (c *Client) ResponseMode() uint8 {
+	if c == nil {
+		return 0
+	}
+	c.sessionMu.RLock()
+	defer c.sessionMu.RUnlock()
 	return c.responseMode
 }
 

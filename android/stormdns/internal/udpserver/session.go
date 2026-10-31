@@ -263,8 +263,8 @@ func (s *sessionStore) findOrCreate(payload []byte, uploadCompressionType uint8,
 	if sessionID, ok := s.bySig[signature]; ok {
 		if existing := s.byID[sessionID]; existing != nil {
 			if nowUnixNano <= existing.reuseUntilUnixNano {
-				existing.setLastActivityUnixNano(nowUnixNano)
-				return existing, true, nil
+				// Anti-replay: Reject replayed handshake with duplicate signature to prevent hijacking
+				return nil, false, nil
 			}
 		}
 		delete(s.bySig, signature)
@@ -554,16 +554,11 @@ func (s *sessionStore) allocateSlotLocked() int {
 }
 
 func (s *sessionStore) randomCookieLocked() uint8 {
-	if s.cookieIndex >= len(s.cookieBytes) {
-		if _, err := rand.Read(s.cookieBytes[:]); err != nil {
-			s.cookieIndex = len(s.cookieBytes)
-			return 0
-		}
-		s.cookieIndex = 0
+	var b [1]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		return uint8(time.Now().UnixNano() & 0xFF)
 	}
-	value := s.cookieBytes[s.cookieIndex]
-	s.cookieIndex++
-	return value
+	return b[0]
 }
 
 func (s *sessionStore) updateNextReuseSweepLocked(reuseUntilUnixNano int64) {
