@@ -16,9 +16,11 @@ object MasterDnsBridge {
     private var client: StormDnsClient? = null
     private var currentPort: Int = 0
     private var vpnService: android.net.VpnService? = null
+    private var lastIsProxyOnly: Boolean = false
 
     fun setVpnService(service: android.net.VpnService?, isProxyOnly: Boolean = false) {
         vpnService = service
+        lastIsProxyOnly = isProxyOnly
         try {
             if (service != null && !isProxyOnly) {
                 Stormdns.setSocketProtector(object : stormdns.SocketProtector {

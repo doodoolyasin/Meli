@@ -165,6 +165,8 @@ class SlipNetVpnService : VpnService() {
     /** Tunnel types active in the current chain (outermost first), for cleanup ordering. */
     @Volatile
     private var activeChainLayers: List<TunnelType> = emptyList()
+    @Volatile
+    private var globalResolverOverride: List<app.slipnet.domain.model.DnsResolver>? = null
 
     // Auto-reconnect state
     @Volatile
@@ -528,7 +530,7 @@ class SlipNetVpnService : VpnService() {
                 Log.i(TAG, "Starting VPN with tunnel type: $currentTunnelType")
 
                 // Global resolver override: replace profile resolvers with user's global list
-                val globalResolverOverride: List<app.slipnet.domain.model.DnsResolver>? =
+                globalResolverOverride =
                     preferencesDataStore.parsedGlobalResolvers().takeIf { it.isNotEmpty() }
                         ?.also { Log.i(TAG, "Using global DNS resolver override: ${it.joinToString { r -> "${r.host}:${r.port}" }}") }
 
@@ -6423,6 +6425,7 @@ class SlipNetVpnService : VpnService() {
             Log.e(TAG, "Error closing VPN interface", e)
         }
         vpnInterface = null
+        globalResolverOverride = null
 
         currentProfileId = -1
     }

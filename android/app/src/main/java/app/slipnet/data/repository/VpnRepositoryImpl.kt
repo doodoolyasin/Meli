@@ -42,6 +42,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -1233,7 +1234,7 @@ class VpnRepositoryImpl @Inject constructor(
         connectedProfile = profile
         currentTunFd = pfd
 
-        val debugLogging = preferencesDataStore.debugLogging.first()
+        val debugLogging = runBlocking { preferencesDataStore.debugLogging.first() }
 
         // Convert profile to resolver config
         val resolvers = profile.resolvers.map { resolver ->
