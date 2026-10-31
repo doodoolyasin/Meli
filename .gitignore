@@ -28,3 +28,13 @@ PROMPT_MELI_DEV.txt
 *.dm
 android/app/libs/
 android/app/src/full/jniLibs/
+
+# Secrets, keys, and environment files
+*.keystore
+*.jks
+keystore.properties
+*.env
+.env
+.env.*
+!.env.example
+

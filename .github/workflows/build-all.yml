@@ -135,14 +135,24 @@ jobs:
       - name: Setup Keystore
         working-directory: android
         run: |
-          if [ ! -f slipnet-release.keystore ]; then
-            keytool -genkeypair -v -keystore slipnet-release.keystore -alias slipnet -keyalg RSA -keysize 2048 -validity 10000 -storepass "123456" -keypass "123456" -dname "CN=AryanaNG, OU=Aryana, O=Aryana, L=Tehran, S=Tehran, C=IR"
+          STORE_PASS="${{ secrets.KEYSTORE_PASSWORD }}"
+          if [ -z "$STORE_PASS" ]; then
+            STORE_PASS=$(openssl rand -base64 24 | tr -dc 'a-zA-Z0-9' | head -c 20)
+          fi
+          KEY_PASS="${{ secrets.KEY_PASSWORD }}"
+          if [ -z "$KEY_PASS" ]; then
+            KEY_PASS="$STORE_PASS"
+          fi
+          if [ -n "${{ secrets.RELEASE_KEYSTORE_BASE64 }}" ]; then
+            echo "${{ secrets.RELEASE_KEYSTORE_BASE64 }}" | base64 -d > slipnet-release.keystore
+          elif [ ! -f slipnet-release.keystore ]; then
+            keytool -genkeypair -v -keystore slipnet-release.keystore -alias slipnet -keyalg RSA -keysize 2048 -validity 10000 -storepass "$STORE_PASS" -keypass "$KEY_PASS" -dname "CN=AryanaNG, OU=Aryana, O=Aryana, L=Tehran, S=Tehran, C=IR"
           fi
           cat > keystore.properties <<EOF
           storeFile=../slipnet-release.keystore
-          storePassword=123456
+          storePassword=$STORE_PASS
           keyAlias=slipnet
-          keyPassword=123456
+          keyPassword=$KEY_PASS
           EOF
           echo "sdk.dir=$ANDROID_HOME" > local.properties
 

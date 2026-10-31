@@ -110,6 +110,12 @@ object MasterDnsBridge {
 
             newClient.start()
             client = newClient
+            // Re-apply socket protector hook so newClient's Go runtime protects its sockets
+            try {
+                setVpnService(vpnService, lastIsProxyOnly)
+            } catch (e: Throwable) {
+                Log.w(TAG, "Failed to re-apply socket protector: ${e.message}")
+            }
             Log.i(TAG, "MasterDNS client started successfully on $listenHost:$listenPort")
             Result.success(Unit)
         } catch (e: Exception) {
@@ -118,7 +124,7 @@ object MasterDnsBridge {
         }
     }
 
-    fun stopClient() {
+    fun stopClient(isFullTeardown: Boolean = false) {
         try {
             client?.stop()
             Log.i(TAG, "MasterDNS client stopped")
@@ -129,9 +135,11 @@ object MasterDnsBridge {
             try {
                 Stormdns.setLogCallback(null)
             } catch (_: Throwable) {}
-            try {
-                setVpnService(null)
-            } catch (_: Throwable) {}
+            if (isFullTeardown) {
+                try {
+                    setVpnService(null)
+                } catch (_: Throwable) {}
+            }
         }
     }
 

@@ -10,6 +10,7 @@ import app.slipnet.domain.model.ServerProfile
 import app.slipnet.domain.model.ResolverMode
 import app.slipnet.domain.model.SshAuthType
 import app.slipnet.domain.model.TunnelType
+import app.slipnet.util.AryanaCrypto
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -42,28 +43,28 @@ class ProfileMapper @Inject constructor(
             tcpListenPort = entity.tcpListenPort,
             tcpListenHost = entity.tcpListenHost,
             socksUsername = entity.socksUsername.ifBlank { null },
-            socksPassword = entity.socksPassword.ifBlank { null },
+            socksPassword = decryptSensitive(entity.socksPassword).ifBlank { null },
             isActive = entity.isActive,
             createdAt = entity.createdAt,
             updatedAt = entity.updatedAt,
             tunnelType = TunnelType.fromValue(entity.tunnelType),
             dnsttPublicKey = entity.dnsttPublicKey,
             sshUsername = entity.sshUsername,
-            sshPassword = entity.sshPassword,
+            sshPassword = decryptSensitive(entity.sshPassword),
             sshPort = entity.sshPort,
             sshHost = entity.sshHost,
             dohUrl = entity.dohUrl,
             lastConnectedAt = entity.lastConnectedAt,
             dnsTransport = DnsTransport.fromValue(entity.dnsTransport),
             sshAuthType = SshAuthType.fromValue(entity.sshAuthType),
-            sshPrivateKey = entity.sshPrivateKey,
-            sshKeyPassphrase = entity.sshKeyPassphrase,
+            sshPrivateKey = decryptSensitive(entity.sshPrivateKey),
+            sshKeyPassphrase = decryptSensitive(entity.sshKeyPassphrase),
             torBridgeLines = entity.torBridgeLines,
             sortOrder = entity.sortOrder,
             dnsttAuthoritative = entity.dnsttAuthoritative,
             naivePort = entity.naivePort,
             naiveUsername = entity.naiveUsername,
-            naivePassword = entity.naivePassword,
+            naivePassword = decryptSensitive(entity.naivePassword),
             isLocked = entity.isLocked,
             lockPasswordHash = entity.lockPasswordHash,
             expirationDate = entity.expirationDate,
@@ -133,28 +134,28 @@ class ProfileMapper @Inject constructor(
             tcpListenPort = profile.tcpListenPort,
             tcpListenHost = profile.tcpListenHost,
             socksUsername = profile.socksUsername ?: "",
-            socksPassword = profile.socksPassword ?: "",
+            socksPassword = encryptSensitive(profile.socksPassword),
             isActive = profile.isActive,
             createdAt = profile.createdAt,
             updatedAt = profile.updatedAt,
             tunnelType = profile.tunnelType.value,
             dnsttPublicKey = profile.dnsttPublicKey,
             sshUsername = profile.sshUsername,
-            sshPassword = profile.sshPassword,
+            sshPassword = encryptSensitive(profile.sshPassword),
             sshPort = profile.sshPort,
             sshHost = profile.sshHost,
             dohUrl = profile.dohUrl,
             lastConnectedAt = profile.lastConnectedAt,
             dnsTransport = profile.dnsTransport.value,
             sshAuthType = profile.sshAuthType.value,
-            sshPrivateKey = profile.sshPrivateKey,
-            sshKeyPassphrase = profile.sshKeyPassphrase,
+            sshPrivateKey = encryptSensitive(profile.sshPrivateKey),
+            sshKeyPassphrase = encryptSensitive(profile.sshKeyPassphrase),
             torBridgeLines = profile.torBridgeLines,
             sortOrder = profile.sortOrder,
             dnsttAuthoritative = profile.dnsttAuthoritative,
             naivePort = profile.naivePort,
             naiveUsername = profile.naiveUsername,
-            naivePassword = profile.naivePassword,
+            naivePassword = encryptSensitive(profile.naivePassword),
             isLocked = profile.isLocked,
             lockPasswordHash = profile.lockPasswordHash,
             expirationDate = profile.expirationDate,
@@ -210,5 +211,25 @@ class ProfileMapper @Inject constructor(
 
     fun toDomainList(entities: List<ProfileEntity>): List<ServerProfile> {
         return entities.map { toDomain(it) }
+    }
+
+    private fun encryptSensitive(value: String?): String {
+        if (value.isNullOrBlank()) return ""
+        if (value.startsWith(AryanaCrypto.SCHEME, ignoreCase = true)) return value
+        return try {
+            AryanaCrypto.encrypt(value)
+        } catch (_: Exception) {
+            value
+        }
+    }
+
+    private fun decryptSensitive(value: String): String {
+        if (value.isBlank()) return ""
+        if (!value.startsWith(AryanaCrypto.SCHEME, ignoreCase = true)) return value
+        return try {
+            AryanaCrypto.decrypt(value)
+        } catch (_: Exception) {
+            value
+        }
     }
 }

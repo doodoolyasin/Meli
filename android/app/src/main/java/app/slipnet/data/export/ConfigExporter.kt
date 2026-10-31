@@ -54,6 +54,12 @@ class ConfigExporter @Inject constructor() {
         private const val MODE_STORMDNS_SSH = "stormdns_ssh"
         private const val MODE_NOOSHDAROO = "nooshdaroo"
         private const val MODE_QWDTT = "qwdtt"
+        const val MODE_MELI = "meli"
+        const val MODE_MELI_SSH = "meli_ssh"
+        const val MODE_COTTENDNS = "cottendns"
+        const val MODE_COTTENDNS_SSH = "cottendns_ssh"
+        const val MODE_SOAR = "soar"
+        const val MODE_SOAR_SSH = "soar_ssh"
         private const val FIELD_DELIMITER = "|"
         private const val RESOLVER_DELIMITER = ","
         private const val RESOLVER_PART_DELIMITER = ":"
@@ -87,7 +93,15 @@ class ConfigExporter @Inject constructor() {
     fun reExportLockedProfile(profile: ServerProfile): String {
         if (!profile.isLocked) throw IllegalStateException("Profile is not locked")
         if (!profile.allowSharing) throw IllegalStateException("Profile does not allow re-sharing")
-        val data = buildProfileData(profile)
+        // Redact SSH private key before public re-sharing: the aryana:// scheme uses a
+        // fixed APP_ROOT_ENTROPY key that anyone with the APK can reverse. The SSH auth-type
+        // is preserved so the importer warns the recipient to re-enter the key.
+        val safeProfile = if (profile.sshPrivateKey.isNotBlank()) {
+            profile.copy(sshPrivateKey = "")
+        } else {
+            profile
+        }
+        val data = buildProfileData(safeProfile)
         return AryanaCrypto.encrypt(data)
     }
 
@@ -178,6 +192,12 @@ class ConfigExporter @Inject constructor() {
             TunnelType.STORMDNS_SSH -> MODE_STORMDNS_SSH
             TunnelType.NOOSHDAROO -> MODE_NOOSHDAROO
             TunnelType.QWDTT -> MODE_QWDTT
+            TunnelType.MELI -> MODE_MELI
+            TunnelType.MELI_SSH -> MODE_MELI_SSH
+            TunnelType.COTTENDNS -> MODE_COTTENDNS
+            TunnelType.COTTENDNS_SSH -> MODE_COTTENDNS_SSH
+            TunnelType.SOAR -> MODE_SOAR
+            TunnelType.SOAR_SSH -> MODE_SOAR_SSH
             else -> profile.tunnelType.value
         }
 
@@ -207,7 +227,7 @@ class ConfigExporter @Inject constructor() {
             sanitize(profile.dnsttPublicKey),
             sanitize(profile.socksUsername ?: ""),
             sanitize(profile.socksPassword ?: ""),
-            if (profile.tunnelType == TunnelType.SSH || profile.tunnelType == TunnelType.DNSTT_SSH || profile.tunnelType == TunnelType.SLIPSTREAM_SSH || profile.tunnelType == TunnelType.NAIVE_SSH || profile.tunnelType == TunnelType.VAYDNS_SSH || profile.tunnelType == TunnelType.MASTERDNS_SSH || profile.tunnelType == TunnelType.STORMDNS_SSH) "1" else "0",
+            if (profile.tunnelType == TunnelType.SSH || profile.tunnelType.name.endsWith("_SSH")) "1" else "0",
             sanitize(profile.sshUsername),
             sanitize(profile.sshPassword),
             profile.sshPort.toString(),
@@ -295,7 +315,15 @@ class ConfigExporter @Inject constructor() {
     }
 
     private fun encodeProfile(profile: ServerProfile, hideResolvers: Boolean = false): String {
-        val data = buildProfileData(profile, hideResolvers)
+        // For public sharing (no user passphrase), redact the SSH private key so it is not
+        // exposed in a link that anyone with the APK entropy can decrypt. The auth-type
+        // is preserved so the importer can warn the user that re-entering the key is required.
+        val safeProfile = if (profile.sshPrivateKey.isNotBlank()) {
+            profile.copy(sshPrivateKey = "")
+        } else {
+            profile
+        }
+        val data = buildProfileData(safeProfile, hideResolvers)
         return AryanaCrypto.encrypt(data)
     }
 

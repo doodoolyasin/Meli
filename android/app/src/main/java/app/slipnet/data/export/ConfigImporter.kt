@@ -120,6 +120,12 @@ class ConfigImporter @Inject constructor() {
         private const val MODE_STORMDNS_SSH = "stormdns_ssh"
         private const val MODE_NOOSHDAROO = "nooshdaroo"
         private const val MODE_QWDTT = "qwdtt"
+        private const val MODE_MELI = "meli"
+        private const val MODE_MELI_SSH = "meli_ssh"
+        private const val MODE_COTTENDNS = "cottendns"
+        private const val MODE_COTTENDNS_SSH = "cottendns_ssh"
+        private const val MODE_SOAR = "soar"
+        private const val MODE_SOAR_SSH = "soar_ssh"
         private const val FIELD_DELIMITER = "|"
         private const val RESOLVER_DELIMITER = ","
         private const val RESOLVER_PART_DELIMITER = ":"
@@ -642,6 +648,12 @@ class ConfigImporter @Inject constructor() {
             MODE_STORMDNS_SSH -> TunnelType.STORMDNS_SSH
             MODE_NOOSHDAROO -> TunnelType.NOOSHDAROO
             MODE_QWDTT -> TunnelType.QWDTT
+            MODE_MELI -> TunnelType.MELI
+            MODE_MELI_SSH -> TunnelType.MELI_SSH
+            MODE_COTTENDNS -> TunnelType.COTTENDNS
+            MODE_COTTENDNS_SSH -> TunnelType.COTTENDNS_SSH
+            MODE_SOAR -> TunnelType.SOAR
+            MODE_SOAR_SSH -> TunnelType.SOAR_SSH
 
             else -> {
                 return ProfileParseResult.Warning("Line $lineNum: Unsupported tunnel type '$tunnelTypeStr', skipping")
@@ -735,6 +747,12 @@ class ConfigImporter @Inject constructor() {
             MODE_STORMDNS_SSH -> TunnelType.STORMDNS_SSH
             MODE_NOOSHDAROO -> TunnelType.NOOSHDAROO
             MODE_QWDTT -> TunnelType.QWDTT
+            MODE_MELI -> TunnelType.MELI
+            MODE_MELI_SSH -> TunnelType.MELI_SSH
+            MODE_COTTENDNS -> TunnelType.COTTENDNS
+            MODE_COTTENDNS_SSH -> TunnelType.COTTENDNS_SSH
+            MODE_SOAR -> TunnelType.SOAR
+            MODE_SOAR_SSH -> TunnelType.SOAR_SSH
 
             else -> {
                 return ProfileParseResult.Warning("Line $lineNum: Unsupported tunnel type '$tunnelTypeStr', skipping")
@@ -833,6 +851,12 @@ class ConfigImporter @Inject constructor() {
             MODE_STORMDNS_SSH -> TunnelType.STORMDNS_SSH
             MODE_NOOSHDAROO -> TunnelType.NOOSHDAROO
             MODE_QWDTT -> TunnelType.QWDTT
+            MODE_MELI -> TunnelType.MELI
+            MODE_MELI_SSH -> TunnelType.MELI_SSH
+            MODE_COTTENDNS -> TunnelType.COTTENDNS
+            MODE_COTTENDNS_SSH -> TunnelType.COTTENDNS_SSH
+            MODE_SOAR -> TunnelType.SOAR
+            MODE_SOAR_SSH -> TunnelType.SOAR_SSH
 
             else -> {
                 return ProfileParseResult.Warning("Line $lineNum: Unsupported tunnel type '$tunnelTypeStr', skipping")
@@ -934,6 +958,12 @@ class ConfigImporter @Inject constructor() {
             MODE_STORMDNS_SSH -> TunnelType.STORMDNS_SSH
             MODE_NOOSHDAROO -> TunnelType.NOOSHDAROO
             MODE_QWDTT -> TunnelType.QWDTT
+            MODE_MELI -> TunnelType.MELI
+            MODE_MELI_SSH -> TunnelType.MELI_SSH
+            MODE_COTTENDNS -> TunnelType.COTTENDNS
+            MODE_COTTENDNS_SSH -> TunnelType.COTTENDNS_SSH
+            MODE_SOAR -> TunnelType.SOAR
+            MODE_SOAR_SSH -> TunnelType.SOAR_SSH
 
             else -> {
                 return ProfileParseResult.Warning("Line $lineNum: Unsupported tunnel type '$tunnelTypeStr', skipping")
@@ -1047,6 +1077,12 @@ class ConfigImporter @Inject constructor() {
             MODE_STORMDNS_SSH -> TunnelType.STORMDNS_SSH
             MODE_NOOSHDAROO -> TunnelType.NOOSHDAROO
             MODE_QWDTT -> TunnelType.QWDTT
+            MODE_MELI -> TunnelType.MELI
+            MODE_MELI_SSH -> TunnelType.MELI_SSH
+            MODE_COTTENDNS -> TunnelType.COTTENDNS
+            MODE_COTTENDNS_SSH -> TunnelType.COTTENDNS_SSH
+            MODE_SOAR -> TunnelType.SOAR
+            MODE_SOAR_SSH -> TunnelType.SOAR_SSH
 
             else -> {
                 return ProfileParseResult.Warning("Line $lineNum: Unsupported tunnel type '$tunnelTypeStr', skipping")
@@ -1160,6 +1196,12 @@ class ConfigImporter @Inject constructor() {
             MODE_STORMDNS_SSH -> TunnelType.STORMDNS_SSH
             MODE_NOOSHDAROO -> TunnelType.NOOSHDAROO
             MODE_QWDTT -> TunnelType.QWDTT
+            MODE_MELI -> TunnelType.MELI
+            MODE_MELI_SSH -> TunnelType.MELI_SSH
+            MODE_COTTENDNS -> TunnelType.COTTENDNS
+            MODE_COTTENDNS_SSH -> TunnelType.COTTENDNS_SSH
+            MODE_SOAR -> TunnelType.SOAR
+            MODE_SOAR_SSH -> TunnelType.SOAR_SSH
 
             else -> {
                 return ProfileParseResult.Warning("Line $lineNum: Unsupported tunnel type '$tunnelTypeStr', skipping")
@@ -1269,6 +1311,12 @@ class ConfigImporter @Inject constructor() {
             MODE_STORMDNS_SSH -> TunnelType.STORMDNS_SSH
             MODE_NOOSHDAROO -> TunnelType.NOOSHDAROO
             MODE_QWDTT -> TunnelType.QWDTT
+            MODE_MELI -> TunnelType.MELI
+            MODE_MELI_SSH -> TunnelType.MELI_SSH
+            MODE_COTTENDNS -> TunnelType.COTTENDNS
+            MODE_COTTENDNS_SSH -> TunnelType.COTTENDNS_SSH
+            MODE_SOAR -> TunnelType.SOAR
+            MODE_SOAR_SSH -> TunnelType.SOAR_SSH
 
             else -> {
                 return ProfileParseResult.Warning("Line $lineNum: Unsupported tunnel type '$tunnelTypeStr', skipping")
@@ -1389,6 +1437,12 @@ class ConfigImporter @Inject constructor() {
             MODE_STORMDNS_SSH -> TunnelType.STORMDNS_SSH
             MODE_NOOSHDAROO -> TunnelType.NOOSHDAROO
             MODE_QWDTT -> TunnelType.QWDTT
+            MODE_MELI -> TunnelType.MELI
+            MODE_MELI_SSH -> TunnelType.MELI_SSH
+            MODE_COTTENDNS -> TunnelType.COTTENDNS
+            MODE_COTTENDNS_SSH -> TunnelType.COTTENDNS_SSH
+            MODE_SOAR -> TunnelType.SOAR
+            MODE_SOAR_SSH -> TunnelType.SOAR_SSH
 
             else -> {
                 return ProfileParseResult.Warning("Line $lineNum: Unsupported tunnel type '$tunnelTypeStr', skipping")
@@ -1531,6 +1585,12 @@ class ConfigImporter @Inject constructor() {
             MODE_STORMDNS_SSH -> TunnelType.STORMDNS_SSH
             MODE_NOOSHDAROO -> TunnelType.NOOSHDAROO
             MODE_QWDTT -> TunnelType.QWDTT
+            MODE_MELI -> TunnelType.MELI
+            MODE_MELI_SSH -> TunnelType.MELI_SSH
+            MODE_COTTENDNS -> TunnelType.COTTENDNS
+            MODE_COTTENDNS_SSH -> TunnelType.COTTENDNS_SSH
+            MODE_SOAR -> TunnelType.SOAR
+            MODE_SOAR_SSH -> TunnelType.SOAR_SSH
 
             else -> {
                 return ProfileParseResult.Warning("Line $lineNum: Unsupported tunnel type '$tunnelTypeStr', skipping")
@@ -1675,6 +1735,12 @@ class ConfigImporter @Inject constructor() {
             MODE_STORMDNS_SSH -> TunnelType.STORMDNS_SSH
             MODE_NOOSHDAROO -> TunnelType.NOOSHDAROO
             MODE_QWDTT -> TunnelType.QWDTT
+            MODE_MELI -> TunnelType.MELI
+            MODE_MELI_SSH -> TunnelType.MELI_SSH
+            MODE_COTTENDNS -> TunnelType.COTTENDNS
+            MODE_COTTENDNS_SSH -> TunnelType.COTTENDNS_SSH
+            MODE_SOAR -> TunnelType.SOAR
+            MODE_SOAR_SSH -> TunnelType.SOAR_SSH
 
             else -> {
                 return ProfileParseResult.Warning("Line $lineNum: Unsupported tunnel type '$tunnelTypeStr', skipping")
@@ -1826,6 +1892,12 @@ class ConfigImporter @Inject constructor() {
             MODE_STORMDNS_SSH -> TunnelType.STORMDNS_SSH
             MODE_NOOSHDAROO -> TunnelType.NOOSHDAROO
             MODE_QWDTT -> TunnelType.QWDTT
+            MODE_MELI -> TunnelType.MELI
+            MODE_MELI_SSH -> TunnelType.MELI_SSH
+            MODE_COTTENDNS -> TunnelType.COTTENDNS
+            MODE_COTTENDNS_SSH -> TunnelType.COTTENDNS_SSH
+            MODE_SOAR -> TunnelType.SOAR
+            MODE_SOAR_SSH -> TunnelType.SOAR_SSH
 
             else -> {
                 return ProfileParseResult.Warning("Line $lineNum: Unsupported tunnel type '$tunnelTypeStr', skipping")
@@ -1978,6 +2050,12 @@ class ConfigImporter @Inject constructor() {
             MODE_STORMDNS_SSH -> TunnelType.STORMDNS_SSH
             MODE_NOOSHDAROO -> TunnelType.NOOSHDAROO
             MODE_QWDTT -> TunnelType.QWDTT
+            MODE_MELI -> TunnelType.MELI
+            MODE_MELI_SSH -> TunnelType.MELI_SSH
+            MODE_COTTENDNS -> TunnelType.COTTENDNS
+            MODE_COTTENDNS_SSH -> TunnelType.COTTENDNS_SSH
+            MODE_SOAR -> TunnelType.SOAR
+            MODE_SOAR_SSH -> TunnelType.SOAR_SSH
 
             else -> {
                 return ProfileParseResult.Warning("Line $lineNum: Unsupported tunnel type '$tunnelTypeStr', skipping")
@@ -2147,6 +2225,12 @@ class ConfigImporter @Inject constructor() {
             MODE_STORMDNS_SSH -> TunnelType.STORMDNS_SSH
             MODE_NOOSHDAROO -> TunnelType.NOOSHDAROO
             MODE_QWDTT -> TunnelType.QWDTT
+            MODE_MELI -> TunnelType.MELI
+            MODE_MELI_SSH -> TunnelType.MELI_SSH
+            MODE_COTTENDNS -> TunnelType.COTTENDNS
+            MODE_COTTENDNS_SSH -> TunnelType.COTTENDNS_SSH
+            MODE_SOAR -> TunnelType.SOAR
+            MODE_SOAR_SSH -> TunnelType.SOAR_SSH
 
             else -> {
                 return ProfileParseResult.Warning("Line $lineNum: Unsupported tunnel type '$tunnelTypeStr', skipping")

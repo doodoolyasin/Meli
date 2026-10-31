@@ -259,9 +259,8 @@ fun MainScreen(
     val deepLinkUri by mainActivity?.deepLinkUri?.collectAsState() ?: remember { mutableStateOf(null) }
     LaunchedEffect(deepLinkUri) {
         deepLinkUri?.let { uri ->
-            viewModel.parseAndDirectImport(uri) { success, msg ->
-                scope.launch { snackbarHostState.showSnackbar(msg) }
-            }
+            // Show preview dialog first instead of direct import to prevent rogue injection
+            viewModel.parseImportConfig(uri)
             mainActivity?.consumeDeepLink()
         }
     }

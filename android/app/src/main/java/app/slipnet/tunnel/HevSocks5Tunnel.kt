@@ -81,7 +81,8 @@ object HevSocks5Tunnel {
         Log.i(TAG, "  IPv4: $ipv4Address")
         Log.i(TAG, "  IPv6: $ipv6Address")
         Log.i(TAG, "========================================")
-        Log.d(TAG, "Config:\n$config")
+        // Intentionally NOT logging the full config: it contains username/password in plaintext.
+        Log.d(TAG, "Config built (credentials redacted)")
 
         return try {
             nativeSetRejectQuic(disableQuic)
@@ -103,9 +104,9 @@ object HevSocks5Tunnel {
 
     /**
      * Stop the tunnel.
-     * Blocks until the tunnel has stopped or timeout is reached.
+     * Fires nativeStop() which already joins the tunnel thread.
      */
-    fun stop() {
+    fun stop(waitForStop: Boolean = false) {
         if (!isLibraryLoaded) {
             return
         }
@@ -114,9 +115,13 @@ object HevSocks5Tunnel {
         try {
             nativeStop()
 
-            // Wait for the tunnel to actually stop (up to 3 seconds)
-            val maxWaitMs = 3000
-            val checkIntervalMs = 100L
+            if (!waitForStop) {
+                return
+            }
+
+            // Wait for the tunnel to actually stop if requested
+            val maxWaitMs = 1000
+            val checkIntervalMs = 50L
             var waitedMs = 0
 
             while (waitedMs < maxWaitMs) {

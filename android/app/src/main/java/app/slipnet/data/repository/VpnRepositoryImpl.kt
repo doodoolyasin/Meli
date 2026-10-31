@@ -42,7 +42,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -1062,12 +1061,12 @@ class VpnRepositoryImpl @Inject constructor(
             TunnelType.MASTERDNS, TunnelType.MASTERDNS_SSH,
             TunnelType.STORMDNS, TunnelType.STORMDNS_SSH,
             TunnelType.COTTENDNS, TunnelType.COTTENDNS_SSH,
-            TunnelType.SOAR, TunnelType.SOAR_SSH -> false
+            TunnelType.SOAR, TunnelType.SOAR_SSH,
+            TunnelType.MELI, TunnelType.MELI_SSH -> false
             TunnelType.DNSTT, TunnelType.DNSTT_SSH,
             TunnelType.NOIZDNS, TunnelType.NOIZDNS_SSH,
             TunnelType.SLIPSTREAM, TunnelType.SLIPSTREAM_SSH,
             TunnelType.VAYDNS, TunnelType.VAYDNS_SSH,
-            TunnelType.MELI, TunnelType.MELI_SSH,
             TunnelType.NOOSHDAROO, TunnelType.NOOSHDAROO_SSH,
             TunnelType.QWDTT, TunnelType.QWDTT_SSH -> true
             else -> false
@@ -1077,7 +1076,8 @@ class VpnRepositoryImpl @Inject constructor(
             TunnelType.MASTERDNS, TunnelType.MASTERDNS_SSH,
             TunnelType.STORMDNS, TunnelType.STORMDNS_SSH,
             TunnelType.COTTENDNS, TunnelType.COTTENDNS_SSH,
-            TunnelType.SOAR, TunnelType.SOAR_SSH -> true
+            TunnelType.SOAR, TunnelType.SOAR_SSH,
+            TunnelType.MELI, TunnelType.MELI_SSH -> true
             else -> false
         }
 
@@ -1233,7 +1233,7 @@ class VpnRepositoryImpl @Inject constructor(
         connectedProfile = profile
         currentTunFd = pfd
 
-        val debugLogging = runBlocking { preferencesDataStore.debugLogging.first() }
+        val debugLogging = preferencesDataStore.debugLogging.first()
 
         // Convert profile to resolver config
         val resolvers = profile.resolvers.map { resolver ->
@@ -1248,8 +1248,8 @@ class VpnRepositoryImpl @Inject constructor(
         scope.launch(Dispatchers.IO) {
             try {
                 // Step 1: Start the Slipstream DNS tunnel (SOCKS5 proxy)
-                val proxyPort = runBlocking { preferencesDataStore.proxyListenPort.first() }
-                val proxyHost = runBlocking { preferencesDataStore.proxyListenAddress.first() }
+                val proxyPort = preferencesDataStore.proxyListenPort.first()
+                val proxyHost = preferencesDataStore.proxyListenAddress.first()
                 val success = startSlipstreamClient(profile.domain, resolvers, profile, debugLogging, proxyPort, proxyHost)
 
                 if (!success) {
@@ -1261,7 +1261,7 @@ class VpnRepositoryImpl @Inject constructor(
                 }
 
                 // Give the SOCKS5 proxy time to start
-                Thread.sleep(500)
+                delay(500)
 
                 // Step 2: Start hev-socks5-tunnel (tun2socks)
                 // This routes TUN traffic through the SOCKS5 proxy
@@ -1269,9 +1269,9 @@ class VpnRepositoryImpl @Inject constructor(
 
                 Log.i(TAG, "========================================")
                 Log.i(TAG, "Starting hev-socks5-tunnel")
-                val localAuthEnabled = runBlocking { preferencesDataStore.proxyAuthEnabled.first() }
-                val localAuthUser = if (localAuthEnabled) runBlocking { preferencesDataStore.proxyAuthUsername.first().ifEmpty { null } } else null
-                val localAuthPass = if (localAuthEnabled) runBlocking { preferencesDataStore.proxyAuthPassword.first().ifEmpty { null } } else null
+                val localAuthEnabled = preferencesDataStore.proxyAuthEnabled.first()
+                val localAuthUser = if (localAuthEnabled) preferencesDataStore.proxyAuthUsername.first().ifEmpty { null } else null
+                val localAuthPass = if (localAuthEnabled) preferencesDataStore.proxyAuthPassword.first().ifEmpty { null } else null
 
                 Log.i(TAG, "  SOCKS5 proxy: 127.0.0.1:$proxyPort")
                 Log.i(TAG, "  SOCKS auth: ${if (localAuthEnabled) "enabled" else "disabled"}")

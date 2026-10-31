@@ -37,6 +37,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.net.InetSocketAddress
@@ -150,12 +151,12 @@ class MainViewModel @Inject constructor(
                     is ConnectionState.Connected -> if (state.chainId > 0) state.chainId else null
                     else -> null
                 }
-                _uiState.value = _uiState.value.copy(
+                _uiState.update { it.copy(
                     connectionState = state,
                     connectedProfileId = if (chainId != null) null else connectedId,
                     connectedChainId = chainId,
                     error = if (state is ConnectionState.Error) state.message else null
-                )
+                ) }
                 if (state is ConnectionState.Connecting) {
                     startBootstrapPolling()
                 } else {
@@ -175,7 +176,7 @@ class MainViewModel @Inject constructor(
     private fun observeDnsWarning() {
         viewModelScope.launch {
             connectionManager.dnsWarning.collect { warning ->
-                _uiState.value = _uiState.value.copy(dnsWarning = warning)
+                _uiState.update { it.copy(dnsWarning = warning) }
             }
         }
     }
@@ -183,7 +184,7 @@ class MainViewModel @Inject constructor(
     private fun observeDnsPoolScan() {
         viewModelScope.launch {
             connectionManager.dnsPoolScanState.collect { state ->
-                _uiState.value = _uiState.value.copy(dnsPoolScan = state)
+                _uiState.update { it.copy(dnsPoolScan = state) }
             }
         }
     }
@@ -193,9 +194,9 @@ class MainViewModel @Inject constructor(
         bootstrapPollingJob = viewModelScope.launch {
             while (true) {
                 val progress = SnowflakeBridge.torBootstrapProgress
-                _uiState.value = _uiState.value.copy(
+                _uiState.update { it.copy(
                     snowflakeBootstrapProgress = if (progress > 0) progress else -1
-                )
+                ) }
                 delay(500)
             }
         }
@@ -204,22 +205,22 @@ class MainViewModel @Inject constructor(
     private fun stopBootstrapPolling() {
         bootstrapPollingJob?.cancel()
         bootstrapPollingJob = null
-        _uiState.value = _uiState.value.copy(snowflakeBootstrapProgress = -1)
+        _uiState.update { it.copy(snowflakeBootstrapProgress = -1) }
     }
 
     private fun startTrafficPolling() {
         trafficPollingJob?.cancel()
         // Clear previous session totals when a new connection starts
-        _uiState.value = _uiState.value.copy(sessionTotalUpload = 0, sessionTotalDownload = 0)
+        _uiState.update { it.copy(sessionTotalUpload = 0, sessionTotalDownload = 0) }
         trafficPollingJob = viewModelScope.launch {
             // Observe the stats that the VPN service's notification poller already
             // refreshes — no need to call refreshTrafficStats() a second time.
             connectionManager.trafficStats.collect { current ->
-                _uiState.value = _uiState.value.copy(
+                _uiState.update { it.copy(
                     trafficStats = current,
                     uploadSpeed = current.uploadSpeed,
                     downloadSpeed = current.downloadSpeed
-                )
+                ) }
             }
         }
     }
@@ -232,13 +233,13 @@ class MainViewModel @Inject constructor(
         // the second call must not overwrite saved totals with zeros.
         val lastStats = _uiState.value.trafficStats
         val hasStats = lastStats.bytesSent > 0 || lastStats.bytesReceived > 0
-        _uiState.value = _uiState.value.copy(
+        _uiState.update { it.copy(
             trafficStats = TrafficStats.EMPTY,
             uploadSpeed = 0,
             downloadSpeed = 0,
             sessionTotalUpload = if (hasStats) lastStats.bytesSent else _uiState.value.sessionTotalUpload,
             sessionTotalDownload = if (hasStats) lastStats.bytesReceived else _uiState.value.sessionTotalDownload
-        )
+        ) }
     }
 
     private fun startSleepTimer() {
@@ -247,11 +248,11 @@ class MainViewModel @Inject constructor(
             val minutes = preferencesDataStore.sleepTimerMinutes.first()
             if (minutes <= 0) return@launch
             var remaining = minutes * 60
-            _uiState.value = _uiState.value.copy(sleepTimerRemainingSeconds = remaining)
+            _uiState.update { it.copy(sleepTimerRemainingSeconds = remaining) }
             while (remaining > 0) {
                 delay(1000)
                 remaining--
-                _uiState.value = _uiState.value.copy(sleepTimerRemainingSeconds = remaining)
+                _uiState.update { it.copy(sleepTimerRemainingSeconds = remaining) }
             }
             disconnect()
         }
@@ -260,7 +261,7 @@ class MainViewModel @Inject constructor(
     private fun cancelSleepTimer() {
         sleepTimerJob?.cancel()
         sleepTimerJob = null
-        _uiState.value = _uiState.value.copy(sleepTimerRemainingSeconds = 0)
+        _uiState.update { it.copy(sleepTimerRemainingSeconds = 0) }
     }
 
     fun userCancelSleepTimer() {
@@ -270,7 +271,7 @@ class MainViewModel @Inject constructor(
     private fun observeProxyOnlyMode() {
         viewModelScope.launch {
             preferencesDataStore.proxyOnlyMode.collect { enabled ->
-                _uiState.value = _uiState.value.copy(proxyOnlyMode = enabled)
+                _uiState.update { it.copy(proxyOnlyMode = enabled) }
             }
         }
     }
@@ -278,7 +279,7 @@ class MainViewModel @Inject constructor(
     private fun observeDebugLogging() {
         viewModelScope.launch {
             preferencesDataStore.debugLogging.collect { enabled ->
-                _uiState.value = _uiState.value.copy(debugLogging = enabled)
+                _uiState.update { it.copy(debugLogging = enabled) }
             }
         }
     }
@@ -288,13 +289,13 @@ class MainViewModel @Inject constructor(
         viewModelScope.launch {
             val done = preferencesDataStore.firstLaunchDone.first()
             if (!done) {
-                _uiState.value = _uiState.value.copy(showFirstLaunchAbout = true)
+                _uiState.update { it.copy(showFirstLaunchAbout = true) }
             }
         }
     }
 
     fun dismissFirstLaunchAbout() {
-        _uiState.value = _uiState.value.copy(showFirstLaunchAbout = false)
+        _uiState.update { it.copy(showFirstLaunchAbout = false) }
         viewModelScope.launch {
             preferencesDataStore.setFirstLaunchDone()
         }
@@ -318,12 +319,12 @@ class MainViewModel @Inject constructor(
             // Don't show if user already skipped this version
             if (update.versionName == skipped) return@launch
 
-            _uiState.value = _uiState.value.copy(availableUpdate = update)
+            _uiState.update { it.copy(availableUpdate = update) }
         }
     }
 
     fun dismissUpdate() {
-        _uiState.value = _uiState.value.copy(availableUpdate = null)
+        _uiState.update { it.copy(availableUpdate = null) }
     }
 
     fun manualCheckForUpdate(onResult: (app.slipnet.util.AppUpdate?) -> Unit) {
@@ -331,7 +332,7 @@ class MainViewModel @Inject constructor(
             val current = app.slipnet.BuildConfig.VERSION_NAME
             val update = app.slipnet.util.UpdateChecker.check(current)
             if (update != null) {
-                _uiState.value = _uiState.value.copy(availableUpdate = update)
+                _uiState.update { it.copy(availableUpdate = update) }
             }
             onResult(update)
         }
@@ -339,7 +340,7 @@ class MainViewModel @Inject constructor(
 
     fun skipUpdate() {
         val version = _uiState.value.availableUpdate?.versionName ?: return
-        _uiState.value = _uiState.value.copy(availableUpdate = null)
+        _uiState.update { it.copy(availableUpdate = null) }
         viewModelScope.launch {
             preferencesDataStore.setSkippedUpdateVersion(version)
         }
@@ -347,18 +348,18 @@ class MainViewModel @Inject constructor(
 
     private fun observeProfiles() {
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isLoading = true)
+            _uiState.update { it.copy(isLoading = true) }
             combine(
                 getProfilesUseCase(),
                 getActiveProfileUseCase()
             ) { profiles, activeProfile ->
                 Pair(profiles, activeProfile)
             }.collect { (profiles, activeProfile) ->
-                _uiState.value = _uiState.value.copy(
+                _uiState.update { it.copy(
                     profiles = profiles,
                     activeProfile = activeProfile,
                     isLoading = false
-                )
+                ) }
             }
         }
     }
@@ -366,17 +367,17 @@ class MainViewModel @Inject constructor(
     fun connect(profile: ServerProfile? = null) {
         val targetProfile = profile ?: _uiState.value.activeProfile ?: _uiState.value.profiles.firstOrNull()
         if (targetProfile == null) {
-            _uiState.value = _uiState.value.copy(error = "No profile available to connect")
+            _uiState.update { it.copy(error = "No profile available to connect") }
             return
         }
         if (targetProfile.isExpired) {
-            _uiState.value = _uiState.value.copy(error = "This profile has expired")
+            _uiState.update { it.copy(error = "This profile has expired") }
             return
         }
         if (!targetProfile.tunnelType.isAvailable()) {
-            _uiState.value = _uiState.value.copy(
+            _uiState.update { it.copy(
                 error = "${targetProfile.tunnelType.displayName} is not available in this edition"
-            )
+            ) }
             return
         }
         connectionManager.connect(targetProfile)
@@ -388,7 +389,7 @@ class MainViewModel @Inject constructor(
 
     fun resetConnection() {
         connectionManager.reset()
-        _uiState.value = _uiState.value.copy(connectionState = ConnectionState.Disconnected, error = null)
+        _uiState.update { it.copy(connectionState = ConnectionState.Disconnected, error = null) }
     }
 
     fun toggleConnection() {
@@ -412,10 +413,10 @@ class MainViewModel @Inject constructor(
             ) { chains, activeChain ->
                 Pair(chains, activeChain)
             }.collect { (chains, activeChain) ->
-                _uiState.value = _uiState.value.copy(
+                _uiState.update { it.copy(
                     chains = chains,
                     activeChain = activeChain
-                )
+                ) }
             }
         }
     }
@@ -430,12 +431,12 @@ class MainViewModel @Inject constructor(
         viewModelScope.launch {
             val profiles = chain.profileIds.mapNotNull { profileRepository.getProfileById(it) }
             if (profiles.size != chain.profileIds.size) {
-                _uiState.value = _uiState.value.copy(error = "Some profiles in chain were deleted")
+                _uiState.update { it.copy(error = "Some profiles in chain were deleted") }
                 return@launch
             }
             val validationError = ChainValidation.validate(profiles)
             if (validationError != null) {
-                _uiState.value = _uiState.value.copy(error = validationError)
+                _uiState.update { it.copy(error = validationError) }
                 return@launch
             }
             connectionManager.connectChain(chain, profiles.first())
@@ -449,7 +450,7 @@ class MainViewModel @Inject constructor(
 
         val item = currentList.removeAt(fromIndex)
         currentList.add(toIndex, item)
-        _uiState.value = _uiState.value.copy(chains = currentList)
+        _uiState.update { it.copy(chains = currentList) }
 
         viewModelScope.launch {
             chainRepository.updateChainOrder(currentList.map { it.id })
@@ -472,13 +473,13 @@ class MainViewModel @Inject constructor(
         }
 
         if (isConnectedOrConnecting && _uiState.value.connectedProfileId != profile.id) {
-            _uiState.value = _uiState.value.copy(connectionState = ConnectionState.Connecting)
+            _uiState.update { it.copy(connectionState = ConnectionState.Connecting) }
             connectionManager.reconnect(profile)
         }
     }
 
     fun clearError() {
-        _uiState.value = _uiState.value.copy(error = null)
+        _uiState.update { it.copy(error = null) }
     }
 
     // ── Profile Management ──────────────────────────────────────────────
@@ -490,7 +491,7 @@ class MainViewModel @Inject constructor(
 
         val item = currentList.removeAt(fromIndex)
         currentList.add(toIndex, item)
-        _uiState.value = _uiState.value.copy(profiles = currentList)
+        _uiState.update { it.copy(profiles = currentList) }
 
         viewModelScope.launch {
             profileRepository.updateProfileOrder(currentList.map { it.id })
@@ -507,9 +508,9 @@ class MainViewModel @Inject constructor(
         viewModelScope.launch {
             val result = deleteProfileUseCase(profile.id)
             if (result.isFailure) {
-                _uiState.value = _uiState.value.copy(
+                _uiState.update { it.copy(
                     error = result.exceptionOrNull()?.message ?: "Failed to delete profile"
-                )
+                ) }
             }
         }
     }
@@ -580,20 +581,20 @@ class MainViewModel @Inject constructor(
 
     fun exportProfile(profile: ServerProfile, hideResolvers: Boolean = false) {
         if (profile.isLocked) {
-            _uiState.value = _uiState.value.copy(error = "Cannot export a locked profile")
+            _uiState.update { it.copy(error = "Cannot export a locked profile") }
             return
         }
         val json = configExporter.exportSingleProfile(profile, hideResolvers)
-        _uiState.value = _uiState.value.copy(exportedJson = json)
+        _uiState.update { it.copy(exportedJson = json) }
     }
 
     fun exportStandardUri(profile: ServerProfile) {
         if (profile.isLocked) {
-            _uiState.value = _uiState.value.copy(error = "Cannot export a locked profile")
+            _uiState.update { it.copy(error = "Cannot export a locked profile") }
             return
         }
         val uri = configExporter.exportStandardUri(profile)
-        _uiState.value = _uiState.value.copy(exportedJson = uri)
+        _uiState.update { it.copy(exportedJson = uri) }
     }
 
     fun exportProfileLocked(
@@ -607,17 +608,17 @@ class MainViewModel @Inject constructor(
         val json = configExporter.exportSingleProfileLocked(
             profile, password, expirationDate, allowSharing, boundDeviceId, hideResolvers
         )
-        _uiState.value = _uiState.value.copy(exportedJson = json)
+        _uiState.update { it.copy(exportedJson = json) }
     }
 
     fun exportAllProfiles() {
         val profiles = _uiState.value.profiles.filter { !it.isLocked }
         if (profiles.isEmpty()) {
-            _uiState.value = _uiState.value.copy(error = "No exportable profiles")
+            _uiState.update { it.copy(error = "No exportable profiles") }
             return
         }
         val json = configExporter.exportAllProfiles(profiles)
-        _uiState.value = _uiState.value.copy(exportedJson = json)
+        _uiState.update { it.copy(exportedJson = json) }
     }
 
     fun exportAllProfilesEncrypted(
@@ -630,7 +631,7 @@ class MainViewModel @Inject constructor(
     ) {
         val profiles = _uiState.value.profiles.filter { !it.isLocked }
         if (profiles.isEmpty()) {
-            _uiState.value = _uiState.value.copy(error = "No exportable profiles")
+            _uiState.update { it.copy(error = "No exportable profiles") }
             return
         }
         try {
@@ -643,14 +644,14 @@ class MainViewModel @Inject constructor(
                 boundDeviceId,
                 hideResolvers
             )
-            _uiState.value = _uiState.value.copy(exportedJson = encrypted)
+            _uiState.update { it.copy(exportedJson = encrypted) }
         } catch (e: Exception) {
-            _uiState.value = _uiState.value.copy(error = "Failed to encrypt: ${e.message}")
+            _uiState.update { it.copy(error = "Failed to encrypt: ${e.message}") }
         }
     }
 
     fun clearExportedJson() {
-        _uiState.value = _uiState.value.copy(exportedJson = null)
+        _uiState.update { it.copy(exportedJson = null) }
     }
 
     fun parseImportConfig(json: String, bundlePassword: String? = null) {
@@ -659,16 +660,16 @@ class MainViewModel @Inject constructor(
         )
         when (result) {
             is ImportResult.Success -> {
-                _uiState.value = _uiState.value.copy(
+                _uiState.update { it.copy(
                     importPreview = ImportPreview(result.profiles, result.warnings),
                     pendingEncryptedImport = null
-                )
+                ) }
             }
             is ImportResult.Error -> {
-                _uiState.value = _uiState.value.copy(error = result.message)
+                _uiState.update { it.copy(error = result.message) }
             }
             ImportResult.NeedsPassword -> {
-                _uiState.value = _uiState.value.copy(pendingEncryptedImport = json)
+                _uiState.update { it.copy(pendingEncryptedImport = json) }
             }
         }
     }
@@ -684,7 +685,7 @@ class MainViewModel @Inject constructor(
                         for (profile in result.profiles.reversed()) {
                             saveProfileUseCase(profile)
                         }
-                        _uiState.value = _uiState.value.copy(importPreview = null, error = null)
+                        _uiState.update { it.copy(importPreview = null, error = null) }
                         val names = result.profiles.joinToString(", ") { it.name }
                         onResult(true, "Imported ${result.profiles.size} profile(s): $names")
                     } catch (e: Exception) {
@@ -693,11 +694,11 @@ class MainViewModel @Inject constructor(
                 }
             }
             is ImportResult.Error -> {
-                _uiState.value = _uiState.value.copy(error = result.message)
+                _uiState.update { it.copy(error = result.message) }
                 onResult(false, result.message)
             }
             ImportResult.NeedsPassword -> {
-                _uiState.value = _uiState.value.copy(pendingEncryptedImport = json)
+                _uiState.update { it.copy(pendingEncryptedImport = json) }
                 onResult(false, "Encrypted bundle requires password")
             }
         }
@@ -888,7 +889,7 @@ class MainViewModel @Inject constructor(
     }
 
     fun cancelEncryptedImport() {
-        _uiState.value = _uiState.value.copy(pendingEncryptedImport = null)
+        _uiState.update { it.copy(pendingEncryptedImport = null) }
     }
 
     fun confirmImport() {
@@ -898,36 +899,36 @@ class MainViewModel @Inject constructor(
                 for (profile in preview.profiles.reversed()) {
                     saveProfileUseCase(profile)
                 }
-                _uiState.value = _uiState.value.copy(
+                _uiState.update { it.copy(
                     importPreview = null,
                     error = null
-                )
+                ) }
             } catch (e: Exception) {
-                _uiState.value = _uiState.value.copy(
+                _uiState.update { it.copy(
                     error = "Failed to import profiles: ${e.message}",
                     importPreview = null
-                )
+                ) }
             }
         }
     }
 
     fun cancelImport() {
-        _uiState.value = _uiState.value.copy(importPreview = null)
+        _uiState.update { it.copy(importPreview = null) }
     }
 
     fun showQrCode(profile: ServerProfile, hideResolvers: Boolean = false) {
         if (profile.isLocked) {
-            _uiState.value = _uiState.value.copy(error = "Cannot export a locked profile")
+            _uiState.update { it.copy(error = "Cannot export a locked profile") }
             return
         }
         val configUri = configExporter.exportSingleProfile(profile, hideResolvers)
-        _uiState.value = _uiState.value.copy(
+        _uiState.update { it.copy(
             qrCodeData = QrCodeData(profile.name, configUri)
-        )
+        ) }
     }
 
     fun clearQrCode() {
-        _uiState.value = _uiState.value.copy(qrCodeData = null)
+        _uiState.update { it.copy(qrCodeData = null) }
     }
 
     fun showQrCodeLocked(
@@ -941,28 +942,28 @@ class MainViewModel @Inject constructor(
         val configUri = configExporter.exportSingleProfileLocked(
             profile, password, expirationDate, allowSharing, boundDeviceId, hideResolvers
         )
-        _uiState.value = _uiState.value.copy(
+        _uiState.update { it.copy(
             qrCodeData = QrCodeData(profile.name, configUri)
-        )
+        ) }
     }
 
     fun reExportLockedProfile(profile: ServerProfile) {
         try {
             val json = configExporter.reExportLockedProfile(profile)
-            _uiState.value = _uiState.value.copy(exportedJson = json)
+            _uiState.update { it.copy(exportedJson = json) }
         } catch (e: Exception) {
-            _uiState.value = _uiState.value.copy(error = e.message ?: "Re-export failed")
+            _uiState.update { it.copy(error = e.message ?: "Re-export failed") }
         }
     }
 
     fun showQrCodeLockedReExport(profile: ServerProfile) {
         try {
             val configUri = configExporter.reExportLockedProfile(profile)
-            _uiState.value = _uiState.value.copy(
+            _uiState.update { it.copy(
                 qrCodeData = QrCodeData(profile.name, configUri)
-            )
+            ) }
         } catch (e: Exception) {
-            _uiState.value = _uiState.value.copy(error = e.message ?: "Re-export failed")
+            _uiState.update { it.copy(error = e.message ?: "Re-export failed") }
         }
     }
 
@@ -1008,12 +1009,12 @@ class MainViewModel @Inject constructor(
                 PingResult.Pending
             }
         }
-        _uiState.value = _uiState.value.copy(pingResults = initial, isPingRunning = true)
+        _uiState.update { it.copy(pingResults = initial, isPingRunning = true) }
 
         pingJob = viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(
+            _uiState.update { it.copy(
                 pingingViaGlobalDns = preferencesDataStore.parsedGlobalResolvers()
-            )
+            ) }
             try {
                 val tcpProfiles = profiles.filter {
                     it.tunnelType !in skipped && it.tunnelType !in E2E_TUNNEL_TYPES
@@ -1026,9 +1027,9 @@ class MainViewModel @Inject constructor(
                 val tcpJobs = tcpProfiles.map { profile ->
                     launch {
                         val result = pingProfileTcp(profile)
-                        _uiState.value = _uiState.value.copy(
-                            pingResults = _uiState.value.pingResults + (profile.id to result)
-                        )
+                        _uiState.update { current ->
+                            current.copy(pingResults = current.pingResults + (profile.id to result))
+                        }
                     }
                 }
 
@@ -1039,16 +1040,16 @@ class MainViewModel @Inject constructor(
                 val e2eJob = launch {
                     for (profile in e2eProfiles) {
                         val result = testProfileE2e(profile)
-                        _uiState.value = _uiState.value.copy(
-                            pingResults = _uiState.value.pingResults + (profile.id to result)
-                        )
+                        _uiState.update { current ->
+                            current.copy(pingResults = current.pingResults + (profile.id to result))
+                        }
                     }
                 }
 
                 tcpJobs.forEach { it.join() }
                 e2eJob.join()
             } finally {
-                _uiState.value = _uiState.value.copy(isPingRunning = false)
+                _uiState.update { it.copy(isPingRunning = false) }
             }
         }
     }
@@ -1070,12 +1071,12 @@ class MainViewModel @Inject constructor(
                 PingResult.Pending
             }
         }
-        _uiState.value = _uiState.value.copy(pingResults = initial, isPingRunning = true)
+        _uiState.update { it.copy(pingResults = initial, isPingRunning = true) }
 
         pingJob = viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(
+            _uiState.update { it.copy(
                 pingingViaGlobalDns = preferencesDataStore.parsedGlobalResolvers()
-            )
+            ) }
             try {
                 val jobs = profiles.filter { it.tunnelType !in skipped }.map { profile ->
                     launch {
@@ -1085,14 +1086,14 @@ class MainViewModel @Inject constructor(
                         } else {
                             PingResult.Error("No target")
                         }
-                        _uiState.value = _uiState.value.copy(
+                        _uiState.update { it.copy(
                             pingResults = _uiState.value.pingResults + (profile.id to result)
-                        )
+                        ) }
                     }
                 }
                 jobs.forEach { it.join() }
             } finally {
-                _uiState.value = _uiState.value.copy(isPingRunning = false)
+                _uiState.update { it.copy(isPingRunning = false) }
             }
         }
     }
@@ -1139,33 +1140,33 @@ class MainViewModel @Inject constructor(
     fun pingSingleProfile(profile: ServerProfile) {
         if (profile.tunnelType == TunnelType.SNOWFLAKE) return
 
-        _uiState.value = _uiState.value.copy(
+        _uiState.update { it.copy(
             pingResults = _uiState.value.pingResults + (profile.id to PingResult.Pending)
-        )
+        ) }
 
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(
+            _uiState.update { it.copy(
                 pingingViaGlobalDns = preferencesDataStore.parsedGlobalResolvers()
-            )
+            ) }
             val result = if (profile.tunnelType in E2E_TUNNEL_TYPES) {
                 testProfileE2e(profile)
             } else {
                 pingProfileTcp(profile)
             }
-            _uiState.value = _uiState.value.copy(
+            _uiState.update { it.copy(
                 pingResults = _uiState.value.pingResults + (profile.id to result)
-            )
+            ) }
         }
     }
 
     fun cancelPing() {
         pingJob?.cancel()
         pingJob = null
-        _uiState.value = _uiState.value.copy(isPingRunning = false)
+        _uiState.update { it.copy(isPingRunning = false) }
     }
 
     fun clearPingResults() {
-        _uiState.value = _uiState.value.copy(pingResults = emptyMap(), pingingViaGlobalDns = emptyList())
+        _uiState.update { it.copy(pingResults = emptyMap(), pingingViaGlobalDns = emptyList()) }
     }
 
     /**
@@ -1181,7 +1182,7 @@ class MainViewModel @Inject constructor(
             (pings[profile.id] as? PingResult.Success)?.latencyMs ?: Long.MAX_VALUE
         }
         if (sorted == current) return
-        _uiState.value = _uiState.value.copy(profiles = sorted)
+        _uiState.update { it.copy(profiles = sorted) }
         viewModelScope.launch {
             profileRepository.updateProfileOrder(sorted.map { it.id })
         }
@@ -1191,7 +1192,7 @@ class MainViewModel @Inject constructor(
         val current = _uiState.value.profiles
         val sorted = current.sortedBy { it.tunnelType.displayName }
         if (sorted == current) return
-        _uiState.value = _uiState.value.copy(profiles = sorted)
+        _uiState.update { it.copy(profiles = sorted) }
         viewModelScope.launch {
             profileRepository.updateProfileOrder(sorted.map { it.id })
         }
@@ -1205,7 +1206,7 @@ class MainViewModel @Inject constructor(
                 .thenBy { it.name.lowercase() }
         )
         if (sorted == current) return
-        _uiState.value = _uiState.value.copy(profiles = sorted)
+        _uiState.update { it.copy(profiles = sorted) }
         viewModelScope.launch {
             profileRepository.updateProfileOrder(sorted.map { it.id })
         }
@@ -1215,7 +1216,7 @@ class MainViewModel @Inject constructor(
         val current = _uiState.value.profiles
         val sorted = current.sortedBy { it.name.lowercase() }
         if (sorted == current) return
-        _uiState.value = _uiState.value.copy(profiles = sorted)
+        _uiState.update { it.copy(profiles = sorted) }
         viewModelScope.launch {
             profileRepository.updateProfileOrder(sorted.map { it.id })
         }
@@ -1297,9 +1298,9 @@ class MainViewModel @Inject constructor(
                     fullVerification = false
                 ) { phase ->
                     val prefix = if (resolvers.size > 1) "[${index + 1}/${resolvers.size}] " else ""
-                    _uiState.value = _uiState.value.copy(
+                    _uiState.update { it.copy(
                         pingResults = _uiState.value.pingResults + (profile.id to PingResult.Testing(prefix + phase))
-                    )
+                    ) }
                 }
 
                 if (result.success) {

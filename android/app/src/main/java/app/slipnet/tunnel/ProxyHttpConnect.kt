@@ -121,6 +121,7 @@ class ProxyHttpConnect(
 
             val params = sslSocket.sslParameters
             params.serverNames = listOf(SNIHostName(sniHost))
+            params.endpointIdentificationAlgorithm = "HTTPS"
             sslSocket.sslParameters = params
 
             sslSocket.startHandshake()

@@ -168,11 +168,18 @@ class SshTunnelInstance(val instanceId: String = "default") {
         Log.i(TAG, "Configured: cipher=${cipher ?: "auto"}, compression=$compression, maxChannels=$configMaxChannels")
     }
 
+    private val knownHostKeys = java.util.concurrent.ConcurrentHashMap<String, String>()
+
     /**
      * Apply cipher and compression settings to a JSch session.
      */
     private fun applySessionConfig(session: Session) {
-        session.setConfig("StrictHostKeyChecking", "no")
+        val host = session.host ?: ""
+        if (knownHostKeys.containsKey(host)) {
+            session.setConfig("StrictHostKeyChecking", "yes")
+        } else {
+            session.setConfig("StrictHostKeyChecking", "no")
+        }
         session.setServerAliveInterval(KEEPALIVE_INTERVAL_MS)
         session.setServerAliveCountMax(3)
 
@@ -277,6 +284,18 @@ class SshTunnelInstance(val instanceId: String = "default") {
 
             if (!newSession.isConnected) {
                 return Result.failure(RuntimeException("SSH session failed to connect"))
+            }
+
+            // TOFU verification of host key
+            newSession.hostKey?.let { hk ->
+                val host = newSession.host ?: ""
+                val curKey = hk.key
+                val prevKey = knownHostKeys.putIfAbsent(host, curKey)
+                if (prevKey != null && prevKey != curKey) {
+                    newSession.disconnect()
+                    Log.e(TAG, "SSH host key mismatch for $host (potential MITM)")
+                    return Result.failure(SecurityException("SSH host key mismatch for $host (potential MITM)"))
+                }
             }
 
             session = newSession

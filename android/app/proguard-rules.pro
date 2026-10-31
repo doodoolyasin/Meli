@@ -13,8 +13,7 @@
 
 # Keep SlipstreamBridge and tunnel classes for JNI
 -keep class app.slipnet.tunnel.SlipstreamBridge { *; }
--keep class app.slipnet.tunnel.** { *; }
--keepclassmembers class app.slipnet.tunnel.SlipstreamBridge {
+-keepclassmembers class app.slipnet.tunnel.** {
     native <methods>;
     private native <methods>;
 }

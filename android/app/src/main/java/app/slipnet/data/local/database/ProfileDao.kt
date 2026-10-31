@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
 import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
 
@@ -32,6 +33,12 @@ interface ProfileDao {
 
     @Query("UPDATE server_profiles SET is_active = 1 WHERE id = :id")
     suspend fun setActiveProfile(id: Long)
+
+    @Transaction
+    suspend fun switchActiveProfile(id: Long) {
+        clearActiveProfile()
+        setActiveProfile(id)
+    }
 
     @Query("SELECT COUNT(*) FROM server_profiles")
     suspend fun getProfileCount(): Int

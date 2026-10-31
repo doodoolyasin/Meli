@@ -27,6 +27,11 @@ object DatabaseModule {
             SlipNetDatabase.DATABASE_NAME
         )
             .addMigrations(
+                SlipNetDatabase.MIGRATION_1_2,
+                SlipNetDatabase.MIGRATION_2_3,
+                SlipNetDatabase.MIGRATION_3_4,
+                SlipNetDatabase.MIGRATION_4_5,
+                SlipNetDatabase.MIGRATION_1_5,
                 SlipNetDatabase.MIGRATION_5_6,
                 SlipNetDatabase.MIGRATION_6_7,
                 SlipNetDatabase.MIGRATION_7_8,

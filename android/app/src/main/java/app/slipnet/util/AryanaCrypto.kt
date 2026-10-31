@@ -122,6 +122,10 @@ object AryanaCrypto {
         val spec = PBEKeySpec(chars, salt, ITERATIONS, KEY_LEN)
         val factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256")
         val keyBytes = factory.generateSecret(spec).encoded
-        return SecretKeySpec(keyBytes, "AES")
+        spec.clearPassword()
+        chars.fill('\u0000')
+        val keySpec = SecretKeySpec(keyBytes, "AES")
+        keyBytes.fill(0)
+        return keySpec
     }
 }

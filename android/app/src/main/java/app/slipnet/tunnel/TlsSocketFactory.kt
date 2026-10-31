@@ -48,6 +48,7 @@ class TlsSocketFactory(
 
         val params = sslSocket.sslParameters
         params.serverNames = listOf(SNIHostName(sniHost))
+        params.endpointIdentificationAlgorithm = "HTTPS"
         sslSocket.sslParameters = params
 
         // 3. Perform TLS handshake

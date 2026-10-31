@@ -70,7 +70,6 @@ Java_app_slipnet_tunnel_HevSocks5Tunnel_nativeStart(
     tunnel_running = 1;
 
     LOGI("Starting tunnel with fd=%d", tun_fd);
-    LOGI("Config:\n%s", config_content);
 
     int ret = pthread_create(&tunnel_thread, NULL, tunnel_thread_func, NULL);
     if (ret != 0) {
