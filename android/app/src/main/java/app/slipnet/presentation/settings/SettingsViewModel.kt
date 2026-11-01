@@ -571,24 +571,33 @@ class SettingsViewModel @Inject constructor(
         onDone: () -> Unit
     ) {
         viewModelScope.launch {
-            val pPort = proxyPortStr.toIntOrNull()
-            val hPort = httpProxyPortStr.toIntOrNull()
-            if (pPort != null && pPort in 1024..65535 && pPort != hPort) {
-                preferencesDataStore.setProxyListenPort(pPort)
-            }
-            if (hPort != null && hPort in 1024..65535 && pPort != hPort) {
-                preferencesDataStore.setHttpProxyPort(hPort)
-            }
-            preferencesDataStore.setProxyAuthUsername(proxyAuthUser)
-            preferencesDataStore.setProxyAuthPassword(proxyAuthPass)
+            try {
+                val pPort = proxyPortStr.toIntOrNull()
+                val hPort = httpProxyPortStr.toIntOrNull()
+                if (pPort != null && pPort in 1024..65535 && pPort != hPort) {
+                    preferencesDataStore.setProxyListenPort(pPort)
+                }
+                if (hPort != null && hPort in 1024..65535 && pPort != hPort) {
+                    preferencesDataStore.setHttpProxyPort(hPort)
+                }
+                preferencesDataStore.setProxyAuthUsername(proxyAuthUser)
+                preferencesDataStore.setProxyAuthPassword(proxyAuthPass)
 
-            // Re-apply to active connection if VPN is connected
-            val active = connectionManager.getActiveProfile()
-            if (active != null && connectionManager.connectionState.value is ConnectionState.Connected) {
-                connectionManager.reconnect(active)
-            }
-            withContext(Dispatchers.Main) {
-                onDone()
+                // Re-apply to active connection if VPN is connected
+                val active = connectionManager.getActiveProfile()
+                if (active != null && connectionManager.connectionState.value is ConnectionState.Connected) {
+                    try {
+                        connectionManager.reconnect(active)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Failed to reconnect active profile: ${e.message}")
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to save settings: ${e.message}")
+            } finally {
+                withContext(Dispatchers.Main) {
+                    onDone()
+                }
             }
         }
     }

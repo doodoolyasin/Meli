@@ -33,21 +33,35 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.filled.AutoFixHigh
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.SelectAll
+import androidx.compose.material.icons.filled.SwapHoriz
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Switch
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TopAppBar
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -83,7 +97,10 @@ fun AppSelectorScreen(
     val listState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
     var showSearch by remember { mutableStateOf(false) }
+    var showHelpDialog by remember { mutableStateOf(false) }
     val searchFocusRequester = remember { FocusRequester() }
+    val clipboardManager = LocalClipboardManager.current
+    val snackbarHostState = remember { SnackbarHostState() }
 
     LaunchedEffect(showSearch) {
         if (showSearch) {
@@ -96,7 +113,29 @@ fun AppSelectorScreen(
         viewModel.updateSearchQuery("")
     }
 
+    if (showHelpDialog) {
+        AlertDialog(
+            onDismissRequest = { showHelpDialog = false },
+            title = { Text("Per-App Proxy Guide") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("• Enable Per-App Routing: Routes selected apps through the VPN while leaving other apps on direct network connection.", fontSize = 13.sp)
+                    Text("• Bypass Mode: Inverts behavior — selected apps will bypass the VPN and connect directly, while all other apps use the VPN.", fontSize = 13.sp)
+                    Text("• Select All / Invert: Easily manage large lists of apps in batch.", fontSize = 13.sp)
+                    Text("• Auto Select Apps: Automatically selects browsers, messaging apps (Telegram, WhatsApp, Instagram, etc.), streaming and social apps.", fontSize = 13.sp)
+                    Text("• Import / Export: Backup or paste package names directly to and from your clipboard.", fontSize = 13.sp)
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showHelpDialog = false }) {
+                    Text("Got it")
+                }
+            }
+        )
+    }
+
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             if (showSearch) {
                 TopAppBar(
@@ -128,7 +167,7 @@ fun AppSelectorScreen(
                 )
             } else {
                 TopAppBar(
-                    title = { Text("Select Apps") },
+                    title = { Text("Per-App Proxy") },
                     navigationIcon = {
                         IconButton(onClick = onNavigateBack) {
                             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
@@ -137,6 +176,9 @@ fun AppSelectorScreen(
                     actions = {
                         IconButton(onClick = { showSearch = true }) {
                             Icon(Icons.Default.Search, contentDescription = "Search")
+                        }
+                        IconButton(onClick = { showHelpDialog = true }) {
+                            Icon(Icons.Default.Info, contentDescription = "Help")
                         }
                     }
                 )
@@ -148,6 +190,110 @@ fun AppSelectorScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
+            // Per-App Routing & Bypass Mode Switches Card (PattNG style)
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp, vertical = 6.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Enable Per-App Routing", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                            Text("Route traffic per application", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        Switch(
+                            checked = uiState.perAppRoutingEnabled,
+                            onCheckedChange = { viewModel.setPerAppRoutingEnabled(it) }
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Bypass Mode", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                            Text("Selected apps bypass VPN proxy", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        Switch(
+                            checked = uiState.bypassMode,
+                            onCheckedChange = { viewModel.setBypassMode(it) },
+                            enabled = uiState.perAppRoutingEnabled
+                        )
+                    }
+                }
+            }
+
+            // Action Buttons Row (Select All, Invert, Auto Select, Import, Export)
+            Row(
+                modifier = Modifier
+                    .padding(horizontal = 14.dp, vertical = 4.dp)
+                    .horizontalScroll(rememberScrollState()),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                FilterChip(
+                    selected = false,
+                    onClick = { viewModel.selectAll() },
+                    label = { Text("Select All") },
+                    leadingIcon = { Icon(Icons.Default.SelectAll, contentDescription = null, modifier = Modifier.size(16.dp)) }
+                )
+                FilterChip(
+                    selected = false,
+                    onClick = { viewModel.invertSelection() },
+                    label = { Text("Invert Selection") },
+                    leadingIcon = { Icon(Icons.Default.SwapHoriz, contentDescription = null, modifier = Modifier.size(16.dp)) }
+                )
+                FilterChip(
+                    selected = false,
+                    onClick = { viewModel.autoSelectAppsToBeProxied() },
+                    label = { Text("Auto Select Apps") },
+                    leadingIcon = { Icon(Icons.Default.AutoFixHigh, contentDescription = null, modifier = Modifier.size(16.dp)) }
+                )
+                FilterChip(
+                    selected = false,
+                    onClick = {
+                        val clip = clipboardManager.getText()?.text
+                        if (!clip.isNullOrBlank()) {
+                            val count = viewModel.importFromClipboard(clip)
+                            coroutineScope.launch { snackbarHostState.showSnackbar("Imported $count apps from clipboard") }
+                        } else {
+                            coroutineScope.launch { snackbarHostState.showSnackbar("Clipboard is empty") }
+                        }
+                    },
+                    label = { Text("Import") },
+                    leadingIcon = { Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(16.dp)) }
+                )
+                FilterChip(
+                    selected = false,
+                    onClick = {
+                        val exported = viewModel.exportToClipboard()
+                        clipboardManager.setText(AnnotatedString(exported))
+                        coroutineScope.launch { snackbarHostState.showSnackbar("Copied ${uiState.selectedApps.size} apps to clipboard") }
+                    },
+                    label = { Text("Export") },
+                    leadingIcon = { Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(16.dp)) }
+                )
+                FilterChip(
+                    selected = false,
+                    onClick = { viewModel.selectDomesticIranianApps() },
+                    label = { Text("🇮🇷 Iran Apps") }
+                )
+                FilterChip(
+                    selected = uiState.showSelectedOnly,
+                    onClick = { viewModel.toggleSelectedOnly() },
+                    label = { Text("Selected (${uiState.selectedApps.size})") }
+                )
+            }
+
             // Dedicated User vs System Apps Tabs (PattNG style)
             TabRow(
                 selectedTabIndex = uiState.selectedTab,
@@ -162,27 +308,6 @@ fun AppSelectorScreen(
                     selected = uiState.selectedTab == 1,
                     onClick = { viewModel.setTab(1) },
                     text = { Text("System Apps") }
-                )
-            }
-
-            // Filter chips row
-            Row(
-                modifier = Modifier
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
-                    .horizontalScroll(rememberScrollState()),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                FilterChip(
-                    selected = false,
-                    onClick = { viewModel.selectDomesticIranianApps() },
-                    label = { Text("🇮🇷 Select Iran Apps") },
-                    leadingIcon = { Icon(Icons.Default.AutoFixHigh, contentDescription = null, modifier = Modifier.size(16.dp)) }
-                )
-                FilterChip(
-                    selected = uiState.showSelectedOnly,
-                    onClick = { viewModel.toggleSelectedOnly() },
-                    label = { Text("Selected (${uiState.selectedApps.size})") }
                 )
             }
 

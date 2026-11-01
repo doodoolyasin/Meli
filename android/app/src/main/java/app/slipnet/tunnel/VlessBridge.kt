@@ -644,6 +644,10 @@ object VlessBridge {
                 tunnelOut = sslSocket.getOutputStream()
             }
 
+            if (transport != "ws" && transport != "tcp") {
+                Log.w(TAG, "Transport '$transport' is experimental/unsupported, attempting TCP/WS fallback")
+            }
+
             if (transport == "tcp") {
                 handleVlessTcp(client, tunnelIn, tunnelOut, destHost, destPort, initialData)
             } else {

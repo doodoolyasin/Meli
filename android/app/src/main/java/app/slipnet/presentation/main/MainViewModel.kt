@@ -820,6 +820,54 @@ class MainViewModel @Inject constructor(
         }
     }
 
+    fun updateDnsSubscriptions(onDone: (Int, String?) -> Unit) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val map = preferencesDataStore.subscriptionUrls.first()
+            val dnsEntries = map.filter { (k, _) ->
+                k.contains("dns", ignoreCase = true) ||
+                k.contains("master", ignoreCase = true) ||
+                k.contains("meli", ignoreCase = true) ||
+                k.contains("storm", ignoreCase = true)
+            }
+            if (dnsEntries.isEmpty()) {
+                triggerManualDnsScan()
+                withContext(Dispatchers.Main) { onDone(1, null) }
+                return@launch
+            }
+            var totalCount = 0
+            var errorMsg: String? = null
+            for ((group, url) in dnsEntries) {
+                if (url.isNotBlank()) {
+                    try {
+                        val conn = java.net.URL(url.trim()).openConnection() as java.net.HttpURLConnection
+                        conn.connectTimeout = 15000
+                        conn.readTimeout = 15000
+                        conn.setRequestProperty("User-Agent", "v2rayNG/1.8.5")
+                        conn.instanceFollowRedirects = true
+                        if (conn.responseCode in 200..299) {
+                            val raw = conn.inputStream.bufferedReader().use { it.readText() }.trim()
+                            val decoded = decodeSubscriptionPayload(raw)
+                            val result = configImporter.parseAndImport(decoded, connectionManager.getDeviceId())
+                            if (result is ImportResult.Success && result.profiles.isNotEmpty()) {
+                                profileRepository.deleteProfilesByGroup(group)
+                                for (p in result.profiles) {
+                                    saveProfileUseCase(p.copy(subscriptionId = group))
+                                }
+                                totalCount += result.profiles.size
+                            }
+                        } else {
+                            errorMsg = "HTTP ${conn.responseCode} on $group"
+                        }
+                    } catch (e: Exception) {
+                        errorMsg = e.message
+                    }
+                }
+            }
+            triggerManualDnsScan()
+            withContext(Dispatchers.Main) { onDone(totalCount, errorMsg) }
+        }
+    }
+
     fun downloadGeoAssetFiles(filesDir: java.io.File, onDone: (Boolean, String) -> Unit) {
         viewModelScope.launch(Dispatchers.IO) {
             val sources = listOf(

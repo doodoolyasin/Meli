@@ -1291,6 +1291,7 @@ class EditProfileViewModel @Inject constructor(
                     proto == "trojan" -> TunnelType.TROJAN
                     proto == "vmess" -> TunnelType.VMESS
                     proto == "shadowsocks" || proto == "ss" -> TunnelType.SHADOWSOCKS
+                    proto == "socks" || proto == "socks5" -> TunnelType.SOCKS5
                     proto == "hysteria2" -> TunnelType.HYSTERIA2
                     proto == "tuic" -> TunnelType.TUIC
                     security == "reality" -> TunnelType.VLESS_REALITY
@@ -2154,8 +2155,8 @@ class EditProfileViewModel @Inject constructor(
                     keepAliveInterval = keepAlive,
                     congestionControl = state.congestionControl,
                     gsoEnabled = state.gsoEnabled,
-                    socksUsername = state.socksUsername.takeIf { it.isNotBlank() },
-                    socksPassword = (if (state.isTrojan && state.socksPassword.isNullOrBlank()) state.vlessUuid else state.socksPassword)?.takeIf { it.isNotBlank() },
+                    socksUsername = state.socksUsername.takeIf { it.isNotBlank() } ?: if (state.needsDanteSocksAuth) "yasin" else null,
+                    socksPassword = ((if (state.isTrojan && state.socksPassword.isNullOrBlank()) state.vlessUuid else state.socksPassword)?.takeIf { it.isNotBlank() } ?: if (state.needsDanteSocksAuth) "yasin" else null),
                     tunnelType = effectiveTunnelType,
                     dnsttPublicKey = state.dnsttPublicKey.trim(),
                     sshUsername = if (state.useSsh) state.sshUsername.trim() else "",

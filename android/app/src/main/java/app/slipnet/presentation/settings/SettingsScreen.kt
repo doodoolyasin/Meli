@@ -4,6 +4,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.PowerManager
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.compose.BackHandler
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.material3.CircularProgressIndicator
@@ -204,6 +205,8 @@ fun SettingsScreen(
             onDone = onNavigateBack
         )
     }
+
+    BackHandler(onBack = saveAndClose)
 
     Scaffold(
         topBar = {

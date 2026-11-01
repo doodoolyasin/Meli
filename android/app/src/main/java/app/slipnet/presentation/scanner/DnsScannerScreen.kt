@@ -118,7 +118,9 @@ import app.slipnet.domain.model.DnsTransport
 import app.slipnet.domain.model.ResolverStatus
 import app.slipnet.tunnel.GeoBypassCountry
 
-private val WorkingGreen = Color(0xFF4CAF50)
+import app.slipnet.presentation.theme.ColorPingGreen
+
+private val WorkingGreen = ColorPingGreen
 
 private enum class ResolverPanel { NONE, COUNTRY, CUSTOM, IR_DNS, IR_DNS_LITE }
 

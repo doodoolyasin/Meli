@@ -130,26 +130,12 @@ jobs:
         working-directory: android/gomobile-build
         run: make build
 
-      # NOTE: this generates a brand-new signing key on every run, so each APK
-      # is signed by a different certificate and cannot be installed as an
-      # update over an earlier build. Replace with a keystore restored from
-      # secrets before publishing releases that users upgrade in place.
       - name: Setup Keystore
         working-directory: android
         run: |
           STORE_PASS="${{ secrets.KEYSTORE_PASSWORD }}"
-          if [ -z "$STORE_PASS" ]; then
-            STORE_PASS=$(openssl rand -base64 24 | tr -dc 'a-zA-Z0-9' | head -c 20)
-          fi
           KEY_PASS="${{ secrets.KEY_PASSWORD }}"
-          if [ -z "$KEY_PASS" ]; then
-            KEY_PASS="$STORE_PASS"
-          fi
-          if [ -n "${{ secrets.RELEASE_KEYSTORE_BASE64 }}" ]; then
-            echo "${{ secrets.RELEASE_KEYSTORE_BASE64 }}" | base64 -d > slipnet-release.keystore
-          elif [ ! -f slipnet-release.keystore ]; then
-            keytool -genkeypair -v -keystore slipnet-release.keystore -alias slipnet -keyalg RSA -keysize 2048 -validity 10000 -storepass "$STORE_PASS" -keypass "$KEY_PASS" -dname "CN=AryanaNG, OU=Aryana, O=Aryana, L=Tehran, S=Tehran, C=IR"
-          fi
+          echo "${{ secrets.RELEASE_KEYSTORE_BASE64 }}" | base64 -d > slipnet-release.keystore
           cat > keystore.properties <<EOF
           storeFile=../slipnet-release.keystore
           storePassword=$STORE_PASS

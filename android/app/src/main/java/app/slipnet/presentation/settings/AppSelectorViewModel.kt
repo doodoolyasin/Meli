@@ -5,6 +5,7 @@ import android.content.pm.ApplicationInfo
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.slipnet.data.local.datastore.PreferencesDataStore
+import app.slipnet.data.local.datastore.SplitTunnelingMode
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
@@ -29,7 +30,9 @@ data class AppSelectorUiState(
     val showSystemApps: Boolean = false,
     val showSelectedOnly: Boolean = false,
     val isLoading: Boolean = true,
-    val selectedTab: Int = 0 // 0 = User Apps, 1 = System Apps
+    val selectedTab: Int = 0, // 0 = User Apps, 1 = System Apps
+    val perAppRoutingEnabled: Boolean = false,
+    val bypassMode: Boolean = false
 )
 
 @HiltViewModel
@@ -71,9 +74,13 @@ class AppSelectorViewModel @Inject constructor(
             if (validApps.size < savedApps.size) {
                 preferencesDataStore.setSplitTunnelingApps(validApps)
             }
+            val routingEnabled = preferencesDataStore.splitTunnelingEnabled.first()
+            val splitMode = preferencesDataStore.splitTunnelingMode.first()
             _uiState.value = _uiState.value.copy(
                 apps = filterApps(installed, "", showSystem = true, selectedOnly = false, selectedApps = validApps),
                 selectedApps = validApps,
+                perAppRoutingEnabled = routingEnabled,
+                bypassMode = (splitMode == SplitTunnelingMode.DISALLOW),
                 isLoading = false
             )
         }
@@ -146,6 +153,93 @@ class AppSelectorViewModel @Inject constructor(
         viewModelScope.launch {
             preferencesDataStore.setSplitTunnelingApps(updated)
         }
+    }
+
+    fun setPerAppRoutingEnabled(enabled: Boolean) {
+        _uiState.value = _uiState.value.copy(perAppRoutingEnabled = enabled)
+        viewModelScope.launch {
+            preferencesDataStore.setSplitTunnelingEnabled(enabled)
+        }
+    }
+
+    fun setBypassMode(enabled: Boolean) {
+        _uiState.value = _uiState.value.copy(bypassMode = enabled)
+        viewModelScope.launch {
+            preferencesDataStore.setSplitTunnelingMode(
+                if (enabled) SplitTunnelingMode.DISALLOW else SplitTunnelingMode.ALLOW
+            )
+        }
+    }
+
+    fun selectAll() {
+        val visiblePackages = _uiState.value.apps.map { it.packageName }.toSet()
+        val updated = _uiState.value.selectedApps + visiblePackages
+        _uiState.value = _uiState.value.copy(
+            selectedApps = updated,
+            apps = filterApps(allApps, _uiState.value.searchQuery, _uiState.value.showSystemApps, _uiState.value.showSelectedOnly, updated)
+        )
+        viewModelScope.launch {
+            preferencesDataStore.setSplitTunnelingApps(updated)
+        }
+    }
+
+    fun invertSelection() {
+        val visiblePackages = _uiState.value.apps.map { it.packageName }.toSet()
+        val currentSelected = _uiState.value.selectedApps
+        val newlySelected = visiblePackages - currentSelected
+        val remainingOtherSelected = currentSelected - visiblePackages
+        val updated = remainingOtherSelected + newlySelected
+        _uiState.value = _uiState.value.copy(
+            selectedApps = updated,
+            apps = filterApps(allApps, _uiState.value.searchQuery, _uiState.value.showSystemApps, _uiState.value.showSelectedOnly, updated)
+        )
+        viewModelScope.launch {
+            preferencesDataStore.setSplitTunnelingApps(updated)
+        }
+    }
+
+    fun autoSelectAppsToBeProxied() {
+        val proxyTargetPatterns = listOf(
+            "telegram", "org.telegram", "whatsapp", "instagram", "youtube",
+            "twitter", "x.android", "chrome", "firefox", "browser", "opera",
+            "edge", "brave", "facebook", "tiktok", "netflix", "spotify",
+            "discord", "reddit", "twitch", "pinterest", "clubhouse"
+        )
+        val matchedPackages = allApps.filter { app ->
+            val pkg = app.packageName.lowercase()
+            val name = app.appName.lowercase()
+            proxyTargetPatterns.any { pat -> pkg.contains(pat) || name.contains(pat) }
+        }.map { it.packageName }.toSet()
+
+        val updated = _uiState.value.selectedApps + matchedPackages
+        _uiState.value = _uiState.value.copy(
+            selectedApps = updated,
+            apps = filterApps(allApps, _uiState.value.searchQuery, _uiState.value.showSystemApps, _uiState.value.showSelectedOnly, updated)
+        )
+        viewModelScope.launch {
+            preferencesDataStore.setSplitTunnelingApps(updated)
+        }
+    }
+
+    fun importFromClipboard(clipText: String): Int {
+        val lines = clipText.split("\n", ",", " ", "\t").map { it.trim().trim('"', '\'') }.filter { it.isNotBlank() }
+        val installedPackages = allApps.map { it.packageName }.toSet()
+        val validMatches = lines.filter { it in installedPackages }.toSet()
+        if (validMatches.isNotEmpty()) {
+            val updated = _uiState.value.selectedApps + validMatches
+            _uiState.value = _uiState.value.copy(
+                selectedApps = updated,
+                apps = filterApps(allApps, _uiState.value.searchQuery, _uiState.value.showSystemApps, _uiState.value.showSelectedOnly, updated)
+            )
+            viewModelScope.launch {
+                preferencesDataStore.setSplitTunnelingApps(updated)
+            }
+        }
+        return validMatches.size
+    }
+
+    fun exportToClipboard(): String {
+        return _uiState.value.selectedApps.joinToString("\n")
     }
 
     private fun filterApps(

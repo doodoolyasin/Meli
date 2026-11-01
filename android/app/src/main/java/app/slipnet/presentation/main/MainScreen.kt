@@ -310,6 +310,8 @@ fun MainScreen(
     val searchFocusRequester = remember { FocusRequester() }
     var isSelectionMode by remember { mutableStateOf(false) }
     var selectedProfileIds by remember { mutableStateOf(setOf<Long>()) }
+    var pendingSwitchProfileId by remember { mutableStateOf<Long?>(null) }
+    var lastSwitchTapTime by remember { mutableStateOf(0L) }
     LaunchedEffect(isSearchActive) {
         if (isSearchActive) {
             try {
@@ -964,8 +966,8 @@ fun MainScreen(
                                         if (activeAddSubmenu == AddSubmenuType.PROTOCOLS) {
                                             Column(
                                                 modifier = Modifier
-                                                    .width(240.dp)
-                                                    .heightIn(min = 340.dp, max = 560.dp)
+                                                    .width(250.dp)
+                                                    .heightIn(min = 360.dp, max = 650.dp)
                                                     .verticalScroll(rememberScrollState())
                                             ) {
                                                 val protocolList = listOf(
@@ -1123,8 +1125,8 @@ fun MainScreen(
                                             }
                                             Column(
                                                 modifier = Modifier
-                                                    .width(240.dp)
-                                                    .heightIn(min = 340.dp, max = 560.dp)
+                                                    .width(250.dp)
+                                                    .heightIn(min = 360.dp, max = 650.dp)
                                                     .verticalScroll(rememberScrollState())
                                                     .padding(top = submenuTopPadding)
                                             ) {
@@ -1445,24 +1447,7 @@ fun MainScreen(
                                             DropdownMenuItem(
                                                 modifier = Modifier.heightIn(min = 36.dp),
                                                 contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
-                                                text = { Text("Update subscription", fontSize = 13.sp) },
-                                                leadingIcon = { Icon(Icons.Default.CloudDownload, contentDescription = null, modifier = Modifier.size(18.dp)) },
-                                                onClick = {
-                                                    showOverflowMenu = false
-                                                    activeOverflowSubmenu = null
-                                                    val currentGroup = groupTabs.getOrNull(selectedCategoryIndex)?.first ?: ""
-                                                    viewModel.updateSubscriptionGroup(currentGroup) { count, err ->
-                                                        scope.launch {
-                                                            if (err != null) snackbarHostState.showSnackbar("Update failed: $err")
-                                                            else snackbarHostState.showSnackbar("Updated $count configs")
-                                                        }
-                                                    }
-                                                }
-                                            )
-                                            DropdownMenuItem(
-                                                modifier = Modifier.heightIn(min = 36.dp),
-                                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
-                                                text = { Text("Update all subscriptions", fontSize = 13.sp) },
+                                                text = { Text("Update All", fontSize = 13.sp) },
                                                 leadingIcon = { Icon(Icons.Default.Sync, contentDescription = null, modifier = Modifier.size(18.dp)) },
                                                 onClick = {
                                                     showOverflowMenu = false
@@ -1471,6 +1456,22 @@ fun MainScreen(
                                                         scope.launch {
                                                             if (err != null) snackbarHostState.showSnackbar("Update failed: $err")
                                                             else snackbarHostState.showSnackbar("Updated $count configs across all subscriptions")
+                                                        }
+                                                    }
+                                                }
+                                            )
+                                            DropdownMenuItem(
+                                                modifier = Modifier.heightIn(min = 36.dp),
+                                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
+                                                text = { Text("Update DNS", fontSize = 13.sp) },
+                                                leadingIcon = { Icon(Icons.Default.Dns, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                                                onClick = {
+                                                    showOverflowMenu = false
+                                                    activeOverflowSubmenu = null
+                                                    viewModel.updateDnsSubscriptions { count, err ->
+                                                        scope.launch {
+                                                            if (err != null) snackbarHostState.showSnackbar("DNS update failed: $err")
+                                                            else snackbarHostState.showSnackbar("Updated $count DNS configs and resolvers")
                                                         }
                                                     }
                                                 }
@@ -1485,38 +1486,6 @@ fun MainScreen(
                         containerColor = MaterialTheme.colorScheme.surface
                     )
                 )
-            },
-            floatingActionButton = {
-                val isRunning = uiState.connectionState is ConnectionState.Connected ||
-                        uiState.connectionState is ConnectionState.Connecting
-                val isConnecting = uiState.connectionState is ConnectionState.Connecting ||
-                        uiState.connectionState is ConnectionState.Disconnecting
-                val fabSpinTransition = rememberInfiniteTransition(label = "fabSpin")
-                val fabSpinAngle by fabSpinTransition.animateFloat(
-                    initialValue = 0f,
-                    targetValue = 360f,
-                    animationSpec = infiniteRepeatable(
-                        animation = tween(durationMillis = 1000, easing = LinearEasing),
-                        repeatMode = RepeatMode.Restart
-                    ),
-                    label = "fabSpinAngle"
-                )
-                val fabRotation = if (isConnecting) fabSpinAngle else 0f
-
-                FloatingActionButton(
-                    onClick = { requestConnectOrToggle() },
-                    containerColor = if (uiState.connectionState is ConnectionState.Connected) ColorFabActive
-                        else ColorFabInactiveDark
-                ) {
-                    Icon(
-                        imageVector = if (uiState.connectionState is ConnectionState.Connected) Icons.Default.Stop else Icons.Default.PlayArrow,
-                        contentDescription = if (isRunning) "Disconnect" else "Connect",
-                        tint = Color.White,
-                        modifier = Modifier
-                            .size(28.dp)
-                            .graphicsLayer { rotationZ = fabRotation }
-                    )
-                }
             },
         snackbarHost = { SnackbarHost(snackbarHostState) },
         containerColor = MaterialTheme.colorScheme.background,
@@ -1786,7 +1755,24 @@ fun MainScreen(
                                                     selectedProfileIds + profile.id
                                                 }
                                             } else {
-                                                viewModel.setActiveProfile(profile)
+                                                val isVpnConnected = uiState.connectionState is ConnectionState.Connected
+                                                val isCurrentlyActive = profile.id == uiState.connectedProfileId || profile.id == uiState.activeProfile?.id
+                                                if (isVpnConnected && !isCurrentlyActive) {
+                                                    val now = System.currentTimeMillis()
+                                                    if (pendingSwitchProfileId == profile.id && now - lastSwitchTapTime <= 2000L) {
+                                                        pendingSwitchProfileId = null
+                                                        lastSwitchTapTime = 0L
+                                                        viewModel.setActiveProfile(profile)
+                                                    } else {
+                                                        pendingSwitchProfileId = profile.id
+                                                        lastSwitchTapTime = now
+                                                        scope.launch {
+                                                            snackbarHostState.showSnackbar("Tap again within 2s to switch connected profile")
+                                                        }
+                                                    }
+                                                } else {
+                                                    viewModel.setActiveProfile(profile)
+                                                }
                                             }
                                         },
                                         onEditClick = { onNavigateToEditProfile(profile.id) },
@@ -1830,6 +1816,10 @@ fun MainScreen(
             }
 
             // ── Connection Status Strip (bottom, behind FAB) ────────
+            val currentPingTarget = uiState.activeProfile
+                ?: (uiState.connectionState as? ConnectionState.Connected)?.profile
+                ?: uiState.profiles.firstOrNull()
+
             ConnectionStatusStrip(
                 connectionState = uiState.connectionState,
                 activeProfile = uiState.activeProfile,
@@ -1844,9 +1834,9 @@ fun MainScreen(
                 onCancelSleepTimer = { viewModel.userCancelSleepTimer() },
                 dnsWarning = uiState.dnsWarning,
                 dnsPoolScan = uiState.dnsPoolScan,
-                pingResult = uiState.activeProfile?.let { uiState.pingResults[it.id] },
+                pingResult = currentPingTarget?.let { uiState.pingResults[it.id] },
                 onPingConnected = {
-                    uiState.activeProfile?.let { viewModel.pingSingleProfile(it) }
+                    currentPingTarget?.let { viewModel.pingSingleProfile(it) }
                 },
                 onToggleConnection = { requestConnectOrToggle() },
                 modifier = Modifier
@@ -4070,186 +4060,180 @@ private fun ConnectionStatusStrip(
     )
     val triangleRotation = if (isConnecting) spinAngle else 0f
 
-    Column(
+    Box(
         modifier = modifier.fillMaxWidth(),
-        horizontalAlignment = Alignment.CenterHorizontally
+        contentAlignment = Alignment.TopCenter
     ) {
-        // PattNG Triangle Icon - positioned slightly above the connection status field
-        Box(
-            modifier = Modifier
-                .padding(bottom = 6.dp)
-                .size(34.dp)
-                .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f))
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                    onClick = onToggleConnection
-                ),
-            contentAlignment = Alignment.Center
-        ) {
-            Canvas(
-                modifier = Modifier
-                    .size(18.dp)
-                    .graphicsLayer {
-                        rotationZ = triangleRotation
-                    }
-            ) {
-                val w = size.width
-                val h = size.height
-                val path = Path().apply {
-                    // Equilateral triangle pointing upwards (PattNG style)
-                    moveTo(w / 2f, h * 0.12f)
-                    lineTo(w * 0.92f, h * 0.88f)
-                    lineTo(w * 0.08f, h * 0.88f)
-                    close()
-                }
-                drawPath(path = path, color = statusColor)
-            }
-        }
+        val effectiveProfile = activeProfile ?: (connectionState as? ConnectionState.Connected)?.profile
 
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable(enabled = activeProfile != null) { onPingConnected() },
+                .padding(top = 18.dp)
+                .clickable(enabled = effectiveProfile != null) { onPingConnected() },
             tonalElevation = 2.dp,
             shape = RoundedCornerShape(16.dp)
         ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 14.dp)
-        ) {
-            Row(
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(end = 64.dp),
-                verticalAlignment = Alignment.CenterVertically
+                    .padding(horizontal = 16.dp, vertical = 14.dp)
             ) {
-                // Status indicator dot
-                Box(
-                    modifier = Modifier
-                        .size(10.dp)
-                        .clip(CircleShape)
-                        .background(statusColor)
-                )
-
-                Spacer(modifier = Modifier.width(12.dp))
-
-                // Status text + profile name
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = when {
-                            isConnected && isProxyOnly -> "Proxy Active"
-                            isConnected -> "Connected"
-                            connectionState is ConnectionState.Connecting -> "Connecting..."
-                            connectionState is ConnectionState.Disconnecting -> "Disconnecting..."
-                            isError -> "Connection Failed"
-                            else -> "Not Connected"
-                        },
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = if (isConnected || isConnecting) statusColor
-                        else MaterialTheme.colorScheme.onBackground
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Status indicator dot
+                    Box(
+                        modifier = Modifier
+                            .size(10.dp)
+                            .clip(CircleShape)
+                            .background(statusColor)
                     )
-                    Text(
-                        text = when {
-                            isConnected && connectionState is ConnectionState.Connected ->
-                                connectionState.chainName ?: connectionState.profile.name
-                            isError && connectionState is ConnectionState.Error ->
-                                connectionState.message
-                            activeChain != null -> activeChain.name
-                            activeProfile != null -> activeProfile.name
-                            else -> "No profile selected"
-                        },
-                        style = MaterialTheme.typography.bodySmall,
-                        color = if (isError) DisconnectedRed
-                        else MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
 
-                // Traffic stats and Ping to the RIGHT side with clear English labels
-                val hasTraffic = isConnected || (totalUpload + totalDownload > 0)
-                if (hasTraffic || pingResult != null || activeProfile != null) {
-                    val combinedSpeed = downloadSpeed + uploadSpeed
-                    val combinedTotal = totalDownload + totalUpload
-                    Column(
-                        horizontalAlignment = Alignment.End,
-                        modifier = Modifier.padding(start = 8.dp)
-                    ) {
-                        if (isConnected) {
-                            Text(
-                                text = "Speed: ${TrafficStats.formatSpeed(combinedSpeed)}",
-                                style = MaterialTheme.typography.labelMedium,
-                                fontWeight = FontWeight.SemiBold,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                            Spacer(modifier = Modifier.height(2.dp))
-                        }
-                        if (hasTraffic) {
-                            Text(
-                                text = "Total: ${TrafficStats.formatBytes(combinedTotal)}",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Spacer(modifier = Modifier.height(2.dp))
-                        }
+                    Spacer(modifier = Modifier.width(10.dp))
 
-                        // Ping display
-                        when (pingResult) {
-                            is PingResult.Pending -> {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier.size(10.dp),
-                                        strokeWidth = 1.5.dp,
-                                        color = MaterialTheme.colorScheme.primary
-                                    )
-                                    Spacer(modifier = Modifier.width(4.dp))
+                    // Status text + profile name
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = when {
+                                isConnected && isProxyOnly -> "Proxy Active"
+                                isConnected -> "Connected"
+                                connectionState is ConnectionState.Connecting -> "Connecting..."
+                                connectionState is ConnectionState.Disconnecting -> "Disconnecting..."
+                                isError -> "Connection Failed"
+                                else -> "Not Connected"
+                            },
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = if (isConnected || isConnecting) statusColor
+                            else MaterialTheme.colorScheme.onBackground
+                        )
+                        Text(
+                            text = when {
+                                isConnected && connectionState is ConnectionState.Connected ->
+                                    connectionState.chainName ?: connectionState.profile.name
+                                isError && connectionState is ConnectionState.Error ->
+                                    connectionState.message
+                                activeChain != null -> activeChain.name
+                                activeProfile != null -> activeProfile.name
+                                else -> "No profile selected"
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = if (isError) DisconnectedRed
+                            else MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+
+                    // Center spacer for the 56dp cradle button
+                    Spacer(modifier = Modifier.width(58.dp))
+
+                    // Traffic stats and Ping to the RIGHT side with separate speeds
+                    val hasTraffic = isConnected || (totalUpload + totalDownload > 0)
+                    if (hasTraffic || pingResult != null || activeProfile != null) {
+                        val combinedTotal = totalDownload + totalUpload
+                        Column(
+                            horizontalAlignment = Alignment.End,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            if (isConnected) {
+                                Text(
+                                    text = "↑ ${TrafficStats.formatSpeed(uploadSpeed)}",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Medium,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                Text(
+                                    text = "↓ ${TrafficStats.formatSpeed(downloadSpeed)}",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Medium,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                            }
+                            if (hasTraffic) {
+                                Text(
+                                    text = "Total: ${TrafficStats.formatBytes(combinedTotal)}",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                            }
+
+                            // Ping display with colored indicator dot
+                            when (pingResult) {
+                                is PingResult.Pending -> {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(10.dp),
+                                            strokeWidth = 1.5.dp,
+                                            color = MaterialTheme.colorScheme.primary
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text(
+                                            text = "Ping...",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+                                is PingResult.Testing -> {
                                     Text(
-                                        text = "Ping...",
+                                        text = pingResult.phase,
                                         style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        color = ColorPingOrange,
+                                        maxLines = 1
                                     )
                                 }
-                            }
-                            is PingResult.Testing -> {
-                                Text(
-                                    text = pingResult.phase,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = ColorPingOrange,
-                                    maxLines = 1
-                                )
-                            }
-                            is PingResult.Success -> {
-                                val latencyColor = when {
-                                    pingResult.latencyMs < 350 -> ColorPingGreen
-                                    pingResult.latencyMs < 900 -> ColorPingOrange
-                                    else -> ColorPingRed
+                                is PingResult.Success -> {
+                                    val latencyColor = when {
+                                        pingResult.latencyMs < 350 -> ColorPingGreen
+                                        pingResult.latencyMs < 900 -> ColorPingOrange
+                                        else -> ColorPingRed
+                                    }
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(7.dp)
+                                                .clip(CircleShape)
+                                                .background(latencyColor)
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text(
+                                            text = "${pingResult.latencyMs} ms",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            fontWeight = FontWeight.Bold,
+                                            color = latencyColor
+                                        )
+                                    }
                                 }
-                                Text(
-                                    text = "${pingResult.latencyMs} ms",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = FontWeight.Bold,
-                                    color = latencyColor
-                                )
-                            }
-                            is PingResult.Error -> {
-                                Text(
-                                    text = pingResult.message.ifBlank { "Timeout" },
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = ColorPingRed,
-                                    maxLines = 1
-                                )
-                            }
-                            else -> {
-                                if (activeProfile != null) {
-                                    Text(
-                                        text = "Tap to Ping",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
-                                    )
+                                is PingResult.Error -> {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(7.dp)
+                                                .clip(CircleShape)
+                                                .background(ColorPingRed)
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text(
+                                            text = pingResult.message.ifBlank { "Timeout" },
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = ColorPingRed,
+                                            maxLines = 1
+                                        )
+                                    }
+                                }
+                                else -> {
+                                    if (effectiveProfile != null) {
+                                        Text(
+                                            text = "Tap to Ping",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -4388,6 +4372,35 @@ private fun ConnectionStatusStrip(
             }
         }
     }
+
+    // Central 56dp Connect Button cradled gently into the top of the status field (PattNG style)
+    FloatingActionButton(
+        onClick = onToggleConnection,
+        containerColor = statusColor,
+        contentColor = Color.White,
+        shape = CircleShape,
+        modifier = Modifier
+            .size(56.dp)
+            .zIndex(2f)
+    ) {
+        Canvas(
+            modifier = Modifier
+                .size(24.dp)
+                .graphicsLayer {
+                    rotationZ = triangleRotation
+                }
+        ) {
+            val w = size.width
+            val h = size.height
+            val path = Path().apply {
+                // Equilateral triangle pointing upwards (PattNG style)
+                moveTo(w / 2f, h * 0.15f)
+                lineTo(w * 0.88f, h * 0.85f)
+                lineTo(w * 0.12f, h * 0.85f)
+                close()
+            }
+            drawPath(path = path, color = Color.White)
+        }
     }
 }
 

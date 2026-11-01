@@ -33,6 +33,8 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import app.slipnet.presentation.theme.ColorFabActive
+import app.slipnet.presentation.theme.ColorSelectionAccent
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.window.Dialog
@@ -123,7 +125,7 @@ fun SshTerminalScreen(
             if (uiState.currentNavTab == TerminalNavTab.VAULTS) {
                 FloatingActionButton(
                     onClick = { showActionBottomSheet = true },
-                    containerColor = Color(0xFF2563EB),
+                    containerColor = ColorFabActive,
                     contentColor = Color.White,
                     shape = CircleShape,
                     modifier = Modifier.padding(bottom = 8.dp)
@@ -326,7 +328,7 @@ fun SshTerminalScreen(
                                                 showNewHostDialog = false
                                             }
                                         },
-                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF22C55E)),
+                                        colors = ButtonDefaults.buttonColors(containerColor = ColorFabActive),
                                         shape = RoundedCornerShape(8.dp)
                                     ) {
                                         Text("Save", fontWeight = FontWeight.Bold, color = Color.White)
@@ -359,8 +361,8 @@ fun SshTerminalScreen(
                                             label = { Text("Personal Vault", fontWeight = FontWeight.Bold) },
                                             leadingIcon = { Icon(Icons.Default.VpnKey, contentDescription = null, modifier = Modifier.size(16.dp)) },
                                             colors = FilterChipDefaults.filterChipColors(
-                                                selectedContainerColor = Color(0xFF22C55E).copy(alpha = 0.2f),
-                                                selectedLabelColor = Color(0xFF22C55E)
+                                                selectedContainerColor = ColorFabActive.copy(alpha = 0.2f),
+                                                selectedLabelColor = ColorFabActive
                                             )
                                         )
                                         FilterChip(
@@ -426,7 +428,7 @@ fun SshTerminalScreen(
                                         Switch(
                                             checked = deleteSendControlH,
                                             onCheckedChange = { deleteSendControlH = it },
-                                            colors = SwitchDefaults.colors(checkedThumbColor = Color(0xFF22C55E))
+                                            colors = SwitchDefaults.colors(checkedThumbColor = ColorFabActive)
                                         )
                                     }
                                 }
@@ -515,7 +517,7 @@ fun SshTerminalScreen(
                                             "Credentials",
                                             fontSize = 14.sp,
                                             fontWeight = FontWeight.Bold,
-                                            color = Color(0xFF22C55E)
+                                            color = ColorFabActive
                                         )
 
                                         OutlinedTextField(
@@ -1096,13 +1098,13 @@ private fun TermiusHostCard(
                 modifier = Modifier
                     .size(42.dp)
                     .clip(CircleShape)
-                    .background(Color(0xFF22C55E).copy(alpha = 0.15f)),
+                    .background(ColorFabActive.copy(alpha = 0.15f)),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = Icons.Default.Dns,
                     contentDescription = null,
-                    tint = Color(0xFF22C55E),
+                    tint = ColorFabActive,
                     modifier = Modifier.size(22.dp)
                 )
             }

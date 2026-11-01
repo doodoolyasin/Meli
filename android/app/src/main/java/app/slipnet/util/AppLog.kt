@@ -24,7 +24,7 @@ object AppLog {
     private const val MAX_LINES = 5000
     private const val MAX_PACKETS = 1000
     private const val MAX_LOG_FILE_SIZE = 1_500_000L // ~1.5 MB per file
-    private const val MAX_ROTATED_FILES = 3 // keep crash_trace.log.1, .2, .3
+    private const val MAX_ROTATED_FILES = 5 // keep crash_trace.log.1, .2, .3, .4, .5
 
     private val nextId = AtomicLong(0)
     private val buffer = ArrayDeque<LogEntry>()

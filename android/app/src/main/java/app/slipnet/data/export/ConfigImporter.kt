@@ -3487,6 +3487,11 @@ class ConfigImporter @Inject constructor() {
                             )
                         }
                         "shadowsocks", "ss" -> {
+                            val resolvedTunnelType = if (method.isBlank() || method.equals("none", ignoreCase = true)) {
+                                TunnelType.SOCKS5
+                            } else {
+                                TunnelType.SHADOWSOCKS
+                            }
                             profiles.add(
                                 ServerProfile(
                                     name = profileName,
@@ -3494,7 +3499,7 @@ class ConfigImporter @Inject constructor() {
                                     cdnIp = server,
                                     cdnPort = port,
                                     socks5ServerPort = port,
-                                    tunnelType = TunnelType.SHADOWSOCKS,
+                                    tunnelType = resolvedTunnelType,
                                     socksUsername = method,
                                     socksPassword = password
                                 )

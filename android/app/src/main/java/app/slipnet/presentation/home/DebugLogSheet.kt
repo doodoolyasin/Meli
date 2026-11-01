@@ -108,7 +108,9 @@ fun DebugLogSheet(onDismiss: () -> Unit) {
                     // 1-Click Export Full Diagnostic Report
                     IconButton(onClick = {
                         try {
-                            val report = generateDiagnosticReport(lines, packetLogs, activeResolvers)
+                            val fullLines = AppLog.snapshot()
+                            val fullPackets = AppLog.getPacketLogs()
+                            val report = generateDiagnosticReport(fullLines, fullPackets, activeResolvers)
                             val logDir = java.io.File(context.cacheDir, "logs").apply { mkdirs() }
                             val logFile = java.io.File(logDir, "aryana_diagnostic_report.txt")
                             logFile.writeText(report)
@@ -140,10 +142,16 @@ fun DebugLogSheet(onDismiss: () -> Unit) {
 
                     // Copy visible logs
                     IconButton(onClick = {
-                        val text = if (selectedTab == 1) {
-                            packetLogs.joinToString("\n") { "${it.timestamp} [${it.direction}] ${it.protocol} -> ${it.target} (${it.size}B) status=${it.status} ${it.latencyMs}ms" }
-                        } else {
-                            filteredLines.joinToString("\n") { it.raw }
+                        val text = when (selectedTab) {
+                            1 -> packetLogs.joinToString("\n") { "${it.timestamp} [${it.direction}] ${it.protocol} -> ${it.target} (${it.size}B) status=${it.status} ${it.latencyMs}ms" }
+                            2 -> {
+                                val findings = analyzeEngineLogs(lines)
+                                findings.joinToString("\n\n") { f ->
+                                    val icon = if (f.isOk) "[PASS]" else "[FAIL]"
+                                    "$icon ${f.title}: ${f.status}\nDetail: ${f.detail}" + if (f.recommendation.isNotBlank()) "\nFix: ${f.recommendation}" else ""
+                                }
+                            }
+                            else -> filteredLines.joinToString("\n") { it.raw }
                         }
                         clipboardManager.setText(AnnotatedString(text))
                     }) {
