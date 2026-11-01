@@ -76,6 +76,9 @@ object AppLog {
     private val _packetLogs = MutableStateFlow<List<PacketLogItem>>(emptyList())
     val packetLogs: StateFlow<List<PacketLogItem>> = _packetLogs.asStateFlow()
 
+    fun snapshot(): List<LogEntry> = synchronized(buffer) { ArrayList(buffer) }
+    fun getPacketLogs(): List<PacketLogItem> = synchronized(packetBuffer) { ArrayList(packetBuffer) }
+
     val txCount = AtomicLong(0)
     val rxCount = AtomicLong(0)
     val dropCount = AtomicLong(0)

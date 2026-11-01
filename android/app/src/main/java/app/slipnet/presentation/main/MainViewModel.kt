@@ -830,8 +830,7 @@ class MainViewModel @Inject constructor(
                 k.contains("storm", ignoreCase = true)
             }
             if (dnsEntries.isEmpty()) {
-                triggerManualDnsScan()
-                withContext(Dispatchers.Main) { onDone(1, null) }
+                withContext(Dispatchers.Main) { onDone(0, "No DNS subscriptions configured") }
                 return@launch
             }
             var totalCount = 0
@@ -863,7 +862,6 @@ class MainViewModel @Inject constructor(
                     }
                 }
             }
-            triggerManualDnsScan()
             withContext(Dispatchers.Main) { onDone(totalCount, errorMsg) }
         }
     }
