@@ -238,6 +238,7 @@ enum class TunnelType(val value: String, val displayName: String) {
     PAQET("paqet", "Paqet (Raw-TCP / KCP)"),
     WIREGUARD("wireguard", "WireGuard / AmneziaWG"),
     OPENVPN("openvpn", "OpenVPN (Scramble/XOR)"),
+    L2TP("l2tp", "L2TP / IPsec"),
     HYSTERIA2("hysteria2", "Hysteria 2 (UDP/QUIC)"),
     TUIC("tuic", "TUIC v5 (QUIC 0-RTT)"),
     TROJAN("trojan", "Trojan (TLS Camouflage)"),
@@ -256,6 +257,7 @@ enum class TunnelType(val value: String, val displayName: String) {
             if (value.equals("warp", ignoreCase = true) || value.equals("gool", ignoreCase = true)) return WARP
             if (value.equals("wireguard", ignoreCase = true) || value.equals("awg", ignoreCase = true) || value.equals("wg", ignoreCase = true)) return WIREGUARD
             if (value.equals("openvpn", ignoreCase = true) || value.equals("ovpn", ignoreCase = true)) return OPENVPN
+            if (value.equals("l2tp", ignoreCase = true) || value.equals("ipsec", ignoreCase = true)) return L2TP
             if (value.equals("hysteria2", ignoreCase = true) || value.equals("hy2", ignoreCase = true)) return HYSTERIA2
             if (value.equals("tuic", ignoreCase = true)) return TUIC
             if (value.equals("trojan", ignoreCase = true)) return TROJAN

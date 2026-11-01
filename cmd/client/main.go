@@ -73,10 +73,10 @@ func waitForExitInput() {
 func printClientUsage(fs *flag.FlagSet) {
 	bin := filepath.Base(os.Args[0])
 	if bin == "" || bin == "." || strings.Contains(bin, "go-build") || strings.HasPrefix(bin, "main") {
-		bin = "masterdnsvpn-client"
+		bin = "aryanang-client"
 	}
 
-	fmt.Fprintf(fs.Output(), "MasterDnsVPN Client - A high-performance DNS-based VPN Tunnel\n\n")
+	fmt.Fprintf(fs.Output(), "AryanaNG Client - A high-performance DNS-based VPN Tunnel\n\n")
 	fmt.Fprintf(fs.Output(), "Usage:\n")
 	fmt.Fprintf(fs.Output(), "  %s [flags]\n\n", bin)
 	fmt.Fprintf(fs.Output(), "Examples:\n")
@@ -115,7 +115,7 @@ type clientCLIOptions struct {
 }
 
 func newClientFlagSet(output io.Writer) (*flag.FlagSet, *clientCLIOptions, *config.ClientConfigFlagBinder, error) {
-	fs := flag.NewFlagSet("masterdnsvpn-client", flag.ContinueOnError)
+	fs := flag.NewFlagSet("aryanang-client", flag.ContinueOnError)
 	fs.SetOutput(output)
 
 	opts := &clientCLIOptions{}
@@ -243,7 +243,7 @@ func main() {
 	}
 
 	if opts.showVersion {
-		fmt.Printf("MasterDnsVPN Client Version: %s\n", version.GetVersion())
+		fmt.Printf("AryanaNG Client Version: %s\n", version.GetVersion())
 		return
 	}
 
@@ -332,7 +332,7 @@ func main() {
 
 	log := app.Log()
 	if log != nil {
-		log.Infof("\U0001F680 <green>MasterDnsVPN Client Started</green>")
+		log.Infof("\U0001F680 <green>AryanaNG Client Started</green>")
 		log.Infof("\U0001F4C4 <green>Configuration loaded from: <cyan>%s</cyan></green>", resolvedConfigPath)
 		log.Infof("\U0001F5C2  <green>Connection Catalog: <cyan>%d</cyan> domain-resolver pairs</green>", app.Balancer().TotalCount())
 	}

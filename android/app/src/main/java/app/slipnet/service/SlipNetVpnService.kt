@@ -539,26 +539,80 @@ class SlipNetVpnService : VpnService() {
                     DomainRouter.isIpAddress(it)
                 }
 
-                val effectiveResolverHost = globalResolverOverride?.firstOrNull()?.host
-                    ?: profile.resolvers.firstOrNull()?.host
-                val dnsServer = resolveToIp(effectiveResolverHost, globalDnsIp)
-                // Remote DNS: the DNS servers used on the remote side of the tunnel
-                var remoteDns = preferencesDataStore.getEffectiveRemoteDns().first()
-                var remoteDnsFallback = preferencesDataStore.getEffectiveRemoteDnsFallback().first()
+                val isDnsTunnel = currentTunnelType in setOf(
+                    TunnelType.MASTERDNS, TunnelType.MASTERDNS_SSH,
+                    TunnelType.STORMDNS, TunnelType.STORMDNS_SSH,
+                    TunnelType.COTTENDNS, TunnelType.COTTENDNS_SSH,
+                    TunnelType.SOAR, TunnelType.SOAR_SSH,
+                    TunnelType.MELI, TunnelType.MELI_SSH,
+                    TunnelType.DNSTT, TunnelType.DNSTT_SSH,
+                    TunnelType.NOIZDNS, TunnelType.NOIZDNS_SSH,
+                    TunnelType.VAYDNS, TunnelType.VAYDNS_SSH,
+                    TunnelType.SLIPSTREAM, TunnelType.SLIPSTREAM_SSH,
+                    TunnelType.NOOSHDAROO, TunnelType.NOOSHDAROO_SSH,
+                    TunnelType.QWDTT, TunnelType.QWDTT_SSH
+                )
 
-                // DNSTT+SSH / NoizDNS+SSH: use reliable public DNS by default.
-                // 127.0.0.53 (systemd-resolved) is unavailable on most servers, causing
-                // DNS workers to fail and fall back — adding ~1s latency at startup.
-                // Only override when user hasn't set a custom remote DNS.
+                // For DNS tunnels, ensure resolvers default to the active tunnel server (45.38.249.16:53)
+                // CottenDNS NS records point directly to 45.38.249.16, so queries to 8.8.8.8 fail MTU upload
+                val effectiveProfile = if (isDnsTunnel) {
+                    val needsServerResolver = profile.resolvers.isEmpty() ||
+                            ((currentTunnelType == TunnelType.COTTENDNS || currentTunnelType == TunnelType.COTTENDNS_SSH || profile.domain.contains("cotten", ignoreCase = true)) &&
+                             profile.resolvers.all { it.host == "8.8.8.8" || it.host == "1.1.1.1" })
+                    if (needsServerResolver) {
+                        profile.copy(resolvers = listOf(app.slipnet.domain.model.DnsResolver(host = "45.38.249.16", port = 53)))
+                    } else {
+                        profile
+                    }
+                } else {
+                    profile
+                }
+
+                val effectiveResolverHost = globalResolverOverride?.firstOrNull()?.host
+                    ?: effectiveProfile.resolvers.firstOrNull()?.host
+                val dnsServer = resolveToIp(effectiveResolverHost, globalDnsIp)
+
+                // Remote DNS: the DNS servers used on the remote side of the tunnel
+                val dnsMode = preferencesDataStore.remoteDnsMode.first()
+                var remoteDns: String
+                var remoteDnsFallback: String
+                if (dnsMode == "custom") {
+                    remoteDns = preferencesDataStore.getEffectiveRemoteDns().first()
+                    remoteDnsFallback = preferencesDataStore.getEffectiveRemoteDnsFallback().first()
+                } else {
+                    val profileResolverHost = effectiveProfile.resolvers.firstOrNull()?.host?.takeIf { DomainRouter.isIpAddress(it) }
+                    if (profileResolverHost != null) {
+                        remoteDns = profileResolverHost
+                        remoteDnsFallback = effectiveProfile.resolvers.getOrNull(1)?.host?.takeIf { DomainRouter.isIpAddress(it) } ?: "8.8.8.8"
+                    } else if (isDnsTunnel) {
+                        remoteDns = "45.38.249.16"
+                        remoteDnsFallback = "8.8.8.8"
+                    } else {
+                        remoteDns = preferencesDataStore.getEffectiveRemoteDns().first()
+                        remoteDnsFallback = preferencesDataStore.getEffectiveRemoteDnsFallback().first()
+                    }
+                }
+
+                // DNSTT+SSH / NoizDNS+SSH / VayDNS+SSH: use reliable public DNS only when no profile resolver is set
                 if (currentTunnelType == TunnelType.DNSTT_SSH || currentTunnelType == TunnelType.NOIZDNS_SSH || currentTunnelType == TunnelType.VAYDNS_SSH) {
-                    val dnsMode = preferencesDataStore.remoteDnsMode.first()
-                    if (dnsMode == "default") {
+                    if (dnsMode == "default" && effectiveProfile.resolvers.isEmpty()) {
                         remoteDns = "8.8.8.8"
                         remoteDnsFallback = "1.1.1.1"
                     }
                 }
 
                 Log.i(TAG, "Remote DNS: $remoteDns (fallback: $remoteDnsFallback)")
+
+                // Active Resolvers telemetry for in-app debug log and 1-click diagnostic report
+                val activeResolversList = (globalResolverOverride ?: effectiveProfile.resolvers)
+                    .map { "${it.host}:${it.port}" }
+                    .filter { it.isNotBlank() }
+                    .ifEmpty {
+                        if (isDnsTunnel) listOf("45.38.249.16:53")
+                        else if (remoteDns.isNotBlank()) listOf(if (remoteDns.contains(":")) remoteDns else "$remoteDns:53")
+                        else emptyList()
+                    }
+                app.slipnet.util.AppLog.setActiveResolvers(activeResolversList)
 
                 // Check if tunnel type is available in this build flavor
                 if (!currentTunnelType.isAvailable()) {
@@ -570,51 +624,51 @@ class SlipNetVpnService : VpnService() {
                 // - Slipstream: Start proxy first (Rust uses protect_socket JNI callback)
                 // - DNSTT: Establish VPN first (uses addDisallowedApplication for socket protection)
                 when (currentTunnelType) {
-                    TunnelType.SLIPSTREAM -> connectSlipstream(profile, dnsServer, remoteDns, remoteDnsFallback, globalResolverOverride)
-                    TunnelType.SLIPSTREAM_SSH -> connectSlipstreamSsh(profile, dnsServer, remoteDns, remoteDnsFallback, globalResolverOverride)
-                    TunnelType.DNSTT -> connectDnstt(profile, dnsServer, remoteDns, remoteDnsFallback, globalResolverOverride)
-                    TunnelType.DNSTT_SSH -> connectDnsttSsh(profile, dnsServer, remoteDns, remoteDnsFallback, globalResolverOverride)
-                    TunnelType.NOIZDNS -> connectDnstt(profile, dnsServer, remoteDns, remoteDnsFallback, globalResolverOverride)
-                    TunnelType.NOIZDNS_SSH -> connectDnsttSsh(profile, dnsServer, remoteDns, remoteDnsFallback, globalResolverOverride)
-                    TunnelType.SSH -> connectSsh(profile, dnsServer, remoteDns, remoteDnsFallback, globalDnsIp)
-                    TunnelType.DOH -> connectDoh(profile, dnsServer)
-                    TunnelType.SNOWFLAKE -> connectSnowflake(profile, dnsServer)
-                    TunnelType.NAIVE_SSH -> connectNaiveSsh(profile, dnsServer, remoteDns, remoteDnsFallback)
-                    TunnelType.NAIVE -> connectNaive(profile, dnsServer, remoteDns, remoteDnsFallback)
-                    TunnelType.VAYDNS -> connectVaydns(profile, dnsServer, remoteDns, remoteDnsFallback, globalResolverOverride)
-                    TunnelType.VAYDNS_SSH -> connectVaydnsSsh(profile, dnsServer, remoteDns, remoteDnsFallback, globalResolverOverride)
-                    TunnelType.SOCKS5 -> connectSocks5(profile, dnsServer, remoteDns)
-                    TunnelType.VLESS, TunnelType.VLESS_REALITY, TunnelType.TROJAN -> connectVless(profile, dnsServer)
+                    TunnelType.SLIPSTREAM -> connectSlipstream(effectiveProfile, dnsServer, remoteDns, remoteDnsFallback, globalResolverOverride)
+                    TunnelType.SLIPSTREAM_SSH -> connectSlipstreamSsh(effectiveProfile, dnsServer, remoteDns, remoteDnsFallback, globalResolverOverride)
+                    TunnelType.DNSTT -> connectDnstt(effectiveProfile, dnsServer, remoteDns, remoteDnsFallback, globalResolverOverride)
+                    TunnelType.DNSTT_SSH -> connectDnsttSsh(effectiveProfile, dnsServer, remoteDns, remoteDnsFallback, globalResolverOverride)
+                    TunnelType.NOIZDNS -> connectDnstt(effectiveProfile, dnsServer, remoteDns, remoteDnsFallback, globalResolverOverride)
+                    TunnelType.NOIZDNS_SSH -> connectDnsttSsh(effectiveProfile, dnsServer, remoteDns, remoteDnsFallback, globalResolverOverride)
+                    TunnelType.SSH -> connectSsh(effectiveProfile, dnsServer, remoteDns, remoteDnsFallback, globalDnsIp)
+                    TunnelType.DOH -> connectDoh(effectiveProfile, dnsServer)
+                    TunnelType.SNOWFLAKE -> connectSnowflake(effectiveProfile, dnsServer)
+                    TunnelType.NAIVE_SSH -> connectNaiveSsh(effectiveProfile, dnsServer, remoteDns, remoteDnsFallback)
+                    TunnelType.NAIVE -> connectNaive(effectiveProfile, dnsServer, remoteDns, remoteDnsFallback)
+                    TunnelType.VAYDNS -> connectVaydns(effectiveProfile, dnsServer, remoteDns, remoteDnsFallback, globalResolverOverride)
+                    TunnelType.VAYDNS_SSH -> connectVaydnsSsh(effectiveProfile, dnsServer, remoteDns, remoteDnsFallback, globalResolverOverride)
+                    TunnelType.SOCKS5 -> connectSocks5(effectiveProfile, dnsServer, remoteDns)
+                    TunnelType.VLESS, TunnelType.VLESS_REALITY, TunnelType.TROJAN -> connectVless(effectiveProfile, dnsServer)
                     TunnelType.MASTERDNS,
                     TunnelType.STORMDNS,
                     TunnelType.COTTENDNS,
-                    TunnelType.SOAR -> connectMasterDns(profile, dnsServer, remoteDns, remoteDnsFallback, globalResolverOverride)
+                    TunnelType.SOAR -> connectMasterDns(effectiveProfile, dnsServer, remoteDns, remoteDnsFallback, globalResolverOverride)
                     TunnelType.MASTERDNS_SSH,
                     TunnelType.STORMDNS_SSH,
                     TunnelType.COTTENDNS_SSH,
-                    TunnelType.SOAR_SSH -> connectMasterDns(profile, dnsServer, remoteDns, remoteDnsFallback, globalResolverOverride)
-                    TunnelType.MELI -> connectMeli(profile, dnsServer, remoteDns, remoteDnsFallback, globalResolverOverride)
-                    TunnelType.MELI_SSH -> connectMeli(profile, dnsServer, remoteDns, remoteDnsFallback, globalResolverOverride)
-                    TunnelType.NOOSHDAROO, TunnelType.QWDTT -> connectDnstt(profile, dnsServer, remoteDns, remoteDnsFallback, globalResolverOverride)
-                    TunnelType.NOOSHDAROO_SSH, TunnelType.QWDTT_SSH -> connectDnsttSsh(profile, dnsServer, remoteDns, remoteDnsFallback, globalResolverOverride)
-                    TunnelType.BALE -> connectBale(profile, dnsServer, remoteDns)
+                    TunnelType.SOAR_SSH -> connectMasterDns(effectiveProfile, dnsServer, remoteDns, remoteDnsFallback, globalResolverOverride)
+                    TunnelType.MELI -> connectMeli(effectiveProfile, dnsServer, remoteDns, remoteDnsFallback, globalResolverOverride)
+                    TunnelType.MELI_SSH -> connectMeli(effectiveProfile, dnsServer, remoteDns, remoteDnsFallback, globalResolverOverride)
+                    TunnelType.NOOSHDAROO, TunnelType.QWDTT -> connectDnstt(effectiveProfile, dnsServer, remoteDns, remoteDnsFallback, globalResolverOverride)
+                    TunnelType.NOOSHDAROO_SSH, TunnelType.QWDTT_SSH -> connectDnsttSsh(effectiveProfile, dnsServer, remoteDns, remoteDnsFallback, globalResolverOverride)
+                    TunnelType.BALE -> connectBale(effectiveProfile, dnsServer, remoteDns)
                     TunnelType.PINGTUNNEL, TunnelType.SPOOF_TUNNEL, TunnelType.GOLDEN_GRE, TunnelType.PAQET,
-                    TunnelType.WIREGUARD, TunnelType.OPENVPN, TunnelType.HYSTERIA2, TunnelType.TUIC, TunnelType.SHADOWSOCKS,
+                    TunnelType.WIREGUARD, TunnelType.OPENVPN, TunnelType.L2TP, TunnelType.HYSTERIA2, TunnelType.TUIC, TunnelType.SHADOWSOCKS,
                     TunnelType.VMESS, TunnelType.SNELL, TunnelType.SHADOWSOCKSR,
                     TunnelType.AETHER, TunnelType.WARP -> {
-                        if (profile.vlessUuid.isNotBlank() || profile.vlessTransport.isNotBlank()) {
-                            connectVless(profile, dnsServer)
+                        if (effectiveProfile.vlessUuid.isNotBlank() || effectiveProfile.vlessTransport.isNotBlank()) {
+                            connectVless(effectiveProfile, dnsServer)
                         } else {
-                            connectSocks5(profile, dnsServer, remoteDns)
+                            connectSocks5(effectiveProfile, dnsServer, remoteDns)
                         }
                     }
                     else -> {
-                        if (profile.vlessUuid.isNotBlank()) {
-                            connectVless(profile, dnsServer)
-                        } else if (profile.domain.isNotBlank() || profile.cdnIp.isNotBlank()) {
-                            connectSocks5(profile, dnsServer, remoteDns)
+                        if (effectiveProfile.vlessUuid.isNotBlank()) {
+                            connectVless(effectiveProfile, dnsServer)
+                        } else if (effectiveProfile.domain.isNotBlank() || effectiveProfile.cdnIp.isNotBlank()) {
+                            connectSocks5(effectiveProfile, dnsServer, remoteDns)
                         } else {
-                            val msg = "Unsupported configuration: ${profile.name}"
+                            val msg = "Unsupported configuration: ${effectiveProfile.name}"
                             Log.e(TAG, msg)
                             connectionManager.onVpnError(msg)
                         }
@@ -1331,7 +1385,7 @@ class SlipNetVpnService : VpnService() {
             }
             TunnelType.DOH -> DohBridge.stop()
             TunnelType.SOCKS5, TunnelType.BALE, TunnelType.PINGTUNNEL, TunnelType.SPOOF_TUNNEL, TunnelType.GOLDEN_GRE, TunnelType.PAQET,
-            TunnelType.WIREGUARD, TunnelType.OPENVPN, TunnelType.HYSTERIA2, TunnelType.TUIC, TunnelType.SHADOWSOCKS -> Socks5ProxyBridge.stopAll()
+            TunnelType.WIREGUARD, TunnelType.OPENVPN, TunnelType.L2TP, TunnelType.HYSTERIA2, TunnelType.TUIC, TunnelType.SHADOWSOCKS -> Socks5ProxyBridge.stopAll()
             TunnelType.MASTERDNS, TunnelType.MASTERDNS_SSH,
             TunnelType.STORMDNS, TunnelType.STORMDNS_SSH,
             TunnelType.COTTENDNS, TunnelType.COTTENDNS_SSH,
@@ -4626,10 +4680,42 @@ class SlipNetVpnService : VpnService() {
                         .split(",", "\n").firstOrNull()?.trim()?.split(":")?.firstOrNull()
                         ?.takeIf { DomainRouter.isIpAddress(it) }
                 } else null
-                val reconnectProfile = if (reconnectGlobalDnsIp != null && !DomainRouter.isIpAddress(profile.domain)) {
-                    val resolved = VpnRepositoryImpl.resolveHost(profile.domain, reconnectGlobalDnsIp)
-                    if (resolved != profile.domain) profile.copy(domain = resolved) else profile
+                val isReconnectDnsTunnel = currentTunnelType in setOf(
+                    TunnelType.MASTERDNS, TunnelType.MASTERDNS_SSH,
+                    TunnelType.STORMDNS, TunnelType.STORMDNS_SSH,
+                    TunnelType.COTTENDNS, TunnelType.COTTENDNS_SSH,
+                    TunnelType.SOAR, TunnelType.SOAR_SSH,
+                    TunnelType.MELI, TunnelType.MELI_SSH,
+                    TunnelType.DNSTT, TunnelType.DNSTT_SSH,
+                    TunnelType.NOIZDNS, TunnelType.NOIZDNS_SSH,
+                    TunnelType.VAYDNS, TunnelType.VAYDNS_SSH,
+                    TunnelType.SLIPSTREAM, TunnelType.SLIPSTREAM_SSH,
+                    TunnelType.NOOSHDAROO, TunnelType.NOOSHDAROO_SSH,
+                    TunnelType.QWDTT, TunnelType.QWDTT_SSH
+                )
+                val healedProfile = if (isReconnectDnsTunnel) {
+                    val needsServerResolver = profile.resolvers.isEmpty() ||
+                            ((currentTunnelType == TunnelType.COTTENDNS || currentTunnelType == TunnelType.COTTENDNS_SSH || profile.domain.contains("cotten", ignoreCase = true)) &&
+                             profile.resolvers.all { it.host == "8.8.8.8" || it.host == "1.1.1.1" })
+                    if (needsServerResolver) {
+                        profile.copy(resolvers = listOf(app.slipnet.domain.model.DnsResolver(host = "45.38.249.16", port = 53)))
+                    } else profile
                 } else profile
+
+                val reconnectProfile = if (reconnectGlobalDnsIp != null && !DomainRouter.isIpAddress(healedProfile.domain)) {
+                    val resolved = VpnRepositoryImpl.resolveHost(healedProfile.domain, reconnectGlobalDnsIp)
+                    if (resolved != healedProfile.domain) healedProfile.copy(domain = resolved) else healedProfile
+                } else healedProfile
+
+                val reconnectActiveResolvers = (globalResolverOverride ?: reconnectProfile.resolvers)
+                    .map { "${it.host}:${it.port}" }
+                    .filter { it.isNotBlank() }
+                    .ifEmpty {
+                        if (isReconnectDnsTunnel) listOf("45.38.249.16:53")
+                        else if (remoteDns.isNotBlank()) listOf(if (remoteDns.contains(":")) remoteDns else "$remoteDns:53")
+                        else emptyList()
+                    }
+                app.slipnet.util.AppLog.setActiveResolvers(reconnectActiveResolvers)
 
                 // Restart the appropriate proxy
                 if (currentTunnelType == TunnelType.SSH) {
@@ -5441,7 +5527,7 @@ class SlipNetVpnService : VpnService() {
                 VlessBridge.stop()
             }
             TunnelType.BALE, TunnelType.PINGTUNNEL, TunnelType.SPOOF_TUNNEL, TunnelType.GOLDEN_GRE, TunnelType.PAQET,
-            TunnelType.WIREGUARD, TunnelType.OPENVPN, TunnelType.HYSTERIA2, TunnelType.TUIC, TunnelType.SHADOWSOCKS,
+            TunnelType.WIREGUARD, TunnelType.OPENVPN, TunnelType.L2TP, TunnelType.HYSTERIA2, TunnelType.TUIC, TunnelType.SHADOWSOCKS,
             TunnelType.VMESS, TunnelType.SNELL, TunnelType.SHADOWSOCKSR, TunnelType.AETHER, TunnelType.WARP -> {
                 Log.d(TAG, "Stopping SOCKS5-compatible bridge")
                 Socks5ProxyBridge.stopAll()
@@ -5911,6 +5997,9 @@ class SlipNetVpnService : VpnService() {
         DnsttSocksBridge.resetTrafficStats()
         SshTunnelBridge.resetTrafficStats()
         Socks5ProxyBridge.resetTrafficStats()
+        VlessBridge.resetTrafficStats()
+        NaiveSocksBridge.resetTrafficStats()
+        DohBridge.resetTrafficStats()
 
         disconnectJob = serviceScope.launch {
             Log.i(TAG, "Disconnecting VPN")
@@ -6219,6 +6308,7 @@ class SlipNetVpnService : VpnService() {
      */
     private suspend fun cleanupConnection() {
         app.slipnet.util.AppLog.redactSensitive = false
+        app.slipnet.util.AppLog.setActiveResolvers(emptyList())
         Log.d(TAG, "Cleaning up connection resources")
 
         releaseLocks()
@@ -6361,6 +6451,7 @@ class SlipNetVpnService : VpnService() {
      */
     private fun cleanupConnectionSync() {
         app.slipnet.util.AppLog.redactSensitive = false
+        app.slipnet.util.AppLog.setActiveResolvers(emptyList())
         Log.d(TAG, "Quick cleanup (sync)")
 
         releaseLocks()

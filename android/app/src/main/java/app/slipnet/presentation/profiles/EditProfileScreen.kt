@@ -100,6 +100,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
@@ -126,6 +127,7 @@ fun EditProfileScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
+    val clipboardManager = LocalClipboardManager.current
     val globalResolverEnabled by viewModel.globalResolverEnabled.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val scrollState = rememberScrollState()
@@ -259,7 +261,7 @@ fun EditProfileScreen(
 
                 // Domain / SSH Server (hidden for DOH, Snowflake, SOCKS5, and VLESS profiles)
                 if (!uiState.isDoh && !uiState.isSnowflake && !uiState.isSocks5 && !uiState.isVless &&
-                    !uiState.isWireGuard && !uiState.isOpenVpn && !uiState.isHysteria2 && !uiState.isTuic && !uiState.isTrojan && !uiState.isShadowsocks) {
+                    !uiState.isWireGuard && !uiState.isOpenVpn && !uiState.isL2tp && !uiState.isHysteria2 && !uiState.isTuic && !uiState.isTrojan && !uiState.isShadowsocks) {
                     OutlinedTextField(
                         value = uiState.domain,
                         onValueChange = { viewModel.updateDomain(it) },
@@ -311,7 +313,7 @@ fun EditProfileScreen(
                     )
                 }
 
-                // SOCKS5 Proxy fields
+                // SOCKS5 Proxy Host & Port (only for standalone SOCKS5 proxy)
                 if (uiState.isSocks5) {
                     OutlinedTextField(
                         value = uiState.domain,
@@ -334,11 +336,15 @@ fun EditProfileScreen(
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         modifier = Modifier.fillMaxWidth()
                     )
+                }
+
+                // SOCKS5 Credentials (Dante auth: DNSTT, DnsttOrNoiz, VayDNS, Slipstream, SOCKS5)
+                if (uiState.needsDanteSocksAuth) {
                     OutlinedTextField(
                         value = uiState.socksUsername,
                         onValueChange = { viewModel.updateSocksUsername(it) },
-                        label = { Text("Username (optional)") },
-                        placeholder = { Text("") },
+                        label = { Text(if (uiState.isSocks5) "Username (optional)" else "SOCKS Username (Dante)") },
+                        placeholder = { Text("yasin") },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -346,8 +352,8 @@ fun EditProfileScreen(
                     OutlinedTextField(
                         value = uiState.socksPassword,
                         onValueChange = { viewModel.updateSocksPassword(it) },
-                        label = { Text("Password (optional)") },
-                        placeholder = { Text("") },
+                        label = { Text(if (uiState.isSocks5) "Password (optional)" else "SOCKS Password (Dante)") },
+                        placeholder = { Text("yasin") },
                         singleLine = true,
                         visualTransformation = if (socks5PasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                         trailingIcon = {
@@ -361,6 +367,92 @@ fun EditProfileScreen(
                         },
                         modifier = Modifier.fillMaxWidth()
                     )
+                }
+
+                // Xray Full-Access Config Selector
+                val isXrayProto = uiState.isVless || uiState.isVmess || uiState.isTrojan ||
+                        uiState.isVlessReality || uiState.isHysteria2 || uiState.isTuic || uiState.isShadowsocks
+                if (isXrayProto) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "Xray Configuration Mode",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Row {
+                                    FilterChip(
+                                        selected = !uiState.xrayJsonMode,
+                                        onClick = { viewModel.toggleXrayJsonMode(false) },
+                                        label = { Text("Form") }
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    FilterChip(
+                                        selected = uiState.xrayJsonMode,
+                                        onClick = { viewModel.toggleXrayJsonMode(true) },
+                                        label = { Text("Full JSON") }
+                                    )
+                                }
+                            }
+                            if (uiState.xrayJsonMode) {
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = "Paste or freely edit complete Xray/V2Ray JSON config (supports outbounds, routing, streamSettings, etc.):",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Spacer(modifier = Modifier.height(6.dp))
+                                OutlinedTextField(
+                                    value = uiState.xrayRawJson,
+                                    onValueChange = { viewModel.updateXrayRawJson(it) },
+                                    label = { Text("Raw Xray JSON") },
+                                    placeholder = { Text("{\n  \"outbounds\": [\n    {\n      \"protocol\": \"vless\", ...\n    }\n  ]\n}") },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(240.dp),
+                                    isError = uiState.xrayJsonError != null,
+                                    supportingText = {
+                                        if (uiState.xrayJsonError != null) {
+                                            Text(uiState.xrayJsonError!!, color = MaterialTheme.colorScheme.error)
+                                        } else {
+                                            Text("Valid JSON configuration syntax required", color = MaterialTheme.colorScheme.primary)
+                                        }
+                                    },
+                                    singleLine = false
+                                )
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.End
+                                ) {
+                                    TextButton(onClick = {
+                                        clipboardManager.getText()?.text?.let { clip ->
+                                            if (clip.isNotBlank()) {
+                                                viewModel.updateXrayRawJson(clip)
+                                                viewModel.validateXrayJson(clip, applyToState = true)
+                                            }
+                                        }
+                                    }) {
+                                        Text("Paste")
+                                    }
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    TextButton(onClick = {
+                                        viewModel.validateXrayJson(uiState.xrayRawJson, applyToState = true)
+                                    }) {
+                                        Text("Validate & Format")
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(12.dp))
                 }
 
                 // VLESS fields
@@ -873,7 +965,7 @@ fun EditProfileScreen(
                 // DNS Resolver
                 val showResolvers = !uiState.isSshOnly && !uiState.isDoh && !uiState.isSnowflake && !uiState.isNaiveBased &&
                         !uiState.isSocks5 && !uiState.isVless &&
-                        !uiState.isWireGuard && !uiState.isOpenVpn && !uiState.isHysteria2 && !uiState.isTuic && !uiState.isTrojan && !uiState.isShadowsocks &&
+                        !uiState.isWireGuard && !uiState.isOpenVpn && !uiState.isL2tp && !uiState.isHysteria2 && !uiState.isTuic && !uiState.isTrojan && !uiState.isShadowsocks &&
                         !(uiState.isDnsttOrNoizOrVaydnsBased && uiState.dnsTransport == DnsTransport.DOH)
                 if (showResolvers) {
                     if (globalResolverEnabled) {
@@ -2962,6 +3054,51 @@ private fun VpnProtocolsSection(
             label = { Text("Static Key / CA / Inline .ovpn Configuration") },
             placeholder = { Text("-----BEGIN OpenVPN Static key V1-----") },
             maxLines = 5,
+            modifier = Modifier.fillMaxWidth()
+        )
+    }
+
+    // L2TP / IPsec fields
+    if (uiState.isL2tp) {
+        OutlinedTextField(
+            value = uiState.domain,
+            onValueChange = { viewModel.updateDomain(it) },
+            label = { Text("Server Host (IP or Domain)") },
+            placeholder = { Text("45.38.249.16") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth()
+        )
+        OutlinedTextField(
+            value = uiState.cdnPort,
+            onValueChange = { viewModel.updateCdnPort(it) },
+            label = { Text("Port (Default: 1701)") },
+            placeholder = { Text("1701") },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            modifier = Modifier.fillMaxWidth()
+        )
+        OutlinedTextField(
+            value = uiState.sshUsername,
+            onValueChange = { viewModel.updateSshUsername(it) },
+            label = { Text("L2TP Username") },
+            placeholder = { Text("vpnuser") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth()
+        )
+        OutlinedTextField(
+            value = uiState.sshPassword,
+            onValueChange = { viewModel.updateSshPassword(it) },
+            label = { Text("L2TP Password") },
+            placeholder = { Text("••••••••") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth()
+        )
+        OutlinedTextField(
+            value = uiState.vlessSecurity,
+            onValueChange = { viewModel.updateVlessSecurity(it) },
+            label = { Text("IPsec Pre-Shared Key (PSK / Secret)") },
+            placeholder = { Text("mySecretPSK") },
+            singleLine = true,
             modifier = Modifier.fillMaxWidth()
         )
     }

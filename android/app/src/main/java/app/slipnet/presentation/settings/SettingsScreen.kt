@@ -116,6 +116,8 @@ import androidx.compose.material.icons.filled.Lan
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Numbers
 import androidx.compose.material.icons.filled.VerifiedUser
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
@@ -193,16 +195,33 @@ fun SettingsScreen(
 
     val navBarPadding = WindowInsets.navigationBars.asPaddingValues()
 
+    val saveAndClose: () -> Unit = {
+        viewModel.saveAndApply(
+            proxyPortStr = proxyPort,
+            httpProxyPortStr = httpProxyPort,
+            proxyAuthUser = proxyAuthUsername,
+            proxyAuthPass = proxyAuthPassword,
+            onDone = onNavigateBack
+        )
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("Settings") },
                 navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
+                    IconButton(onClick = saveAndClose) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },
                 actions = {
+                    IconButton(onClick = saveAndClose) {
+                        Icon(
+                            Icons.Default.Check,
+                            contentDescription = "Save and Apply",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
                     IconButton(onClick = { showAboutDialog = true }) {
                         Icon(Icons.Default.Help, contentDescription = "About")
                     }
@@ -228,32 +247,11 @@ fun SettingsScreen(
                 ),
             verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
-            // ── 1. VPN Settings ───────────────────────────────────────────
+            // ── 1. Exclusive DNS Engine (SlipNet) ──────────────────────────
             SettingsSection(
-                title = "VPN Settings",
-                subtitle = "Tunnel & network parameters"
+                title = "Exclusive DNS Engine (SlipNet)",
+                subtitle = "DNS tunnel optimization, resolvers & workers"
             ) {
-                // VPN MTU
-                ClickableSettingItem(
-                    icon = Icons.Default.Speed,
-                    title = "VPN MTU",
-                    description = "Packet size: ${uiState.vpnMtu} bytes (1280–1500)",
-                    onClick = { showMtuDialog = true }
-                )
-
-                SettingsDivider()
-
-                // Block IPv6
-                SwitchSettingItem(
-                    icon = Icons.Default.Block,
-                    title = "Block IPv6",
-                    description = "Prevent IPv6 traffic and DNS leakage across tunnel",
-                    checked = uiState.blockIpv6,
-                    onCheckedChange = { viewModel.setBlockIpv6(it) }
-                )
-
-                SettingsDivider()
-
                 // Custom Remote DNS
                 ClickableSettingItem(
                     icon = Icons.Default.Dns,
@@ -270,16 +268,65 @@ fun SettingsScreen(
 
                 SettingsDivider()
 
-                // Client DNS Tunnel Options (Payload Size & Tuning)
+                // Global DNS Resolvers
                 ClickableSettingItem(
                     icon = Icons.Default.SettingsEthernet,
-                    title = "DNS Tunnel Tuning & Resolvers",
+                    title = "Global DNS Resolvers",
                     description = if (uiState.globalResolverList.isNotBlank()) {
-                        "${uiState.globalResolverList.split(",", "\n").filter { it.isNotBlank() }.size} custom resolvers · ${uiState.dnsWorkerMode.displayName} Workers"
+                        "${uiState.globalResolverList.split(",", "\n").filter { it.isNotBlank() }.size} custom resolvers active"
                     } else {
-                        "Auto-tune (dynamic payload) · ${uiState.dnsWorkerMode.displayName} Workers"
+                        "Auto (default: 45.38.249.16:53)"
                     },
                     onClick = { showGlobalResolverDialog = true }
+                )
+
+                SettingsDivider()
+
+                // DNS Workers Mode
+                ClickableSettingItem(
+                    icon = Icons.Default.Speed,
+                    title = "DNS Worker Mode",
+                    description = "${uiState.dnsWorkerMode.displayName} · ${uiState.dnsWorkerMode.description}",
+                    onClick = { showDnsWorkerDialog = true }
+                )
+
+                SettingsDivider()
+
+                // DNS Resolver Pool
+                ClickableSettingItem(
+                    icon = Icons.Default.Sync,
+                    title = "DNS Resolver Pool & Scan",
+                    description = if (uiState.dnsPoolText.isNotBlank()) {
+                        "${uiState.dnsPoolText.lines().filter { it.isNotBlank() }.size} pooled endpoints configured"
+                    } else {
+                        "Auto dynamic payload & carrier DNS pool"
+                    },
+                    onClick = { showDnsPoolDialog = true }
+                )
+
+                SettingsDivider()
+
+                // Block IPv6 & Prevent DNS Leak
+                SwitchSettingItem(
+                    icon = Icons.Default.Block,
+                    title = "Block IPv6 & Prevent DNS Leak",
+                    description = "Prevent IPv6 traffic and unencrypted DNS leaks outside the tunnel",
+                    checked = uiState.blockIpv6,
+                    onCheckedChange = { viewModel.setBlockIpv6(it) }
+                )
+            }
+
+            // ── 2. VPN & System Settings ───────────────────────────────────
+            SettingsSection(
+                title = "VPN & System",
+                subtitle = "System tunnel parameters"
+            ) {
+                // VPN MTU
+                ClickableSettingItem(
+                    icon = Icons.Default.Speed,
+                    title = "VPN MTU",
+                    description = "Packet size: ${uiState.vpnMtu} bytes (1280–1500)",
+                    onClick = { showMtuDialog = true }
                 )
 
                 SettingsDivider()
@@ -528,6 +575,19 @@ fun SettingsScreen(
                     description = "Restore all VPN and proxy settings to factory defaults",
                     onClick = { showResetSettingsDialog = true }
                 )
+            }
+
+            // ── Save & Apply Button ─────────────────────────────────────────
+            Button(
+                onClick = saveAndClose,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(50.dp),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Icon(Icons.Default.Check, contentDescription = null)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Save & Apply Settings", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold)
             }
 
             // App Version Footer

@@ -4,6 +4,9 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.material3.VerticalDivider
@@ -207,6 +210,10 @@ import app.slipnet.presentation.theme.ColorFabActive
 import app.slipnet.presentation.theme.ColorFabInactiveDark
 import app.slipnet.presentation.theme.ColorFabInactiveLight
 import app.slipnet.presentation.theme.ColorConfigType
+import app.slipnet.presentation.theme.ColorSelectionAccent
+import app.slipnet.presentation.theme.ColorPingGreen
+import app.slipnet.presentation.theme.ColorPingOrange
+import app.slipnet.presentation.theme.ColorPingRed
 import com.journeyapps.barcodescanner.ScanContract
 import com.journeyapps.barcodescanner.ScanOptions
 import kotlinx.coroutines.launch
@@ -710,7 +717,7 @@ fun MainScreen(
                             scope.launch { drawerState.close() }
                             onNavigateToTerminal()
                         },
-                        icon = { Icon(Icons.Default.Dns, contentDescription = null, tint = Color(0xFF00FF66)) },
+                        icon = { Icon(Icons.Default.Dns, contentDescription = null, tint = ColorSelectionAccent) },
                         modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
                     )
 
@@ -938,7 +945,7 @@ fun MainScreen(
                             }
                             Box {
                                 IconButton(onClick = {
-                                    activeAddSubmenu = null
+                                    activeAddSubmenu = AddSubmenuType.PROTOCOLS
                                     showAddDropdown = true
                                 }) {
                                     Icon(Icons.Default.Add, contentDescription = "Add")
@@ -949,15 +956,15 @@ fun MainScreen(
                                         showAddDropdown = false
                                         activeAddSubmenu = null
                                     },
-                                    offset = DpOffset(0.dp, 0.dp)
+                                    offset = DpOffset((-8).dp, (-48).dp)
                                 ) {
                                     Row(modifier = Modifier.height(IntrinsicSize.Min)) {
-                                        // Left Submenu (Cascading Left)
+                                        // Left Submenu (Cascading Left - PattNG layout)
                                         if (activeAddSubmenu == AddSubmenuType.PROTOCOLS) {
                                             Column(
                                                 modifier = Modifier
-                                                    .width(220.dp)
-                                                    .heightIn(max = 280.dp)
+                                                    .width(240.dp)
+                                                    .heightIn(min = 340.dp, max = 560.dp)
                                                     .verticalScroll(rememberScrollState())
                                             ) {
                                                 val protocolList = listOf(
@@ -970,6 +977,8 @@ fun MainScreen(
                                                     "Http" to { onNavigateToAddProfile("naive") },
                                                     "Trojan" to { onNavigateToAddProfile(TunnelType.TROJAN.value) },
                                                     "WireGuard" to { onNavigateToAddProfile(TunnelType.WIREGUARD.value) },
+                                                    "OpenVPN" to { onNavigateToAddProfile(TunnelType.OPENVPN.value) },
+                                                    "L2TP / IPsec" to { onNavigateToAddProfile(TunnelType.L2TP.value) },
                                                     "Hysteria 2" to { onNavigateToAddProfile(TunnelType.HYSTERIA2.value) },
                                                     "TUIC" to { onNavigateToAddProfile(TunnelType.TUIC.value) },
                                                     "SSH Tunnel" to { onNavigateToAddProfile("ssh") },
@@ -1010,7 +1019,7 @@ fun MainScreen(
                                         }
 
                                         // Right Parent Menu Column
-                                        Column(modifier = Modifier.width(200.dp)) {
+                                        Column(modifier = Modifier.width(210.dp)) {
                                             DropdownMenuItem(
                                                 modifier = Modifier.heightIn(min = 36.dp),
                                                 contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
@@ -1088,7 +1097,7 @@ fun MainScreen(
                             }
                             Box {
                                 IconButton(onClick = {
-                                    activeOverflowSubmenu = null
+                                    activeOverflowSubmenu = OverflowMenuPage.DELETE
                                     showOverflowMenu = true
                                 }) {
                                     Icon(Icons.Default.MoreVert, contentDescription = "More")
@@ -1099,16 +1108,24 @@ fun MainScreen(
                                         showOverflowMenu = false
                                         activeOverflowSubmenu = null
                                     },
-                                    offset = DpOffset(0.dp, 0.dp)
+                                    offset = DpOffset((-8).dp, (-48).dp)
                                 ) {
                                     Row(modifier = Modifier.height(IntrinsicSize.Min)) {
-                                        // Left Submenu (Cascading Left)
+                                        // Left Submenu (Cascading Left - PattNG layout)
                                         if (activeOverflowSubmenu != null) {
+                                            val submenuTopPadding = when (activeOverflowSubmenu) {
+                                                OverflowMenuPage.DELETE -> 38.dp
+                                                OverflowMenuPage.EXPORT -> 76.dp
+                                                OverflowMenuPage.PING -> 122.dp
+                                                OverflowMenuPage.SORT -> 160.dp
+                                                else -> 0.dp
+                                            }
                                             Column(
                                                 modifier = Modifier
-                                                    .width(230.dp)
-                                                    .heightIn(max = 280.dp)
+                                                    .width(240.dp)
+                                                    .heightIn(min = 340.dp, max = 560.dp)
                                                     .verticalScroll(rememberScrollState())
+                                                    .padding(top = submenuTopPadding)
                                             ) {
                                                 when (activeOverflowSubmenu) {
                                                     OverflowMenuPage.DELETE -> {
@@ -1312,8 +1329,8 @@ fun MainScreen(
                                             )
                                         }
 
-                                        // Right Parent Menu Column
-                                        Column(modifier = Modifier.width(200.dp)) {
+                                        // Right Parent Menu Column (PattNG style)
+                                        Column(modifier = Modifier.width(210.dp)) {
                                             DropdownMenuItem(
                                                 modifier = Modifier.heightIn(min = 36.dp),
                                                 contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
@@ -1328,130 +1345,102 @@ fun MainScreen(
                                             )
                                             DropdownMenuItem(
                                                 modifier = Modifier.heightIn(min = 36.dp),
-                                                contentPadding = PaddingValues(start = 10.dp, end = 4.dp, top = 2.dp, bottom = 2.dp),
-                                                text = { Text("Delete configs", fontSize = 13.sp) },
-                                                leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(18.dp)) },
-                                                trailingIcon = {
-                                                    IconButton(
-                                                        onClick = {
-                                                            activeOverflowSubmenu = if (activeOverflowSubmenu == OverflowMenuPage.DELETE) null else OverflowMenuPage.DELETE
-                                                        },
-                                                        modifier = Modifier.size(28.dp)
-                                                    ) {
+                                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
+                                                text = {
+                                                    Row(verticalAlignment = Alignment.CenterVertically) {
                                                         Text(
-                                                            "<",
-                                                            fontSize = 14.sp,
+                                                            "< ",
+                                                            fontSize = 13.sp,
                                                             fontWeight = FontWeight.Bold,
                                                             color = if (activeOverflowSubmenu == OverflowMenuPage.DELETE) MaterialTheme.colorScheme.primary else Color.Gray
                                                         )
+                                                        Text(
+                                                            "Delete configs",
+                                                            fontSize = 13.sp,
+                                                            fontWeight = if (activeOverflowSubmenu == OverflowMenuPage.DELETE) FontWeight.SemiBold else FontWeight.Normal
+                                                        )
                                                     }
                                                 },
+                                                leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(18.dp)) },
                                                 onClick = {
-                                                    val currentGroup = groupTabs.getOrNull(selectedCategoryIndex)?.first ?: ""
-                                                    showOverflowMenu = false
-                                                    activeOverflowSubmenu = null
-                                                    if (currentGroup.isNotBlank() && currentGroup != "All" && currentGroup != "Default") {
-                                                        viewModel.deleteProfilesMatching { it.subscriptionGroup == currentGroup }
-                                                        scope.launch { snackbarHostState.showSnackbar("Deleted configs of $currentGroup") }
-                                                    } else {
-                                                        viewModel.deleteProfilesMatching { it.subscriptionGroup.isNotBlank() }
-                                                        scope.launch { snackbarHostState.showSnackbar("Deleted subscription configs") }
-                                                    }
+                                                    activeOverflowSubmenu = if (activeOverflowSubmenu == OverflowMenuPage.DELETE) null else OverflowMenuPage.DELETE
                                                 },
                                                 enabled = uiState.profiles.isNotEmpty()
                                             )
                                             DropdownMenuItem(
                                                 modifier = Modifier.heightIn(min = 36.dp),
-                                                contentPadding = PaddingValues(start = 10.dp, end = 4.dp, top = 2.dp, bottom = 2.dp),
-                                                text = { Text("Export config to clipboard", fontSize = 13.sp) },
-                                                leadingIcon = { Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(18.dp)) },
-                                                trailingIcon = {
-                                                    IconButton(
-                                                        onClick = {
-                                                            activeOverflowSubmenu = if (activeOverflowSubmenu == OverflowMenuPage.EXPORT) null else OverflowMenuPage.EXPORT
-                                                        },
-                                                        modifier = Modifier.size(28.dp)
-                                                    ) {
+                                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
+                                                text = {
+                                                    Row(verticalAlignment = Alignment.CenterVertically) {
                                                         Text(
-                                                            "<",
-                                                            fontSize = 14.sp,
+                                                            "< ",
+                                                            fontSize = 13.sp,
                                                             fontWeight = FontWeight.Bold,
                                                             color = if (activeOverflowSubmenu == OverflowMenuPage.EXPORT) MaterialTheme.colorScheme.primary else Color.Gray
                                                         )
+                                                        Text(
+                                                            "Export config to clipboard",
+                                                            fontSize = 13.sp,
+                                                            fontWeight = if (activeOverflowSubmenu == OverflowMenuPage.EXPORT) FontWeight.SemiBold else FontWeight.Normal
+                                                        )
                                                     }
                                                 },
+                                                leadingIcon = { Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(18.dp)) },
                                                 onClick = {
-                                                    val currentGroup = groupTabs.getOrNull(selectedCategoryIndex)?.first ?: ""
-                                                    showOverflowMenu = false
-                                                    activeOverflowSubmenu = null
-                                                    val str = viewModel.exportProfilesToClipboard {
-                                                        if (currentGroup.isNotBlank() && currentGroup != "All" && currentGroup != "Default") {
-                                                            it.subscriptionGroup == currentGroup
-                                                        } else {
-                                                            it.subscriptionGroup.isNotBlank()
-                                                        }
-                                                    }
-                                                    clipboardManager.setText(AnnotatedString(str))
-                                                    scope.launch { snackbarHostState.showSnackbar("Copied this subscription configs") }
+                                                    activeOverflowSubmenu = if (activeOverflowSubmenu == OverflowMenuPage.EXPORT) null else OverflowMenuPage.EXPORT
                                                 },
                                                 enabled = uiState.profiles.isNotEmpty()
                                             )
-                                            HorizontalDivider()
+                                            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
                                             DropdownMenuItem(
                                                 modifier = Modifier.heightIn(min = 36.dp),
-                                                contentPadding = PaddingValues(start = 10.dp, end = 4.dp, top = 2.dp, bottom = 2.dp),
-                                                text = { Text("Ping", fontSize = 13.sp) },
-                                                leadingIcon = { Icon(Icons.Default.NetworkPing, contentDescription = null, modifier = Modifier.size(18.dp)) },
-                                                trailingIcon = {
-                                                    IconButton(
-                                                        onClick = {
-                                                            activeOverflowSubmenu = if (activeOverflowSubmenu == OverflowMenuPage.PING) null else OverflowMenuPage.PING
-                                                        },
-                                                        modifier = Modifier.size(28.dp)
-                                                    ) {
+                                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
+                                                text = {
+                                                    Row(verticalAlignment = Alignment.CenterVertically) {
                                                         Text(
-                                                            "<",
-                                                            fontSize = 14.sp,
+                                                            "< ",
+                                                            fontSize = 13.sp,
                                                             fontWeight = FontWeight.Bold,
                                                             color = if (activeOverflowSubmenu == OverflowMenuPage.PING) MaterialTheme.colorScheme.primary else Color.Gray
                                                         )
+                                                        Text(
+                                                            "Ping",
+                                                            fontSize = 13.sp,
+                                                            fontWeight = if (activeOverflowSubmenu == OverflowMenuPage.PING) FontWeight.SemiBold else FontWeight.Normal
+                                                        )
                                                     }
                                                 },
+                                                leadingIcon = { Icon(Icons.Default.NetworkPing, contentDescription = null, modifier = Modifier.size(18.dp)) },
                                                 onClick = {
-                                                    showOverflowMenu = false
-                                                    activeOverflowSubmenu = null
-                                                    viewModel.pingAllProfiles()
+                                                    activeOverflowSubmenu = if (activeOverflowSubmenu == OverflowMenuPage.PING) null else OverflowMenuPage.PING
                                                 },
                                                 enabled = uiState.profiles.isNotEmpty()
                                             )
                                             DropdownMenuItem(
                                                 modifier = Modifier.heightIn(min = 36.dp),
-                                                contentPadding = PaddingValues(start = 10.dp, end = 4.dp, top = 2.dp, bottom = 2.dp),
-                                                text = { Text("Sort by", fontSize = 13.sp) },
-                                                leadingIcon = { Icon(Icons.Default.Dns, contentDescription = null, modifier = Modifier.size(18.dp)) },
-                                                trailingIcon = {
-                                                    IconButton(
-                                                        onClick = {
-                                                            activeOverflowSubmenu = if (activeOverflowSubmenu == OverflowMenuPage.SORT) null else OverflowMenuPage.SORT
-                                                        },
-                                                        modifier = Modifier.size(28.dp)
-                                                    ) {
+                                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
+                                                text = {
+                                                    Row(verticalAlignment = Alignment.CenterVertically) {
                                                         Text(
-                                                            "<",
-                                                            fontSize = 14.sp,
+                                                            "< ",
+                                                            fontSize = 13.sp,
                                                             fontWeight = FontWeight.Bold,
                                                             color = if (activeOverflowSubmenu == OverflowMenuPage.SORT) MaterialTheme.colorScheme.primary else Color.Gray
                                                         )
+                                                        Text(
+                                                            "Sort by",
+                                                            fontSize = 13.sp,
+                                                            fontWeight = if (activeOverflowSubmenu == OverflowMenuPage.SORT) FontWeight.SemiBold else FontWeight.Normal
+                                                        )
                                                     }
                                                 },
+                                                leadingIcon = { Icon(Icons.Default.Dns, contentDescription = null, modifier = Modifier.size(18.dp)) },
                                                 onClick = {
-                                                    showOverflowMenu = false
-                                                    activeOverflowSubmenu = null
-                                                    viewModel.sortProfilesByPing()
+                                                    activeOverflowSubmenu = if (activeOverflowSubmenu == OverflowMenuPage.SORT) null else OverflowMenuPage.SORT
                                                 },
                                                 enabled = uiState.profiles.isNotEmpty()
                                             )
-                                            HorizontalDivider()
+                                            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
                                             DropdownMenuItem(
                                                 modifier = Modifier.heightIn(min = 36.dp),
                                                 contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
@@ -1499,16 +1488,32 @@ fun MainScreen(
             floatingActionButton = {
                 val isRunning = uiState.connectionState is ConnectionState.Connected ||
                         uiState.connectionState is ConnectionState.Connecting
+                val isConnecting = uiState.connectionState is ConnectionState.Connecting ||
+                        uiState.connectionState is ConnectionState.Disconnecting
+                val fabSpinTransition = rememberInfiniteTransition(label = "fabSpin")
+                val fabSpinAngle by fabSpinTransition.animateFloat(
+                    initialValue = 0f,
+                    targetValue = 360f,
+                    animationSpec = infiniteRepeatable(
+                        animation = tween(durationMillis = 1000, easing = LinearEasing),
+                        repeatMode = RepeatMode.Restart
+                    ),
+                    label = "fabSpinAngle"
+                )
+                val fabRotation = if (isConnecting) fabSpinAngle else 0f
+
                 FloatingActionButton(
                     onClick = { requestConnectOrToggle() },
                     containerColor = if (uiState.connectionState is ConnectionState.Connected) ColorFabActive
                         else ColorFabInactiveDark
                 ) {
                     Icon(
-                        imageVector = if (isRunning) Icons.Default.Stop else Icons.Default.PlayArrow,
+                        imageVector = if (uiState.connectionState is ConnectionState.Connected) Icons.Default.Stop else Icons.Default.PlayArrow,
                         contentDescription = if (isRunning) "Disconnect" else "Connect",
                         tint = Color.White,
-                        modifier = Modifier.size(28.dp)
+                        modifier = Modifier
+                            .size(28.dp)
+                            .graphicsLayer { rotationZ = fabRotation }
                     )
                 }
             },
@@ -1832,15 +1837,17 @@ fun MainScreen(
                 snowflakeBootstrapProgress = uiState.snowflakeBootstrapProgress,
                 uploadSpeed = uiState.uploadSpeed,
                 downloadSpeed = uiState.downloadSpeed,
-                totalUpload = uiState.trafficStats.bytesSent,
-                totalDownload = uiState.trafficStats.bytesReceived,
+                totalUpload = if (uiState.connectionState is ConnectionState.Connected) uiState.trafficStats.bytesSent else uiState.sessionTotalUpload,
+                totalDownload = if (uiState.connectionState is ConnectionState.Connected) uiState.trafficStats.bytesReceived else uiState.sessionTotalDownload,
                 sleepTimerRemainingSeconds = uiState.sleepTimerRemainingSeconds,
                 onCancelSleepTimer = { viewModel.userCancelSleepTimer() },
                 dnsWarning = uiState.dnsWarning,
                 dnsPoolScan = uiState.dnsPoolScan,
+                pingResult = uiState.activeProfile?.let { uiState.pingResults[it.id] },
                 onPingConnected = {
                     uiState.activeProfile?.let { viewModel.pingSingleProfile(it) }
                 },
+                onToggleConnection = { requestConnectOrToggle() },
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .padding(bottom = navBarPadding.calculateBottomPadding())
@@ -2115,6 +2122,15 @@ fun MainScreen(
                                 onClick = {
                                     showAddMenu = false
                                     onNavigateToAddProfile(TunnelType.OPENVPN.value)
+                                }
+                            )
+                            AddMenuGridItem(
+                                modifier = tileMod,
+                                icon = Icons.Default.VpnKey,
+                                title = "L2TP / IPsec",
+                                onClick = {
+                                    showAddMenu = false
+                                    onNavigateToAddProfile(TunnelType.L2TP.value)
                                 }
                             )
                             AddMenuGridItem(
@@ -3078,11 +3094,23 @@ fun MainScreen(
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                     }
-                                    IconButton(onClick = {
-                                        viewModel.deleteProfilesMatching { it.subscriptionGroup == groupName }
-                                        scope.launch { snackbarHostState.showSnackbar("Deleted subscription group: $groupName") }
-                                    }) {
-                                        Icon(Icons.Default.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error)
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        IconButton(onClick = {
+                                            viewModel.updateSubscriptionGroup(groupName) { count, err ->
+                                                scope.launch {
+                                                    if (err != null) snackbarHostState.showSnackbar("Update failed: $err")
+                                                    else snackbarHostState.showSnackbar("Updated $count configs for $groupName")
+                                                }
+                                            }
+                                        }) {
+                                            Icon(Icons.Default.Refresh, contentDescription = "Update", tint = MaterialTheme.colorScheme.primary)
+                                        }
+                                        IconButton(onClick = {
+                                            viewModel.deleteProfilesMatching { it.subscriptionGroup == groupName }
+                                            scope.launch { snackbarHostState.showSnackbar("Deleted subscription group: $groupName") }
+                                        }) {
+                                            Icon(Icons.Default.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error)
+                                        }
                                     }
                                 }
                             }
@@ -3331,7 +3359,7 @@ fun MainScreen(
                                 Text("4.32 MB", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
                             }
                             Text("IP geographical database • 8,420 Iran & Global CIDRs", style = MaterialTheme.typography.bodySmall)
-                            Text("Status: Up to date", color = Color(0xFF00FF66), style = MaterialTheme.typography.labelSmall)
+                            Text("Status: Up to date", color = ConnectedGreen, style = MaterialTheme.typography.labelSmall)
                         }
                     }
 
@@ -3348,12 +3376,12 @@ fun MainScreen(
                                 Text("8.15 MB", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
                             }
                             Text("Domain routing categories • 12,850 sites & ad lists", style = MaterialTheme.typography.bodySmall)
-                            Text("Status: Up to date", color = Color(0xFF00FF66), style = MaterialTheme.typography.labelSmall)
+                            Text("Status: Up to date", color = ConnectedGreen, style = MaterialTheme.typography.labelSmall)
                         }
                     }
 
                     if (assetUpdateMsg != null) {
-                        Text(assetUpdateMsg!!, color = if (assetUpdateMsg!!.startsWith("Successfully")) Color(0xFF00FF66) else MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                        Text(assetUpdateMsg!!, color = if (assetUpdateMsg!!.startsWith("Successfully")) ConnectedGreen else MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                     }
 
                     Button(
@@ -4005,7 +4033,9 @@ private fun ConnectionStatusStrip(
     onCancelSleepTimer: () -> Unit = {},
     dnsWarning: String? = null,
     dnsPoolScan: app.slipnet.tunnel.DnsPoolScanState = app.slipnet.tunnel.DnsPoolScanState(),
+    pingResult: PingResult? = null,
     onPingConnected: () -> Unit = {},
+    onToggleConnection: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val isConnected = connectionState is ConnectionState.Connected
@@ -4027,13 +4057,63 @@ private fun ConnectionStatusStrip(
         label = "statusColor"
     )
 
-    Surface(
-        modifier = modifier
-            .fillMaxWidth()
-            .clickable(enabled = isConnected) { onPingConnected() },
-        tonalElevation = 2.dp,
-        shape = RoundedCornerShape(16.dp)
+    val triangleInfiniteTransition = rememberInfiniteTransition(label = "pattng_spin")
+    val spinAngle by triangleInfiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 1000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "pattng_triangle_spin"
+    )
+    val triangleRotation = if (isConnecting) spinAngle else 0f
+
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
+        // PattNG Triangle Icon - positioned slightly above the connection status field
+        Box(
+            modifier = Modifier
+                .padding(bottom = 6.dp)
+                .size(34.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f))
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = onToggleConnection
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            Canvas(
+                modifier = Modifier
+                    .size(18.dp)
+                    .graphicsLayer {
+                        rotationZ = triangleRotation
+                    }
+            ) {
+                val w = size.width
+                val h = size.height
+                val path = Path().apply {
+                    // Equilateral triangle pointing upwards (PattNG style)
+                    moveTo(w / 2f, h * 0.12f)
+                    lineTo(w * 0.92f, h * 0.88f)
+                    lineTo(w * 0.08f, h * 0.88f)
+                    close()
+                }
+                drawPath(path = path, color = statusColor)
+            }
+        }
+
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(enabled = activeProfile != null) { onPingConnected() },
+            tonalElevation = 2.dp,
+            shape = RoundedCornerShape(16.dp)
+        ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -4089,24 +4169,89 @@ private fun ConnectionStatusStrip(
                     )
                 }
 
-                // Traffic stats to the RIGHT side with clear English labels
-                if (isConnected) {
+                // Traffic stats and Ping to the RIGHT side with clear English labels
+                val hasTraffic = isConnected || (totalUpload + totalDownload > 0)
+                if (hasTraffic || pingResult != null || activeProfile != null) {
+                    val combinedSpeed = downloadSpeed + uploadSpeed
+                    val combinedTotal = totalDownload + totalUpload
                     Column(
                         horizontalAlignment = Alignment.End,
                         modifier = Modifier.padding(start = 8.dp)
                     ) {
-                        Text(
-                            text = "Speed: ${TrafficStats.formatBytes(downloadSpeed + uploadSpeed)}/s",
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = "Total: ${TrafficStats.formatBytes(totalDownload + totalUpload)}",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        if (isConnected) {
+                            Text(
+                                text = "Speed: ${TrafficStats.formatSpeed(combinedSpeed)}",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                        }
+                        if (hasTraffic) {
+                            Text(
+                                text = "Total: ${TrafficStats.formatBytes(combinedTotal)}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                        }
+
+                        // Ping display
+                        when (pingResult) {
+                            is PingResult.Pending -> {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(10.dp),
+                                        strokeWidth = 1.5.dp,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = "Ping...",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                            is PingResult.Testing -> {
+                                Text(
+                                    text = pingResult.phase,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = ColorPingOrange,
+                                    maxLines = 1
+                                )
+                            }
+                            is PingResult.Success -> {
+                                val latencyColor = when {
+                                    pingResult.latencyMs < 350 -> ColorPingGreen
+                                    pingResult.latencyMs < 900 -> ColorPingOrange
+                                    else -> ColorPingRed
+                                }
+                                Text(
+                                    text = "${pingResult.latencyMs} ms",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = latencyColor
+                                )
+                            }
+                            is PingResult.Error -> {
+                                Text(
+                                    text = pingResult.message.ifBlank { "Timeout" },
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = ColorPingRed,
+                                    maxLines = 1
+                                )
+                            }
+                            else -> {
+                                if (activeProfile != null) {
+                                    Text(
+                                        text = "Tap to Ping",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -4242,6 +4387,7 @@ private fun ConnectionStatusStrip(
             }
         }
     }
+    }
 }
 
 private fun formatCountdown(totalSeconds: Int): String {
@@ -4355,11 +4501,11 @@ private fun AddMenuGridItem(
     modifier: Modifier = Modifier,
     isMasterDnsTile: Boolean = false
 ) {
-    val masterDnsColor = Color(0xFF00E5FF)
+    val masterDnsColor = ColorSelectionAccent
     Column(
         modifier = modifier
             .clip(RoundedCornerShape(12.dp))
-            .then(if (isMasterDnsTile) Modifier.background(Color(0xFF00384D).copy(alpha = 0.5f)).border(1.5.dp, masterDnsColor, RoundedCornerShape(12.dp)) else Modifier)
+            .then(if (isMasterDnsTile) Modifier.background(ColorFabActive.copy(alpha = 0.15f)).border(1.5.dp, masterDnsColor, RoundedCornerShape(12.dp)) else Modifier)
             .clickable(onClick = onClick)
             .padding(vertical = 12.dp, horizontal = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,

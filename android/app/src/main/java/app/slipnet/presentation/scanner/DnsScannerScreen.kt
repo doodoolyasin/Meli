@@ -97,6 +97,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import app.slipnet.presentation.theme.ColorFabActive
+import app.slipnet.presentation.theme.ColorSelectionAccent
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
@@ -446,13 +448,13 @@ private fun HeroCard() {
                     Spacer(modifier = Modifier.width(6.dp))
                     Box(
                         modifier = Modifier
-                            .background(Color(0xFF00384D), RoundedCornerShape(4.dp))
-                            .border(1.dp, Color(0xFF00E5FF), RoundedCornerShape(4.dp))
+                            .background(ColorFabActive.copy(alpha = 0.15f), RoundedCornerShape(4.dp))
+                            .border(1.dp, ColorSelectionAccent, RoundedCornerShape(4.dp))
                             .padding(horizontal = 4.dp, vertical = 2.dp)
                     ) {
                         Text(
                             text = "🇮🇷 7,854 IRAN NODES",
-                            color = Color(0xFF00E5FF),
+                            color = ColorSelectionAccent,
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Bold
                         )

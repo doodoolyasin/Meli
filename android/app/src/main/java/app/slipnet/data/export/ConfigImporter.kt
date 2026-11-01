@@ -353,6 +353,17 @@ class ConfigImporter @Inject constructor() {
                 continue
             }
 
+            // Handle L2TP / IPsec URIs
+            if (trimmedLine.startsWith("l2tp://", ignoreCase = true) || trimmedLine.startsWith("ipsec://", ignoreCase = true)) {
+                val result = parseL2tpUri(trimmedLine, index + 1)
+                when (result) {
+                    is ProfileParseResult.Success -> profiles.add(result.profile)
+                    is ProfileParseResult.Warning -> warnings.add(result.message)
+                    is ProfileParseResult.Error -> warnings.add(result.message)
+                }
+                continue
+            }
+
             // Handle standard masterdns://, stormdns://, cottendns://, soar:// URIs
             if (trimmedLine.startsWith("masterdns://", ignoreCase = true) ||
                 trimmedLine.startsWith("stormdns://", ignoreCase = true) ||
@@ -3270,6 +3281,49 @@ class ConfigImporter @Inject constructor() {
             )
         } catch (e: Exception) {
             ProfileParseResult.Error("Line $lineNum: Failed to parse OpenVPN URI: ${e.message}")
+        }
+    }
+
+    private fun parseL2tpUri(uri: String, lineNum: Int): ProfileParseResult {
+        return try {
+            val without = uri.removePrefix("l2tp://").removePrefix("ipsec://")
+            val (mainPart, name) = if ('#' in without) {
+                without.substringBefore('#') to java.net.URLDecoder.decode(without.substringAfter('#'), "UTF-8")
+            } else without to "L2TP / IPsec"
+            val queryStr = if ('?' in mainPart) mainPart.substringAfter('?') else ""
+            val hostPortUser = if ('?' in mainPart) mainPart.substringBefore('?') else mainPart
+            val queryParams = parseQueryParams(queryStr)
+
+            var username = ""
+            var password = ""
+            val hostPort = if ('@' in hostPortUser) {
+                val userPass = hostPortUser.substringBefore('@')
+                if (':' in userPass) {
+                    username = java.net.URLDecoder.decode(userPass.substringBefore(':'), "UTF-8")
+                    password = java.net.URLDecoder.decode(userPass.substringAfter(':'), "UTF-8")
+                } else {
+                    username = java.net.URLDecoder.decode(userPass, "UTF-8")
+                }
+                hostPortUser.substringAfter('@')
+            } else hostPortUser
+
+            val host = hostPort.substringBefore(':')
+            val port = hostPort.substringAfter(':', "1701").toIntOrNull() ?: 1701
+            val psk = queryParams["psk"] ?: queryParams["secret"] ?: ""
+
+            ProfileParseResult.Success(
+                ServerProfile(
+                    name = name,
+                    domain = host,
+                    cdnPort = port,
+                    tunnelType = TunnelType.L2TP,
+                    sshUsername = username,
+                    sshPassword = password,
+                    vlessSecurity = psk
+                )
+            )
+        } catch (e: Exception) {
+            ProfileParseResult.Error("Line $lineNum: Failed to parse L2TP URI: ${e.message}")
         }
     }
 

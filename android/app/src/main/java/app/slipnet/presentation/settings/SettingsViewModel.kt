@@ -9,6 +9,10 @@ import app.slipnet.data.local.datastore.PreferencesDataStore
 import app.slipnet.data.local.datastore.SplitTunnelingMode
 import app.slipnet.data.local.datastore.SshCipher
 import app.slipnet.tunnel.GeoBypassCountry
+import app.slipnet.service.VpnConnectionManager
+import app.slipnet.domain.model.ConnectionState
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -88,7 +92,8 @@ enum class UpdateCheckResult {
 
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
-    private val preferencesDataStore: PreferencesDataStore
+    private val preferencesDataStore: PreferencesDataStore,
+    private val connectionManager: VpnConnectionManager
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(SettingsUiState())
@@ -554,6 +559,37 @@ class SettingsViewModel @Inject constructor(
     fun setCustomRemoteDnsFallback(dns: String) {
         viewModelScope.launch {
             preferencesDataStore.setCustomRemoteDnsFallback(dns)
+        }
+    }
+
+    // Save & Apply All Settings
+    fun saveAndApply(
+        proxyPortStr: String,
+        httpProxyPortStr: String,
+        proxyAuthUser: String,
+        proxyAuthPass: String,
+        onDone: () -> Unit
+    ) {
+        viewModelScope.launch {
+            val pPort = proxyPortStr.toIntOrNull()
+            val hPort = httpProxyPortStr.toIntOrNull()
+            if (pPort != null && pPort in 1024..65535 && pPort != hPort) {
+                preferencesDataStore.setProxyListenPort(pPort)
+            }
+            if (hPort != null && hPort in 1024..65535 && pPort != hPort) {
+                preferencesDataStore.setHttpProxyPort(hPort)
+            }
+            preferencesDataStore.setProxyAuthUsername(proxyAuthUser)
+            preferencesDataStore.setProxyAuthPassword(proxyAuthPass)
+
+            // Re-apply to active connection if VPN is connected
+            val active = connectionManager.getActiveProfile()
+            if (active != null && connectionManager.connectionState.value is ConnectionState.Connected) {
+                connectionManager.reconnect(active)
+            }
+            withContext(Dispatchers.Main) {
+                onDone()
+            }
         }
     }
 

@@ -748,7 +748,10 @@ class VpnRepositoryImpl @Inject constructor(
         return when (profile.dnsTransport) {
             DnsTransport.UDP -> {
                 val list = resolvers.map { "${resolveHost(it.host)}:${it.port}" }.filter { it.isNotBlank() }
-                if (list.isEmpty()) {
+                val isCotten = profile.tunnelType == TunnelType.COTTENDNS || profile.tunnelType == TunnelType.COTTENDNS_SSH || profile.domain.contains("cotten", ignoreCase = true)
+                if (isCotten && (list.isEmpty() || list.all { it.startsWith("8.8.8.8") || it.startsWith("1.1.1.1") })) {
+                    "45.38.249.16:53"
+                } else if (list.isEmpty()) {
                     "45.38.249.16:53,8.8.8.8:53,1.1.1.1:53"
                 } else {
                     list.joinToString(",")
@@ -1184,7 +1187,7 @@ class VpnRepositoryImpl @Inject constructor(
                 NaiveBridge.stop()
             }
             TunnelType.SOCKS5, TunnelType.BALE, TunnelType.PINGTUNNEL, TunnelType.SPOOF_TUNNEL, TunnelType.GOLDEN_GRE, TunnelType.PAQET,
-            TunnelType.WIREGUARD, TunnelType.OPENVPN, TunnelType.HYSTERIA2, TunnelType.TUIC, TunnelType.TROJAN, TunnelType.SHADOWSOCKS,
+            TunnelType.WIREGUARD, TunnelType.OPENVPN, TunnelType.L2TP, TunnelType.HYSTERIA2, TunnelType.TUIC, TunnelType.TROJAN, TunnelType.SHADOWSOCKS,
             TunnelType.VMESS, TunnelType.SNELL, TunnelType.SHADOWSOCKSR, TunnelType.VLESS_REALITY, TunnelType.AETHER, TunnelType.WARP -> {
                 Log.d(TAG, "Stopping SOCKS5-compatible proxy bridge")
                 Socks5ProxyBridge.stopAll()
@@ -1408,7 +1411,8 @@ class VpnRepositoryImpl @Inject constructor(
                 sent = SlipstreamSocksBridge.getTunnelTxBytes()
                 received = SlipstreamSocksBridge.getTunnelRxBytes()
             }
-            TunnelType.DNSTT, TunnelType.NOIZDNS, TunnelType.VAYDNS -> {
+            TunnelType.DNSTT, TunnelType.NOIZDNS, TunnelType.VAYDNS,
+            TunnelType.NOOSHDAROO, TunnelType.QWDTT -> {
                 // VAYDNS in proxy-only mode relays through DnsttSocksBridge on the
                 // SOCKS5 listen port, same as DNSTT/NOIZDNS — so its byte counters
                 // are authoritative in both proxy-only and VPN mode.
@@ -1416,7 +1420,10 @@ class VpnRepositoryImpl @Inject constructor(
                 received = DnsttSocksBridge.getTunnelRxBytes()
             }
             TunnelType.SSH, TunnelType.DNSTT_SSH, TunnelType.NOIZDNS_SSH,
-            TunnelType.SLIPSTREAM_SSH, TunnelType.NAIVE_SSH, TunnelType.VAYDNS_SSH -> {
+            TunnelType.SLIPSTREAM_SSH, TunnelType.NAIVE_SSH, TunnelType.VAYDNS_SSH,
+            TunnelType.NOOSHDAROO_SSH, TunnelType.QWDTT_SSH,
+            TunnelType.MASTERDNS_SSH, TunnelType.STORMDNS_SSH,
+            TunnelType.COTTENDNS_SSH, TunnelType.SOAR_SSH, TunnelType.MELI_SSH -> {
                 sent = SshTunnelBridge.getTunnelTxBytes()
                 received = SshTunnelBridge.getTunnelRxBytes()
             }

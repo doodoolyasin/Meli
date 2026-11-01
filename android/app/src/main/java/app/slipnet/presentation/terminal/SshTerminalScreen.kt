@@ -39,6 +39,9 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.hilt.navigation.compose.hiltViewModel
+import app.slipnet.presentation.theme.ColorFabActive
+import app.slipnet.presentation.theme.ColorPingGreen
+import app.slipnet.presentation.theme.ColorSelectionAccent
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -79,8 +82,8 @@ fun SshTerminalScreen(
                     icon = { Icon(Icons.Default.VpnKey, contentDescription = "Vaults") },
                     label = { Text("Vaults", fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
                     colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = Color(0xFF00E5FF),
-                        selectedTextColor = Color(0xFF00E5FF),
+                        selectedIconColor = ColorSelectionAccent,
+                        selectedTextColor = ColorSelectionAccent,
                         indicatorColor = Color(0xFF1E293B)
                     )
                 )
@@ -90,7 +93,7 @@ fun SshTerminalScreen(
                     icon = {
                         BadgedBox(badge = {
                             if (uiState.connectionState is TerminalConnectionState.Connected) {
-                                Badge(containerColor = Color(0xFF00FF66))
+                                Badge(containerColor = ColorPingGreen)
                             }
                         }) {
                             Icon(Icons.Default.Dns, contentDescription = "Connections")
@@ -98,8 +101,8 @@ fun SshTerminalScreen(
                     },
                     label = { Text("Connections", fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
                     colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = Color(0xFF00E5FF),
-                        selectedTextColor = Color(0xFF00E5FF),
+                        selectedIconColor = ColorSelectionAccent,
+                        selectedTextColor = ColorSelectionAccent,
                         indicatorColor = Color(0xFF1E293B)
                     )
                 )
@@ -109,8 +112,8 @@ fun SshTerminalScreen(
                     icon = { Icon(Icons.Default.Settings, contentDescription = "Settings") },
                     label = { Text("Settings", fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
                     colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = Color(0xFF00E5FF),
-                        selectedTextColor = Color(0xFF00E5FF),
+                        selectedIconColor = ColorSelectionAccent,
+                        selectedTextColor = ColorSelectionAccent,
                         indicatorColor = Color(0xFF1E293B)
                     )
                 )
@@ -882,7 +885,7 @@ fun SshTerminalScreen(
                             text = "Termius Snippets",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFF00E5FF)
+                            color = ColorSelectionAccent
                         )
                         Spacer(Modifier.height(12.dp))
                         Column(
@@ -914,7 +917,7 @@ fun SshTerminalScreen(
                                         Icon(
                                             Icons.AutoMirrored.Filled.Send,
                                             contentDescription = "Run",
-                                            tint = Color(0xFF00FF66),
+                                            tint = ColorPingGreen,
                                             modifier = Modifier.size(16.dp)
                                         )
                                     }
@@ -1137,7 +1140,7 @@ private fun TermiusHostCard(
                             expandedMenu = false
                             onClick()
                         },
-                        leadingIcon = { Icon(Icons.Default.PlayArrow, contentDescription = null, tint = Color(0xFF00FF66)) }
+                        leadingIcon = { Icon(Icons.Default.PlayArrow, contentDescription = null, tint = ColorPingGreen) }
                     )
                     DropdownMenuItem(
                         text = { Text("Delete Host", color = Color.Red) },
@@ -1515,7 +1518,7 @@ private fun TermiusSessionScreen(
                                 .clip(RoundedCornerShape(6.dp))
                                 .background(termKeyBg)
                         ) {
-                            Text("◀", color = Color(0xFF00E5FF), fontSize = 13.sp)
+                            Text("◀", color = ColorSelectionAccent, fontSize = 13.sp)
                         }
                         IconButton(
                             onClick = { viewModel.sendArrowUp() },
@@ -1524,7 +1527,7 @@ private fun TermiusSessionScreen(
                                 .clip(RoundedCornerShape(6.dp))
                                 .background(termKeyBg)
                         ) {
-                            Text("▲", color = Color(0xFF00E5FF), fontSize = 13.sp)
+                            Text("▲", color = ColorSelectionAccent, fontSize = 13.sp)
                         }
                         IconButton(
                             onClick = { viewModel.sendArrowDown() },
@@ -1533,7 +1536,7 @@ private fun TermiusSessionScreen(
                                 .clip(RoundedCornerShape(6.dp))
                                 .background(termKeyBg)
                         ) {
-                            Text("▼", color = Color(0xFF00E5FF), fontSize = 13.sp)
+                            Text("▼", color = ColorSelectionAccent, fontSize = 13.sp)
                         }
                         IconButton(
                             onClick = { viewModel.sendArrowRight() },
@@ -1542,7 +1545,7 @@ private fun TermiusSessionScreen(
                                 .clip(RoundedCornerShape(6.dp))
                                 .background(termKeyBg)
                         ) {
-                            Text("▶", color = Color(0xFF00E5FF), fontSize = 13.sp)
+                            Text("▶", color = ColorSelectionAccent, fontSize = 13.sp)
                         }
                     }
 
@@ -1551,7 +1554,7 @@ private fun TermiusSessionScreen(
                         modifier = Modifier
                             .size(32.dp)
                             .clip(RoundedCornerShape(6.dp))
-                            .background(Color(0xFF238636))
+                            .background(ColorFabActive)
                     ) {
                         Text("⏎", color = Color.White, fontSize = 14.sp)
                     }
@@ -1569,7 +1572,7 @@ private fun TermiusSessionScreen(
         ) {
             Text(
                 text = "❯ ",
-                color = Color(0xFF00E5FF),
+                color = ColorSelectionAccent,
                 fontFamily = FontFamily.Monospace,
                 fontWeight = FontWeight.Bold,
                 fontSize = 14.sp

@@ -1417,7 +1417,7 @@ class MainViewModel @Inject constructor(
                     "45.38.249.16" to 53
                 }
             }
-            TunnelType.WIREGUARD, TunnelType.OPENVPN,
+            TunnelType.WIREGUARD, TunnelType.OPENVPN, TunnelType.L2TP,
             TunnelType.HYSTERIA2, TunnelType.TUIC,
             TunnelType.TROJAN, TunnelType.SHADOWSOCKS, TunnelType.SHADOWSOCKSR,
             TunnelType.VMESS, TunnelType.SNELL, TunnelType.VLESS_REALITY -> {

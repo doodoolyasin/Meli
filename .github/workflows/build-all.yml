@@ -42,7 +42,9 @@ jobs:
       - name: Build client
         run: |
           mkdir -p dist
-          GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} CGO_ENABLED=0 go build -ldflags="-s -w" -o dist/meli-client-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.goos == 'windows' && '.exe' || '' }} ./cmd/client
+          ext="${{ matrix.goos == 'windows' && '.exe' || '' }}"
+          GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} CGO_ENABLED=0 go build -ldflags="-s -w" -o "dist/AryanaNG-${{ matrix.goos }}-${{ matrix.goarch }}${ext}" ./cmd/client
+          cp "dist/AryanaNG-${{ matrix.goos }}-${{ matrix.goarch }}${ext}" "dist/meli-client-${{ matrix.goos }}-${{ matrix.goarch }}${ext}"
 
       - name: Build server
         run: |

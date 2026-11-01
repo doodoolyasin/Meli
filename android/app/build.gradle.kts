@@ -126,7 +126,7 @@ android {
             val output = this as com.android.build.gradle.internal.api.BaseVariantOutputImpl
             val abiFilter = output.getFilter("ABI")
             val abi = abiFilter ?: "universal"
-            output.outputFileName = "SlipNet-v${appVersionName}-${flavorName}-${buildType.name}-${abi}.apk"
+            output.outputFileName = "AryanaNG-v${appVersionName}-${flavorName}-${buildType.name}-${abi}.apk"
         }
     }
 

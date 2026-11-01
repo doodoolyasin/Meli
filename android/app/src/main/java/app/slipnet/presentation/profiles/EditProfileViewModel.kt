@@ -247,6 +247,10 @@ data class EditProfileUiState(
     val chPaddingEnabled: Boolean = false,
     val wsHeaderObfuscation: Boolean = true,
     val wsPaddingEnabled: Boolean = false,
+    // Xray Full-Access JSON Config Mode
+    val xrayJsonMode: Boolean = false,
+    val xrayRawJson: String = "",
+    val xrayJsonError: String? = null,
 ) {
     val isExplicitSshTunnel: Boolean
         get() = tunnelType == TunnelType.SSH || tunnelType.value.endsWith("_ssh")
@@ -307,6 +311,9 @@ data class EditProfileUiState(
     val isSocks5: Boolean
         get() = tunnelType == TunnelType.SOCKS5
 
+    val needsDanteSocksAuth: Boolean
+        get() = isDnsttBased || isDnsttOrNoizBased || isVaydnsBased || isSlipstreamBased || isSocks5
+
     val isVless: Boolean
         get() = tunnelType == TunnelType.VLESS
 
@@ -352,6 +359,9 @@ data class EditProfileUiState(
     val isOpenVpn: Boolean
         get() = tunnelType == TunnelType.OPENVPN
 
+    val isL2tp: Boolean
+        get() = tunnelType == TunnelType.L2TP
+
     val isHysteria2: Boolean
         get() = tunnelType == TunnelType.HYSTERIA2
 
@@ -388,6 +398,7 @@ data class EditProfileUiState(
                 tunnelType != TunnelType.PAQET &&
                 tunnelType != TunnelType.WIREGUARD &&
                 tunnelType != TunnelType.OPENVPN &&
+                tunnelType != TunnelType.L2TP &&
                 tunnelType != TunnelType.HYSTERIA2 &&
                 tunnelType != TunnelType.TUIC &&
                 tunnelType != TunnelType.TROJAN &&
@@ -438,6 +449,34 @@ class EditProfileViewModel @Inject constructor(
         else -> rawTunnelTypeArg?.let { TunnelType.fromValue(it) } ?: TunnelType.DNSTT
     }
 
+    private val isDanteSocksAuthInitial: Boolean =
+        isDnsttInitial || isNoizdnsInitial || isVaydnsInitial || isSlipstreamInitial ||
+        initialTunnelType in setOf(
+            TunnelType.DNSTT, TunnelType.DNSTT_SSH,
+            TunnelType.NOIZDNS, TunnelType.NOIZDNS_SSH,
+            TunnelType.VAYDNS, TunnelType.VAYDNS_SSH,
+            TunnelType.SLIPSTREAM, TunnelType.SLIPSTREAM_SSH,
+            TunnelType.SOCKS5
+        )
+
+    private val isDnsTunnelInitial: Boolean =
+        isMasterDnsInitial || isStormDnsInitial || isCottenDnsInitial || isSoarInitial ||
+        isMeliInitial || isNooshdarooInitial || isQwdttInitial || isVaydnsInitial ||
+        isNoizdnsInitial || isDnsttInitial || isSlipstreamInitial ||
+        initialTunnelType in setOf(
+            TunnelType.DNSTT, TunnelType.DNSTT_SSH,
+            TunnelType.NOIZDNS, TunnelType.NOIZDNS_SSH,
+            TunnelType.VAYDNS, TunnelType.VAYDNS_SSH,
+            TunnelType.SLIPSTREAM, TunnelType.SLIPSTREAM_SSH,
+            TunnelType.MASTERDNS, TunnelType.MASTERDNS_SSH,
+            TunnelType.STORMDNS, TunnelType.STORMDNS_SSH,
+            TunnelType.COTTENDNS, TunnelType.COTTENDNS_SSH,
+            TunnelType.SOAR, TunnelType.SOAR_SSH,
+            TunnelType.MELI, TunnelType.MELI_SSH,
+            TunnelType.NOOSHDAROO, TunnelType.NOOSHDAROO_SSH,
+            TunnelType.QWDTT, TunnelType.QWDTT_SSH
+        )
+
     private val _uiState = MutableStateFlow(
         EditProfileUiState(
             profileId = profileId,
@@ -460,6 +499,7 @@ class EditProfileViewModel @Inject constructor(
                 initialTunnelType == TunnelType.TROJAN -> "Trojan Profile"
                 initialTunnelType == TunnelType.SHADOWSOCKS -> "Shadowsocks Profile"
                 initialTunnelType == TunnelType.OPENVPN -> "OpenVPN Profile"
+                initialTunnelType == TunnelType.L2TP -> "L2TP / IPsec Profile"
                 initialTunnelType == TunnelType.VMESS -> "VMess Profile (iOS/V2Ray)"
                 initialTunnelType == TunnelType.SNELL -> "Snell Profile (Surge/iOS)"
                 initialTunnelType == TunnelType.SHADOWSOCKSR -> "ShadowsocksR Profile (iOS)"
@@ -496,6 +536,7 @@ class EditProfileViewModel @Inject constructor(
                 initialTunnelType == TunnelType.SHADOWSOCKSR ||
                 initialTunnelType == TunnelType.WIREGUARD ||
                 initialTunnelType == TunnelType.OPENVPN ||
+                initialTunnelType == TunnelType.L2TP ||
                 initialTunnelType == TunnelType.SSH -> "45.38.249.16"
                 else -> ""
             },
@@ -509,15 +550,16 @@ class EditProfileViewModel @Inject constructor(
                 TunnelType.TUIC -> "8444"
                 TunnelType.WIREGUARD -> "51820"
                 TunnelType.OPENVPN -> "1194"
+                TunnelType.L2TP -> "1701"
                 TunnelType.SNELL -> "13254"
                 TunnelType.VLESS_REALITY -> "2053"
                 TunnelType.VLESS, TunnelType.NAIVE, TunnelType.NAIVE_SSH -> "443"
                 else -> "443"
             },
-            socksUsername = if (initialTunnelType in listOf(TunnelType.SOCKS5, TunnelType.NAIVE, TunnelType.NAIVE_SSH)) "yasin" else "",
-            socksPassword = when (initialTunnelType) {
-                TunnelType.SOCKS5, TunnelType.NAIVE, TunnelType.NAIVE_SSH -> "yasin"
-                TunnelType.SHADOWSOCKS, TunnelType.SHADOWSOCKSR, TunnelType.TROJAN, TunnelType.HYSTERIA2, TunnelType.TUIC, TunnelType.SNELL -> "yasin_secret_password_2026"
+            socksUsername = if (isDanteSocksAuthInitial || initialTunnelType in listOf(TunnelType.SOCKS5, TunnelType.NAIVE, TunnelType.NAIVE_SSH)) "yasin" else "",
+            socksPassword = when {
+                isDanteSocksAuthInitial || initialTunnelType in listOf(TunnelType.SOCKS5, TunnelType.NAIVE, TunnelType.NAIVE_SSH) -> "yasin"
+                initialTunnelType in listOf(TunnelType.SHADOWSOCKS, TunnelType.SHADOWSOCKSR, TunnelType.TROJAN, TunnelType.HYSTERIA2, TunnelType.TUIC, TunnelType.SNELL) -> "yasin_secret_password_2026"
                 else -> ""
             },
             naiveUsername = if (initialTunnelType in listOf(TunnelType.NAIVE, TunnelType.NAIVE_SSH)) "yasin" else "",
@@ -546,7 +588,7 @@ class EditProfileViewModel @Inject constructor(
                 else -> ""
             },
             resolvers = when {
-                isMasterDnsInitial -> "45.38.249.16:53"
+                isDnsTunnelInitial -> "45.38.249.16:53"
                 else -> "8.8.8.8:53"
             },
             authoritativeMode = false,
@@ -575,23 +617,9 @@ class EditProfileViewModel @Inject constructor(
     }
 
     private fun prefillLocalResolver() {
-        val needsResolver = initialTunnelType in setOf(
-            TunnelType.DNSTT, TunnelType.DNSTT_SSH,
-            TunnelType.NOIZDNS, TunnelType.NOIZDNS_SSH,
-            TunnelType.VAYDNS, TunnelType.VAYDNS_SSH,
-            TunnelType.SLIPSTREAM, TunnelType.SLIPSTREAM_SSH,
-            TunnelType.MASTERDNS, TunnelType.MASTERDNS_SSH,
-            TunnelType.STORMDNS, TunnelType.STORMDNS_SSH,
-            TunnelType.COTTENDNS, TunnelType.COTTENDNS_SSH,
-            TunnelType.SOAR, TunnelType.SOAR_SSH,
-            TunnelType.MELI, TunnelType.MELI_SSH,
-            TunnelType.NOOSHDAROO, TunnelType.NOOSHDAROO_SSH,
-            TunnelType.QWDTT, TunnelType.QWDTT_SSH
-        )
-        if (!needsResolver) return
-        if (_uiState.value.resolvers.isBlank()) {
-            val defaultRes = if (isMasterDnsInitial || isStormDnsInitial || isCottenDnsInitial || isSoarInitial || isNooshdarooInitial || isQwdttInitial) "45.38.249.16:53" else "8.8.8.8:53"
-            _uiState.value = _uiState.value.copy(resolvers = defaultRes)
+        if (!isDnsTunnelInitial) return
+        if (_uiState.value.resolvers.isBlank() || _uiState.value.resolvers == "8.8.8.8:53" || _uiState.value.resolvers == "8.8.8.8") {
+            _uiState.value = _uiState.value.copy(resolvers = "45.38.249.16:53")
         }
     }
 
@@ -612,12 +640,30 @@ class EditProfileViewModel @Inject constructor(
                         val defaultKeys = defaults.map { formatResolver(it) }.toSet()
                         val currentKeys = profile.resolvers.map { formatResolver(it) }.toSet()
                         val hasCustom = profile.resolversHidden && defaults.isNotEmpty() && currentKeys != defaultKeys
-                        if (hasCustom) {
+                        val rawResolvers = if (hasCustom) {
                             profile.resolvers.joinToString(",") { formatResolver(it) }
                         } else if (profile.resolversHidden) {
                             ""
                         } else {
                             profile.resolvers.joinToString(",") { formatResolver(it) }
+                        }
+                        val isDns = profile.tunnelType in setOf(
+                            TunnelType.DNSTT, TunnelType.DNSTT_SSH,
+                            TunnelType.NOIZDNS, TunnelType.NOIZDNS_SSH,
+                            TunnelType.VAYDNS, TunnelType.VAYDNS_SSH,
+                            TunnelType.SLIPSTREAM, TunnelType.SLIPSTREAM_SSH,
+                            TunnelType.MASTERDNS, TunnelType.MASTERDNS_SSH,
+                            TunnelType.STORMDNS, TunnelType.STORMDNS_SSH,
+                            TunnelType.COTTENDNS, TunnelType.COTTENDNS_SSH,
+                            TunnelType.SOAR, TunnelType.SOAR_SSH,
+                            TunnelType.MELI, TunnelType.MELI_SSH,
+                            TunnelType.NOOSHDAROO, TunnelType.NOOSHDAROO_SSH,
+                            TunnelType.QWDTT, TunnelType.QWDTT_SSH
+                        )
+                        if (isDns && (rawResolvers.isBlank() || (profile.tunnelType in setOf(TunnelType.COTTENDNS, TunnelType.COTTENDNS_SSH) && rawResolvers.trim() in setOf("8.8.8.8", "8.8.8.8:53")))) {
+                            "45.38.249.16:53"
+                        } else {
+                            rawResolvers
                         }
                     },
                     defaultResolversList = profile.defaultResolvers.ifEmpty {
@@ -635,8 +681,8 @@ class EditProfileViewModel @Inject constructor(
                     keepAliveInterval = profile.keepAliveInterval.toString(),
                     congestionControl = profile.congestionControl,
                     gsoEnabled = profile.gsoEnabled,
-                    socksUsername = profile.socksUsername ?: "",
-                    socksPassword = profile.socksPassword ?: "",
+                    socksUsername = profile.socksUsername?.takeIf { it.isNotBlank() } ?: if (profile.tunnelType in setOf(TunnelType.DNSTT, TunnelType.DNSTT_SSH, TunnelType.NOIZDNS, TunnelType.NOIZDNS_SSH, TunnelType.VAYDNS, TunnelType.VAYDNS_SSH, TunnelType.SLIPSTREAM, TunnelType.SLIPSTREAM_SSH)) "yasin" else "",
+                    socksPassword = profile.socksPassword?.takeIf { it.isNotBlank() } ?: if (profile.tunnelType in setOf(TunnelType.DNSTT, TunnelType.DNSTT_SSH, TunnelType.NOIZDNS, TunnelType.NOIZDNS_SSH, TunnelType.VAYDNS, TunnelType.VAYDNS_SSH, TunnelType.SLIPSTREAM, TunnelType.SLIPSTREAM_SSH)) "yasin" else "",
                     tunnelType = profile.tunnelType,
                     dnsttPublicKey = profile.dnsttPublicKey,
                     sshUsername = profile.sshUsername,
@@ -720,7 +766,40 @@ class EditProfileViewModel @Inject constructor(
     }
 
     fun updateTunnelType(type: TunnelType) {
-        _uiState.value = _uiState.value.copy(tunnelType = type)
+        val isDns = type in setOf(
+            TunnelType.DNSTT, TunnelType.DNSTT_SSH,
+            TunnelType.NOIZDNS, TunnelType.NOIZDNS_SSH,
+            TunnelType.VAYDNS, TunnelType.VAYDNS_SSH,
+            TunnelType.SLIPSTREAM, TunnelType.SLIPSTREAM_SSH,
+            TunnelType.MASTERDNS, TunnelType.MASTERDNS_SSH,
+            TunnelType.STORMDNS, TunnelType.STORMDNS_SSH,
+            TunnelType.COTTENDNS, TunnelType.COTTENDNS_SSH,
+            TunnelType.SOAR, TunnelType.SOAR_SSH,
+            TunnelType.MELI, TunnelType.MELI_SSH,
+            TunnelType.NOOSHDAROO, TunnelType.NOOSHDAROO_SSH,
+            TunnelType.QWDTT, TunnelType.QWDTT_SSH
+        )
+        val currentResolvers = _uiState.value.resolvers
+        val newResolvers = if (isDns && (currentResolvers.isBlank() || currentResolvers == "8.8.8.8:53" || currentResolvers == "8.8.8.8")) {
+            "45.38.249.16:53"
+        } else currentResolvers
+
+        val needsDante = type in setOf(
+            TunnelType.DNSTT, TunnelType.DNSTT_SSH,
+            TunnelType.NOIZDNS, TunnelType.NOIZDNS_SSH,
+            TunnelType.VAYDNS, TunnelType.VAYDNS_SSH,
+            TunnelType.SLIPSTREAM, TunnelType.SLIPSTREAM_SSH,
+            TunnelType.SOCKS5
+        )
+        val newUsername = if (needsDante && _uiState.value.socksUsername.isBlank()) "yasin" else _uiState.value.socksUsername
+        val newPassword = if (needsDante && _uiState.value.socksPassword.isBlank()) "yasin" else _uiState.value.socksPassword
+
+        _uiState.value = _uiState.value.copy(
+            tunnelType = type,
+            resolvers = newResolvers,
+            socksUsername = newUsername,
+            socksPassword = newPassword
+        )
     }
 
     fun updateName(name: String) {
@@ -1042,6 +1121,205 @@ class EditProfileViewModel @Inject constructor(
     }
     fun updateWsPaddingEnabled(enabled: Boolean) {
         _uiState.value = _uiState.value.copy(wsPaddingEnabled = enabled)
+    }
+
+    // ── Xray Full JSON Config Mode ───────────────────────────────────────
+    fun toggleXrayJsonMode(enabled: Boolean) {
+        _uiState.update { current ->
+            val json = if (enabled && current.xrayRawJson.isBlank()) {
+                buildXrayJsonFromState(current)
+            } else {
+                current.xrayRawJson
+            }
+            current.copy(xrayJsonMode = enabled, xrayRawJson = json, xrayJsonError = null)
+        }
+        if (enabled) {
+            validateXrayJson(_uiState.value.xrayRawJson, applyToState = false)
+        }
+    }
+
+    fun updateXrayRawJson(json: String) {
+        _uiState.update { it.copy(xrayRawJson = json, xrayJsonError = null) }
+        validateXrayJson(json, applyToState = false)
+    }
+
+    fun buildXrayJsonFromState(state: EditProfileUiState): String {
+        return try {
+            val root = org.json.JSONObject()
+            val outbounds = org.json.JSONArray()
+            val ob = org.json.JSONObject()
+
+            val proto = when {
+                state.isTrojan -> "trojan"
+                state.isVmess -> "vmess"
+                state.isShadowsocks -> "shadowsocks"
+                state.isHysteria2 -> "hysteria2"
+                state.isTuic -> "tuic"
+                else -> "vless"
+            }
+            ob.put("protocol", proto)
+            ob.put("tag", "proxy")
+
+            val settings = org.json.JSONObject()
+            if (state.isTrojan) {
+                val servers = org.json.JSONArray()
+                val serverObj = org.json.JSONObject()
+                serverObj.put("address", state.domain.ifBlank { "127.0.0.1" })
+                serverObj.put("port", state.cdnPort.toIntOrNull() ?: 443)
+                serverObj.put("password", state.socksPassword ?: "")
+                servers.put(serverObj)
+                settings.put("servers", servers)
+            } else {
+                val vnext = org.json.JSONArray()
+                val vnextObj = org.json.JSONObject()
+                val serverAddr = if (state.cdnIp.isNotBlank()) state.cdnIp else state.domain.ifBlank { "127.0.0.1" }
+                vnextObj.put("address", serverAddr)
+                vnextObj.put("port", state.cdnPort.toIntOrNull() ?: 443)
+                val users = org.json.JSONArray()
+                val userObj = org.json.JSONObject()
+                userObj.put("id", state.vlessUuid)
+                userObj.put("encryption", "none")
+                users.put(userObj)
+                vnextObj.put("users", users)
+                vnext.put(vnextObj)
+                settings.put("vnext", vnext)
+            }
+            ob.put("settings", settings)
+
+            val streamSettings = org.json.JSONObject()
+            streamSettings.put("network", state.vlessTransport.ifBlank { "ws" })
+            streamSettings.put("security", state.vlessSecurity.ifBlank { "tls" })
+
+            val tlsSettings = org.json.JSONObject()
+            tlsSettings.put("serverName", state.vlessSni.ifBlank { state.domain })
+            streamSettings.put("tlsSettings", tlsSettings)
+
+            if (state.vlessTransport == "ws") {
+                val wsSettings = org.json.JSONObject()
+                wsSettings.put("path", state.vlessWsPath.ifBlank { "/" })
+                val headers = org.json.JSONObject()
+                headers.put("Host", state.domain)
+                wsSettings.put("headers", headers)
+                streamSettings.put("wsSettings", wsSettings)
+            }
+            ob.put("streamSettings", streamSettings)
+            outbounds.put(ob)
+            root.put("outbounds", outbounds)
+
+            root.toString(2)
+        } catch (_: Exception) {
+            "{\n  \"outbounds\": [\n    {\n      \"protocol\": \"vless\",\n      \"settings\": {}\n    }\n  ]\n}"
+        }
+    }
+
+    fun validateXrayJson(jsonStr: String, applyToState: Boolean = true): Boolean {
+        if (jsonStr.isBlank()) {
+            _uiState.update { it.copy(xrayJsonError = "JSON cannot be empty") }
+            return false
+        }
+        try {
+            val root = org.json.JSONObject(jsonStr)
+
+            val outbounds = root.optJSONArray("outbounds")
+            var targetOb: org.json.JSONObject? = null
+            if (outbounds != null && outbounds.length() > 0) {
+                for (i in 0 until outbounds.length()) {
+                    val ob = outbounds.optJSONObject(i) ?: continue
+                    val proto = ob.optString("protocol", ob.optString("type", "")).lowercase()
+                    if (proto !in listOf("freedom", "blackhole", "dns", "direct", "block")) {
+                        targetOb = ob
+                        break
+                    }
+                }
+            } else if (root.has("protocol") || root.has("settings")) {
+                targetOb = root
+            }
+
+            if (targetOb == null && outbounds == null) {
+                _uiState.update { it.copy(xrayJsonError = "JSON must contain 'outbounds' array or protocol definition") }
+                return false
+            }
+
+            if (applyToState && targetOb != null) {
+                val proto = targetOb.optString("protocol", targetOb.optString("type", "")).lowercase()
+                val settings = targetOb.optJSONObject("settings")
+                val streamSettings = targetOb.optJSONObject("streamSettings")
+
+                var address = targetOb.optString("server", "")
+                var port = targetOb.optInt("port", targetOb.optInt("server_port", 443))
+                var uuid = targetOb.optString("uuid", targetOb.optString("id", ""))
+                var password = targetOb.optString("password", "")
+
+                val vnext = settings?.optJSONArray("vnext")
+                if (vnext != null && vnext.length() > 0) {
+                    val v0 = vnext.optJSONObject(0)
+                    if (v0 != null) {
+                        if (address.isBlank()) address = v0.optString("address", "")
+                        port = v0.optInt("port", port)
+                        val users = v0.optJSONArray("users")
+                        if (users != null && users.length() > 0) {
+                            val u0 = users.optJSONObject(0)
+                            if (u0 != null && uuid.isBlank()) {
+                                uuid = u0.optString("id", "")
+                            }
+                        }
+                    }
+                }
+
+                val servers = settings?.optJSONArray("servers")
+                if (servers != null && servers.length() > 0) {
+                    val s0 = servers.optJSONObject(0)
+                    if (s0 != null) {
+                        if (address.isBlank()) address = s0.optString("address", "")
+                        port = s0.optInt("port", port)
+                        if (password.isBlank()) password = s0.optString("password", "")
+                    }
+                }
+
+                val transport = streamSettings?.optString("network", "ws") ?: "ws"
+                val security = streamSettings?.optString("security", "tls") ?: "tls"
+                val wsSettings = streamSettings?.optJSONObject("wsSettings")
+                val path = wsSettings?.optString("path", "/") ?: "/"
+                val wsHeaders = wsSettings?.optJSONObject("headers")
+                val wsHost = wsHeaders?.optString("Host", wsHeaders.optString("host", "")) ?: ""
+                val tlsSettings = streamSettings?.optJSONObject("tlsSettings")
+                val realitySettings = streamSettings?.optJSONObject("realitySettings")
+                val sni = tlsSettings?.optString("serverName", realitySettings?.optString("serverName", "")) ?: ""
+
+                val determinedType = when {
+                    proto == "trojan" -> TunnelType.TROJAN
+                    proto == "vmess" -> TunnelType.VMESS
+                    proto == "shadowsocks" || proto == "ss" -> TunnelType.SHADOWSOCKS
+                    proto == "hysteria2" -> TunnelType.HYSTERIA2
+                    proto == "tuic" -> TunnelType.TUIC
+                    security == "reality" -> TunnelType.VLESS_REALITY
+                    else -> TunnelType.VLESS
+                }
+
+                _uiState.update { current ->
+                    current.copy(
+                        tunnelType = determinedType,
+                        domain = if (wsHost.isNotBlank()) wsHost else if (sni.isNotBlank()) sni else address.ifBlank { current.domain },
+                        cdnIp = if (wsHost.isNotBlank() && address != wsHost) address else current.cdnIp,
+                        cdnPort = port.toString(),
+                        vlessUuid = if (uuid.isNotBlank()) uuid else current.vlessUuid,
+                        socksPassword = if (password.isNotBlank()) password else current.socksPassword,
+                        vlessTransport = transport,
+                        vlessSecurity = security,
+                        vlessWsPath = path,
+                        vlessSni = sni,
+                        xrayJsonError = null
+                    )
+                }
+            } else {
+                _uiState.update { it.copy(xrayJsonError = null) }
+            }
+            return true
+        } catch (e: Exception) {
+            val msg = e.message ?: "Invalid JSON syntax"
+            _uiState.update { it.copy(xrayJsonError = "JSON Error: $msg") }
+            return false
+        }
     }
 
     fun updateDohUrl(url: String) {
@@ -1741,6 +2019,14 @@ class EditProfileViewModel @Inject constructor(
     private fun validateProfile(forScanner: Boolean = false): Boolean {
         var state = _uiState.value
 
+        // Validate Full Xray JSON config if in JSON mode
+        if (state.xrayJsonMode) {
+            if (!validateXrayJson(state.xrayRawJson, applyToState = true)) {
+                return false
+            }
+            state = _uiState.value
+        }
+
         // Auto-heal empty Name
         if (state.name.isBlank()) {
             val autoName = "${state.tunnelType.displayName} Profile"
@@ -1762,10 +2048,19 @@ class EditProfileViewModel @Inject constructor(
         // Auto-heal empty Resolvers for DNS tunnels
         if (state.isDnsttOrNoizOrVaydnsBased || state.isSlipstreamBased) {
             if (state.resolvers.isBlank()) {
-                val defaultRes = "8.8.8.8, 1.1.1.1, 94.140.14.14"
+                val defaultRes = "45.38.249.16:53"
                 _uiState.value = _uiState.value.copy(resolvers = defaultRes)
                 state = _uiState.value
             }
+        }
+
+        // Auto-heal empty SOCKS credentials for Dante auth if required
+        if (state.needsDanteSocksAuth && state.socksUsername.isBlank()) {
+            _uiState.value = _uiState.value.copy(
+                socksUsername = "yasin",
+                socksPassword = if (state.socksPassword.isBlank()) "yasin" else state.socksPassword
+            )
+            state = _uiState.value
         }
 
         // Auto-heal empty Key for DNS / MasterDNS

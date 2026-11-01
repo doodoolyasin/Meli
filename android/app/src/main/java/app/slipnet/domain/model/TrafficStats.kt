@@ -15,19 +15,26 @@ data class TrafficStats(
     val totalPackets: Long
         get() = packetsSent + packetsReceived
 
+    val totalSpeed: Long
+        get() = uploadSpeed + downloadSpeed
+
     fun formatBytesSent(): String = formatBytes(bytesSent)
     fun formatBytesReceived(): String = formatBytes(bytesReceived)
     fun formatTotalBytes(): String = formatBytes(totalBytes)
+    fun formatUploadSpeed(): String = formatSpeed(uploadSpeed)
+    fun formatDownloadSpeed(): String = formatSpeed(downloadSpeed)
+    fun formatTotalSpeed(): String = formatSpeed(totalSpeed)
 
     companion object {
         val EMPTY = TrafficStats()
 
         fun formatBytes(bytes: Long): String {
+            val safeBytes = bytes.coerceAtLeast(0L)
             return when {
-                bytes < 1024 -> "$bytes B"
-                bytes < 1024 * 1024 -> String.format("%.1f KB", bytes / 1024.0)
-                bytes < 1024 * 1024 * 1024 -> String.format("%.1f MB", bytes / (1024.0 * 1024.0))
-                else -> String.format("%.2f GB", bytes / (1024.0 * 1024.0 * 1024.0))
+                safeBytes < 1024 -> "$safeBytes B"
+                safeBytes < 1024 * 1024 -> String.format("%.1f KB", safeBytes / 1024.0)
+                safeBytes < 1024 * 1024 * 1024 -> String.format("%.1f MB", safeBytes / (1024.0 * 1024.0))
+                else -> String.format("%.2f GB", safeBytes / (1024.0 * 1024.0 * 1024.0))
             }
         }
 

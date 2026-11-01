@@ -21,7 +21,11 @@ data class LogEntry(val id: Long, val raw: String, val level: Char)
  * sanitized without discarding crucial error context, IPs, ports, or protocols.
  */
 object AppLog {
-    private const val MAX_LINES = 3000
+    private const val MAX_LINES = 5000
+    private const val MAX_PACKETS = 1000
+    private const val MAX_LOG_FILE_SIZE = 1_500_000L // ~1.5 MB per file
+    private const val MAX_ROTATED_FILES = 3 // keep crash_trace.log.1, .2, .3
+
     private val nextId = AtomicLong(0)
     private val buffer = ArrayDeque<LogEntry>()
 
@@ -35,7 +39,7 @@ object AppLog {
                 logFile = file
                 if (file.exists()) {
                     val allLines = file.readLines()
-                    val tail = if (allLines.size > 1000) allLines.takeLast(1000) else allLines
+                    val tail = if (allLines.size > 3000) allLines.takeLast(3000) else allLines
                     tail.forEach { line ->
                         val id = nextId.getAndIncrement()
                         val level = if (line.length > 20) line[19] else 'I'
@@ -96,7 +100,7 @@ object AppLog {
         val item = PacketLogItem(id, ts, direction, protocol, target, size, latencyMs, status)
         synchronized(packetBuffer) {
             packetBuffer.addLast(item)
-            while (packetBuffer.size > 500) packetBuffer.removeFirst()
+            while (packetBuffer.size > MAX_PACKETS) packetBuffer.removeFirst()
             _packetLogs.value = ArrayList(packetBuffer)
         }
     }
@@ -148,6 +152,7 @@ object AppLog {
         logFile?.let { file ->
             try {
                 synchronized(fileWriterLock) {
+                    rotateLogFileIfNeeded(file)
                     java.io.FileOutputStream(file, true).bufferedWriter().use { writer ->
                         writer.appendLine("$ts $level/$tag: $safeMsg")
                         writer.flush()
@@ -155,6 +160,29 @@ object AppLog {
                 }
             } catch (_: Throwable) {}
         }
+    }
+
+    private fun rotateLogFileIfNeeded(file: java.io.File) {
+        if (!file.exists() || file.length() < MAX_LOG_FILE_SIZE) return
+        val parent = file.parentFile ?: return
+        try {
+            // Delete oldest rotated file if it exists
+            val oldest = java.io.File(parent, "${file.name}.$MAX_ROTATED_FILES")
+            if (oldest.exists()) oldest.delete()
+
+            // Shift existing rotated files: e.g. .2 -> .3, .1 -> .2
+            for (i in (MAX_ROTATED_FILES - 1) downTo 1) {
+                val src = java.io.File(parent, "${file.name}.$i")
+                if (src.exists()) {
+                    val dst = java.io.File(parent, "${file.name}.${i + 1}")
+                    src.renameTo(dst)
+                }
+            }
+
+            // Current file becomes .1
+            val firstRotated = java.io.File(parent, "${file.name}.1")
+            file.renameTo(firstRotated)
+        } catch (_: Throwable) {}
     }
 
     fun flushIfDirty() {
@@ -231,6 +259,13 @@ object AppLog {
             try {
                 synchronized(fileWriterLock) {
                     if (file.exists()) file.delete()
+                    val parent = file.parentFile
+                    if (parent != null) {
+                        for (i in 1..MAX_ROTATED_FILES) {
+                            val rotated = java.io.File(parent, "${file.name}.$i")
+                            if (rotated.exists()) rotated.delete()
+                        }
+                    }
                 }
             } catch (_: Throwable) {}
         }

@@ -66,11 +66,8 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
 
-        // Protect screen content (keys, QR codes, passwords) from capture
-        window.setFlags(
-            android.view.WindowManager.LayoutParams.FLAG_SECURE,
-            android.view.WindowManager.LayoutParams.FLAG_SECURE
-        )
+        // Allow screenshots and screen capture across the app (Stage 6)
+        window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE)
 
         handleDeepLink(intent)
         requestNotificationPermissionIfNeeded()

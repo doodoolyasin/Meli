@@ -108,22 +108,30 @@ class NotificationHelper @Inject constructor(
                 )
 
                 val hasTraffic = trafficStats != null && trafficStats.totalBytes > 0
+                val totalSpeed = uploadSpeed + downloadSpeed
+                val totalTraffic = trafficStats?.totalBytes ?: 0L
 
-                val bodyText = if (hasTraffic) {
-                    val upLine = "\u2191 ${trafficStats!!.formatBytesSent()}  ${TrafficStats.formatSpeed(uploadSpeed)}"
-                    val downLine = "\u2193 ${trafficStats.formatBytesReceived()}  ${TrafficStats.formatSpeed(downloadSpeed)}"
-                    "$upLine\n$downLine"
+                val summaryText = if (hasTraffic) {
+                    "Speed: ${TrafficStats.formatSpeed(totalSpeed)}  •  Total: ${TrafficStats.formatBytes(totalTraffic)}"
                 } else {
                     if (isProxyOnly) "Proxy is active" else "VPN is active"
                 }
 
+                val expandedText = if (hasTraffic) {
+                    val upLine = "\u2191 ${trafficStats!!.formatBytesSent()} (${TrafficStats.formatSpeed(uploadSpeed)})"
+                    val downLine = "\u2193 ${trafficStats.formatBytesReceived()} (${TrafficStats.formatSpeed(downloadSpeed)})"
+                    "$summaryText\n$upLine   $downLine"
+                } else {
+                    summaryText
+                }
+
                 if (hasTraffic) {
-                    builder.setStyle(NotificationCompat.BigTextStyle().bigText(bodyText))
+                    builder.setStyle(NotificationCompat.BigTextStyle().bigText(expandedText))
                 }
 
                 builder
                     .setContentTitle("Connected: ${state.profile.name}")
-                    .setContentText(bodyText)
+                    .setContentText(summaryText)
                     .addAction(
                         R.drawable.ic_shield,
                         "Reconnect",

@@ -25,6 +25,9 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import app.slipnet.util.AppLog
+import app.slipnet.presentation.theme.ColorFabActive
+import app.slipnet.presentation.theme.ColorPingGreen
+import app.slipnet.presentation.theme.ColorSelectionAccent
 import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -93,7 +96,7 @@ fun DebugLogSheet(onDismiss: () -> Unit) {
                             text = "⚡ Aryana Core Live Telemetry",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFF00FF66)
+                            color = ColorSelectionAccent
                         )
                         Text(
                             text = "Profile: ${AppLog.currentProfileName} (${AppLog.currentTunnelType})",
@@ -130,8 +133,8 @@ fun DebugLogSheet(onDismiss: () -> Unit) {
                     }) {
                         Icon(
                             Icons.Default.Share,
-                            contentDescription = "Share Full Report",
-                            tint = Color(0xFF00E5FF)
+                            contentDescription = "Export Full Diagnostic Report",
+                            tint = ColorSelectionAccent
                         )
                     }
 
@@ -146,7 +149,7 @@ fun DebugLogSheet(onDismiss: () -> Unit) {
                     }) {
                         Icon(
                             Icons.Default.ContentCopy,
-                            contentDescription = "Copy logs",
+                            contentDescription = "Copy visible logs",
                             tint = Color(0xFFC9D1D9)
                         )
                     }
@@ -189,14 +192,14 @@ fun DebugLogSheet(onDismiss: () -> Unit) {
                                 text = "TX: ${tx} pkts  |  RX: ${rx} pkts",
                                 style = MaterialTheme.typography.labelMedium,
                                 fontFamily = FontFamily.Monospace,
-                                color = Color(0xFF58A6FF)
+                                color = ColorSelectionAccent
                             )
                             Text(
                                 text = "Drops: $drops",
                                 style = MaterialTheme.typography.labelMedium,
                                 fontFamily = FontFamily.Monospace,
                                 fontWeight = FontWeight.Bold,
-                                color = if (drops > 0) Color(0xFFFF7B72) else Color(0xFF3FB950)
+                                color = if (drops > 0) Color(0xFFFF7B72) else ColorPingGreen
                             )
                         }
 
@@ -229,7 +232,7 @@ fun DebugLogSheet(onDismiss: () -> Unit) {
                                             label = { Text(r, fontSize = 10.sp, fontFamily = FontFamily.Monospace) },
                                             colors = SuggestionChipDefaults.suggestionChipColors(
                                                 containerColor = Color(0xFF21262D),
-                                                labelColor = Color(0xFF58A6FF)
+                                                labelColor = ColorSelectionAccent
                                             )
                                         )
                                     }
@@ -243,7 +246,7 @@ fun DebugLogSheet(onDismiss: () -> Unit) {
                 TabRow(
                     selectedTabIndex = selectedTab,
                     containerColor = Color(0xFF161B22),
-                    contentColor = Color(0xFF00FF66)
+                    contentColor = ColorSelectionAccent
                 ) {
                     Tab(
                         selected = selectedTab == 0,
@@ -337,7 +340,7 @@ fun DebugLogSheet(onDismiss: () -> Unit) {
                                             color = Color(0xFF8B949E)
                                         )
                                         Spacer(Modifier.width(6.dp))
-                                        val dirColor = if (pkt.direction == "TX") Color(0xFF58A6FF) else Color(0xFF3FB950)
+                                        val dirColor = if (pkt.direction == "TX") ColorSelectionAccent else ColorPingGreen
                                         Text(
                                             text = pkt.direction,
                                             fontFamily = FontFamily.Monospace,
@@ -374,7 +377,7 @@ fun DebugLogSheet(onDismiss: () -> Unit) {
                                                 text = "${pkt.latencyMs}ms",
                                                 fontFamily = FontFamily.Monospace,
                                                 fontSize = 10.sp,
-                                                color = Color(0xFF3FB950)
+                                                color = ColorPingGreen
                                             )
                                         }
                                     }
@@ -568,7 +571,7 @@ private fun DynamicDiagnosticCard(finding: DiagnosticFinding) {
                     modifier = Modifier.weight(1f)
                 )
                 Surface(
-                    color = if (finding.isOk) Color(0xFF238636) else Color(0xFFDA3633),
+                    color = if (finding.isOk) ColorFabActive else Color(0xFFDA3633),
                     shape = RoundedCornerShape(4.dp)
                 ) {
                     Text(
@@ -591,7 +594,7 @@ private fun DynamicDiagnosticCard(finding: DiagnosticFinding) {
                 Text(
                     text = "💡 Fix: ${finding.recommendation}",
                     style = MaterialTheme.typography.bodySmall,
-                    color = Color(0xFF58A6FF)
+                    color = ColorSelectionAccent
                 )
             }
         }
@@ -630,13 +633,13 @@ private fun generateDiagnosticReport(
             }
         }
         appendLine("--------------------------------------------------")
-        appendLine("RECENT PACKET FLOW (Last 20):")
-        packets.takeLast(20).forEach { p ->
+        appendLine("PACKET FLOW (${packets.size} packets):")
+        packets.forEach { p ->
             appendLine("[${p.timestamp}] [${p.direction}] ${p.protocol} -> ${p.target} (${p.size}B) status=${p.status} ${p.latencyMs}ms")
         }
         appendLine("--------------------------------------------------")
-        appendLine("SANITIZED LOG TRACE (Last 100):")
-        lines.takeLast(100).forEach { l ->
+        appendLine("SANITIZED LOG TRACE (${lines.size} entries):")
+        lines.forEach { l ->
             appendLine("[${l.level}] ${l.raw}")
         }
         appendLine("==================================================")
