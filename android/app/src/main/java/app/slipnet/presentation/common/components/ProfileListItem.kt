@@ -274,6 +274,8 @@ fun ProfileListItem(
                         profile.tunnelType == TunnelType.WIREGUARD -> "WireGuard"
                         profile.tunnelType == TunnelType.BALE -> "Bale Meet (WebRTC)"
                         profile.tunnelType == TunnelType.PAQET -> "Paqet (Raw TCP)"
+                        profile.tunnelType == TunnelType.SOCKS5 -> "SOCKS5"
+                        profile.tunnelType == TunnelType.SHADOWSOCKS -> "Shadowsocks"
                         profile.tunnelType == TunnelType.SNOWFLAKE -> EditProfileViewModel.detectBridgeType(profile.torBridgeLines).displayName
                         else -> profile.tunnelType.displayName
                     }

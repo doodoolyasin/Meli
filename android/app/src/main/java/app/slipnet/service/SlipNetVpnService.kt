@@ -3464,12 +3464,14 @@ class SlipNetVpnService : VpnService() {
         val localAuthUser = if (preferencesDataStore.proxyAuthEnabled.first()) preferencesDataStore.proxyAuthUsername.first().ifEmpty { null } else null
         val localAuthPass = if (preferencesDataStore.proxyAuthEnabled.first()) preferencesDataStore.proxyAuthPassword.first().ifEmpty { null } else null
         vpnRepository.setCurrentTunnelType(TunnelType.SOCKS5)
+        val rawSocksTarget = profile.domain.ifBlank { profile.cdnIp }
+        val resolvedSocksTarget = resolveToIp(rawSocksTarget).ifBlank { rawSocksTarget }
 
         if (isProxyOnly) {
             Socks5ProxyBridge.debugLogging = preferencesDataStore.debugLogging.first()
             val bridgeResult = withContext(Dispatchers.IO) {
                 Socks5ProxyBridge.start(
-                    remoteHost = profile.domain.ifBlank { profile.cdnIp },
+                    remoteHost = resolvedSocksTarget,
                     remotePort = if (profile.socks5ServerPort > 0) profile.socks5ServerPort else if (profile.cdnPort > 0) profile.cdnPort else 1080,
                     remoteUsername = profile.socksUsername,
                     remotePassword = profile.socksPassword,
@@ -3505,7 +3507,7 @@ class SlipNetVpnService : VpnService() {
         Socks5ProxyBridge.debugLogging = preferencesDataStore.debugLogging.first()
         val bridgeResult = withContext(Dispatchers.IO) {
             Socks5ProxyBridge.start(
-                remoteHost = profile.domain.ifBlank { profile.cdnIp },
+                remoteHost = resolvedSocksTarget,
                 remotePort = if (profile.socks5ServerPort > 0) profile.socks5ServerPort else if (profile.cdnPort > 0) profile.cdnPort else 1080,
                 remoteUsername = profile.socksUsername,
                 remotePassword = profile.socksPassword,

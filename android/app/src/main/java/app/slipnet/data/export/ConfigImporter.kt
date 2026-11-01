@@ -3367,7 +3367,7 @@ class ConfigImporter @Inject constructor() {
                     var port = ob.optInt("server_port", ob.optInt("port", 443))
                     var uuid = ob.optString("uuid", ob.optString("id", ""))
                     var password = ob.optString("password", "")
-                    var method = ob.optString("method", "2022-blake3-aes-128-gcm")
+                    var method = ob.optString("method", "")
 
                     // V2Ray / Xray settings.vnext format
                     val vnext = settings?.optJSONArray("vnext")
@@ -3500,8 +3500,8 @@ class ConfigImporter @Inject constructor() {
                                     cdnPort = port,
                                     socks5ServerPort = port,
                                     tunnelType = resolvedTunnelType,
-                                    socksUsername = method,
-                                    socksPassword = password
+                                    socksUsername = if (resolvedTunnelType == TunnelType.SOCKS5) (if (uuid.isNotBlank()) uuid else null) else method.ifBlank { null },
+                                    socksPassword = password.takeIf { it.isNotBlank() }
                                 )
                             )
                         }
@@ -3537,7 +3537,7 @@ class ConfigImporter @Inject constructor() {
                                 )
                             )
                         }
-                        "socks", "socks5" -> {
+                        "socks", "socks5", "socks4" -> {
                             profiles.add(
                                 ServerProfile(
                                     name = profileName,
@@ -3546,8 +3546,8 @@ class ConfigImporter @Inject constructor() {
                                     cdnPort = port,
                                     socks5ServerPort = port,
                                     tunnelType = TunnelType.SOCKS5,
-                                    socksUsername = uuid,
-                                    socksPassword = password
+                                    socksUsername = if (uuid.isNotBlank()) uuid else null,
+                                    socksPassword = password.takeIf { it.isNotBlank() }
                                 )
                             )
                         }

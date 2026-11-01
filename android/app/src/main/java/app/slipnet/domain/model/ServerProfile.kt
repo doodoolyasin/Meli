@@ -213,7 +213,7 @@ enum class TunnelType(val value: String, val displayName: String) {
     SNOWFLAKE("snowflake", "Tor"),
     NAIVE_SSH("naive_ssh", "NaiveProxy + SSH"),
     NAIVE("naive", "NaiveProxy"),
-    SOCKS5("socks5", "SOCKS5 Proxy"),
+    SOCKS5("socks5", "SOCKS5"),
     VAYDNS("vaydns", "VayDNS"),
     VAYDNS_SSH("vaydns_ssh", "VayDNS + SSH"),
     VLESS("vless", "VLESS"),
@@ -242,7 +242,7 @@ enum class TunnelType(val value: String, val displayName: String) {
     HYSTERIA2("hysteria2", "Hysteria 2 (UDP/QUIC)"),
     TUIC("tuic", "TUIC v5 (QUIC 0-RTT)"),
     TROJAN("trojan", "Trojan (TLS Camouflage)"),
-    SHADOWSOCKS("shadowsocks", "Custom (Shadowsocks)"),
+    SHADOWSOCKS("shadowsocks", "Shadowsocks"),
     VMESS("vmess", "VMess (V2Ray / iOS)"),
     SNELL("snell", "Snell (Surge iOS)"),
     SHADOWSOCKSR("ssr", "ShadowsocksR (iOS)"),
@@ -252,6 +252,7 @@ enum class TunnelType(val value: String, val displayName: String) {
 
     companion object {
         fun fromValue(value: String): TunnelType {
+            if (value.equals("socks", ignoreCase = true) || value.equals("socks5", ignoreCase = true)) return SOCKS5
             if (value.equals("meli", ignoreCase = true)) return MELI
             if (value.equals("aether", ignoreCase = true) || value.equals("masque", ignoreCase = true)) return AETHER
             if (value.equals("warp", ignoreCase = true) || value.equals("gool", ignoreCase = true)) return WARP

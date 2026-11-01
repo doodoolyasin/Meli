@@ -5,6 +5,12 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.Outline
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.IntrinsicSize
@@ -948,7 +954,7 @@ fun MainScreen(
                             }
                             Box {
                                 IconButton(onClick = {
-                                    activeAddSubmenu = AddSubmenuType.PROTOCOLS
+                                    activeAddSubmenu = null
                                     showAddDropdown = true
                                 }) {
                                     Icon(Icons.Default.Add, contentDescription = "Add")
@@ -966,8 +972,8 @@ fun MainScreen(
                                         if (activeAddSubmenu == AddSubmenuType.PROTOCOLS) {
                                             Column(
                                                 modifier = Modifier
-                                                    .width(250.dp)
-                                                    .heightIn(min = 360.dp, max = 650.dp)
+                                                    .width(170.dp)
+                                                    .heightIn(min = 320.dp, max = 560.dp)
                                                     .verticalScroll(rememberScrollState())
                                             ) {
                                                 val protocolList = listOf(
@@ -1022,7 +1028,7 @@ fun MainScreen(
                                         }
 
                                         // Right Parent Menu Column
-                                        Column(modifier = Modifier.width(210.dp)) {
+                                        Column(modifier = Modifier.width(190.dp)) {
                                             DropdownMenuItem(
                                                 modifier = Modifier.heightIn(min = 36.dp),
                                                 contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
@@ -1100,7 +1106,7 @@ fun MainScreen(
                             }
                             Box {
                                 IconButton(onClick = {
-                                    activeOverflowSubmenu = OverflowMenuPage.DELETE
+                                    activeOverflowSubmenu = null
                                     showOverflowMenu = true
                                 }) {
                                     Icon(Icons.Default.MoreVert, contentDescription = "More")
@@ -1117,16 +1123,16 @@ fun MainScreen(
                                         // Left Submenu (Cascading Left - PattNG layout)
                                         if (activeOverflowSubmenu != null) {
                                             val submenuTopPadding = when (activeOverflowSubmenu) {
-                                                OverflowMenuPage.DELETE -> 38.dp
-                                                OverflowMenuPage.EXPORT -> 76.dp
-                                                OverflowMenuPage.PING -> 122.dp
-                                                OverflowMenuPage.SORT -> 160.dp
+                                                OverflowMenuPage.DELETE -> 36.dp
+                                                OverflowMenuPage.EXPORT -> 72.dp
+                                                OverflowMenuPage.PING -> 110.dp
+                                                OverflowMenuPage.SORT -> 146.dp
                                                 else -> 0.dp
                                             }
                                             Column(
                                                 modifier = Modifier
-                                                    .width(250.dp)
-                                                    .heightIn(min = 360.dp, max = 650.dp)
+                                                    .width(170.dp)
+                                                    .heightIn(min = 320.dp, max = 560.dp)
                                                     .verticalScroll(rememberScrollState())
                                                     .padding(top = submenuTopPadding)
                                             ) {
@@ -1333,7 +1339,7 @@ fun MainScreen(
                                         }
 
                                         // Right Parent Menu Column (PattNG style)
-                                        Column(modifier = Modifier.width(210.dp)) {
+                                        Column(modifier = Modifier.width(190.dp)) {
                                             DropdownMenuItem(
                                                 modifier = Modifier.heightIn(min = 36.dp),
                                                 contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
@@ -4009,6 +4015,47 @@ private fun tunnelKeyFingerprint(key: String): String? {
     }
 }
 
+private class UpwardCradleShape(
+    private val cradleWidth: Dp = 84.dp,
+    private val cradleHeight: Dp = 22.dp,
+    private val cornerRadius: Dp = 18.dp
+) : Shape {
+    override fun createOutline(size: Size, layoutDirection: LayoutDirection, density: Density): Outline {
+        val path = Path()
+        val cWidthPx = with(density) { cradleWidth.toPx() }
+        val cHeightPx = with(density) { cradleHeight.toPx() }
+        val cornerPx = with(density) { cornerRadius.toPx() }
+        val cx = size.width / 2f
+        val topY = cHeightPx
+
+        path.moveTo(0f, topY + cornerPx)
+        path.quadraticTo(0f, topY, cornerPx, topY)
+
+        val cradleStart = cx - cWidthPx / 2f
+        path.lineTo(cradleStart, topY)
+
+        path.cubicTo(
+            cradleStart + cWidthPx * 0.2f, topY,
+            cx - cWidthPx * 0.25f, 0f,
+            cx, 0f
+        )
+        path.cubicTo(
+            cx + cWidthPx * 0.25f, 0f,
+            cradleStart + cWidthPx * 0.8f, topY,
+            cradleStart + cWidthPx, topY
+        )
+
+        path.lineTo(size.width - cornerPx, topY)
+        path.quadraticTo(size.width, topY, size.width, topY + cornerPx)
+
+        path.lineTo(size.width, size.height)
+        path.lineTo(0f, size.height)
+        path.close()
+
+        return Outline.Generic(path)
+    }
+}
+
 @Composable
 private fun ConnectionStatusStrip(
     connectionState: ConnectionState,
@@ -4061,7 +4108,9 @@ private fun ConnectionStatusStrip(
     val triangleRotation = if (isConnecting) spinAngle else 0f
 
     Box(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp),
         contentAlignment = Alignment.TopCenter
     ) {
         val effectiveProfile = activeProfile ?: (connectionState as? ConnectionState.Connected)?.profile
@@ -4069,10 +4118,12 @@ private fun ConnectionStatusStrip(
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = 18.dp)
+                .padding(top = 22.dp)
                 .clickable(enabled = effectiveProfile != null) { onPingConnected() },
-            tonalElevation = 2.dp,
-            shape = RoundedCornerShape(16.dp)
+            tonalElevation = 3.dp,
+            shadowElevation = 4.dp,
+            shape = UpwardCradleShape(cradleWidth = 84.dp, cradleHeight = 22.dp, cornerRadius = 18.dp),
+            color = MaterialTheme.colorScheme.surfaceColorAtElevation(3.dp)
         ) {
             Column(
                 modifier = Modifier
@@ -4128,7 +4179,7 @@ private fun ConnectionStatusStrip(
                     }
 
                     // Center spacer for the 56dp cradle button
-                    Spacer(modifier = Modifier.width(58.dp))
+                    Spacer(modifier = Modifier.width(68.dp))
 
                     // Traffic stats and Ping to the RIGHT side with separate speeds
                     val hasTraffic = isConnected || (totalUpload + totalDownload > 0)
@@ -4154,8 +4205,13 @@ private fun ConnectionStatusStrip(
                                 Spacer(modifier = Modifier.height(2.dp))
                             }
                             if (hasTraffic) {
+                                val totalText = if (totalDownload == 0L && totalUpload > 0L) {
+                                    "Total: ${TrafficStats.formatBytes(totalUpload)} (TX)"
+                                } else {
+                                    "Total: ${TrafficStats.formatBytes(combinedTotal)}"
+                                }
                                 Text(
-                                    text = "Total: ${TrafficStats.formatBytes(combinedTotal)}",
+                                    text = totalText,
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -4371,35 +4427,37 @@ private fun ConnectionStatusStrip(
                 }
             }
         }
-    }
 
-    // Central 56dp Connect Button cradled gently into the top of the status field (PattNG style)
-    FloatingActionButton(
-        onClick = onToggleConnection,
-        containerColor = statusColor,
-        contentColor = Color.White,
-        shape = CircleShape,
-        modifier = Modifier
-            .size(56.dp)
-            .zIndex(2f)
-    ) {
-        Canvas(
+        // Central 56dp Connect Button cradled gently into the top of the status field (PattNG style)
+        FloatingActionButton(
+            onClick = onToggleConnection,
+            containerColor = statusColor,
+            contentColor = Color.White,
+            shape = CircleShape,
+            elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 6.dp, pressedElevation = 10.dp),
             modifier = Modifier
-                .size(24.dp)
-                .graphicsLayer {
-                    rotationZ = triangleRotation
-                }
+                .align(Alignment.TopCenter)
+                .size(56.dp)
+                .zIndex(2f)
         ) {
-            val w = size.width
-            val h = size.height
-            val path = Path().apply {
-                // Equilateral triangle pointing upwards (PattNG style)
-                moveTo(w / 2f, h * 0.15f)
-                lineTo(w * 0.88f, h * 0.85f)
-                lineTo(w * 0.12f, h * 0.85f)
-                close()
+            Canvas(
+                modifier = Modifier
+                    .size(24.dp)
+                    .graphicsLayer {
+                        rotationZ = triangleRotation
+                    }
+            ) {
+                val w = size.width
+                val h = size.height
+                val path = Path().apply {
+                    // Equilateral triangle pointing upwards (PattNG style)
+                    moveTo(w / 2f, h * 0.15f)
+                    lineTo(w * 0.88f, h * 0.85f)
+                    lineTo(w * 0.12f, h * 0.85f)
+                    close()
+                }
+                drawPath(path = path, color = Color.White)
             }
-            drawPath(path = path, color = Color.White)
         }
     }
 }

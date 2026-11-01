@@ -516,8 +516,12 @@ class Socks5ProxyInstance(val instanceId: String = "default") {
         } catch (e: Exception) {
             logd("CONNECT: failed to connect to remote SOCKS5 proxy: ${e.message}")
             if (sendReply) {
-                clientOutput.write(byteArrayOf(0x05, 0x05, 0x00, 0x01, 0, 0, 0, 0, 0, 0))
-                clientOutput.flush()
+                try {
+                    clientOutput.write(byteArrayOf(0x05, 0x05, 0x00, 0x01, 0, 0, 0, 0, 0, 0))
+                    clientOutput.flush()
+                } catch (_: Exception) {}
+            } else {
+                try { clientSocket.close() } catch (_: Exception) {}
             }
             return
         }
@@ -529,6 +533,9 @@ class Socks5ProxyInstance(val instanceId: String = "default") {
             // SOCKS5 handshake with remote proxy (greeting + optional auth)
             if (!performRemoteSocks5Handshake(remoteInput, remoteOutput, sendReply, clientOutput)) {
                 remoteSocket.close()
+                if (!sendReply) {
+                    try { clientSocket.close() } catch (_: Exception) {}
+                }
                 return
             }
 
