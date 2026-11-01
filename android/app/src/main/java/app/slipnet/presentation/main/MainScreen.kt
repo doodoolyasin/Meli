@@ -8,6 +8,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.material3.FloatingActionButtonDefaults
@@ -4022,9 +4023,9 @@ private class UpwardCradleShape(
 ) : Shape {
     override fun createOutline(size: Size, layoutDirection: LayoutDirection, density: Density): Outline {
         val path = Path()
-        val cWidthPx = with(density) { cradleWidth.toPx() }
-        val cHeightPx = with(density) { cradleHeight.toPx() }
-        val cornerPx = with(density) { cornerRadius.toPx() }
+        val cWidthPx: Float = with(density) { cradleWidth.toPx() }
+        val cHeightPx: Float = with(density) { cradleHeight.toPx() }
+        val cornerPx: Float = with(density) { cornerRadius.toPx() }
         val cx = size.width / 2f
         val topY = cHeightPx
 
