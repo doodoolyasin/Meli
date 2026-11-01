@@ -568,14 +568,15 @@ class SlipNetVpnService : VpnService() {
                     profile
                 }
 
+                val override = globalResolverOverride
                 val effectiveGlobalResolverOverride = if (isDnsTunnel && (currentTunnelType == TunnelType.COTTENDNS || currentTunnelType == TunnelType.COTTENDNS_SSH || profile.domain.contains("cotten", ignoreCase = true))) {
-                    if (globalResolverOverride != null && globalResolverOverride.all { it.host == "8.8.8.8" || it.host == "1.1.1.1" }) {
+                    if (override != null && override.all { it.host == "8.8.8.8" || it.host == "1.1.1.1" }) {
                         listOf(app.slipnet.domain.model.DnsResolver(host = "45.38.249.16", port = 53))
                     } else {
-                        globalResolverOverride
+                        override
                     }
                 } else {
-                    globalResolverOverride
+                    override
                 }
 
                 val effectiveResolverHost = effectiveGlobalResolverOverride?.firstOrNull()?.host

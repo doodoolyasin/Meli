@@ -1,5 +1,6 @@
 package app.slipnet.presentation.settings
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.slipnet.data.local.datastore.DarkMode
@@ -630,5 +631,9 @@ class SettingsViewModel @Inject constructor(
 
     fun clearUpdateCheck() {
         _uiState.value = _uiState.value.copy(updateCheckResult = UpdateCheckResult.IDLE)
+    }
+
+    companion object {
+        private const val TAG = "SettingsViewModel"
     }
 }
