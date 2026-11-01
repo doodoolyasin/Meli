@@ -286,7 +286,7 @@ fun SettingsScreen(
                 ClickableSettingItem(
                     icon = Icons.Default.Speed,
                     title = "DNS Worker Mode",
-                    description = "${uiState.dnsWorkerMode.displayName} · ${uiState.dnsWorkerMode.description}",
+                    description = "${uiState.dnsWorkerMode.displayName} · Pool size: ${uiState.dnsWorkerMode.poolSize}",
                     onClick = { showDnsWorkerDialog = true }
                 )
 
