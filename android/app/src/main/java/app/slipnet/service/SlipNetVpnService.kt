@@ -3009,10 +3009,12 @@ class SlipNetVpnService : VpnService() {
         }
 
         // Wait up to 15s for Go engine MTU testing and session handshake to complete
+        var sessionReady = false
         withContext(Dispatchers.IO) {
             for (attempt in 1..60) {
                 if (MasterDnsBridge.isSessionReady()) {
                     Log.i(TAG, "$tunnelName session handshake ready (attempt $attempt)")
+                    sessionReady = true
                     break
                 }
                 if (!MasterDnsBridge.isRunning()) {
@@ -3021,6 +3023,18 @@ class SlipNetVpnService : VpnService() {
                 }
                 delay(250)
             }
+        }
+
+        if (!sessionReady && !useSsh) {
+            val lastErr = MasterDnsBridge.lastError().ifBlank { "Session handshake timed out — server unreachable" }
+            Log.e(TAG, "$tunnelName session not ready: $lastErr")
+            connectionManager.onVpnError("$tunnelName failed: $lastErr")
+            MasterDnsBridge.stopClient()
+            vpnInterface?.close()
+            vpnInterface = null
+            stopForeground(STOP_FOREGROUND_REMOVE)
+            stopSelf()
+            return
         }
 
         if (useSsh) {

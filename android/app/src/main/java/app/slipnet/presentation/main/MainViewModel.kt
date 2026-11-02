@@ -1280,6 +1280,27 @@ class MainViewModel @Inject constructor(
         }
     }
 
+    fun deleteSubscriptionGroup(group: String) {
+        viewModelScope.launch {
+            try {
+                preferencesDataStore.deleteSubscriptionUrl(group)
+            } catch (_: Exception) {}
+            deleteProfilesMatching { it.subscriptionGroup == group }
+        }
+    }
+
+    fun deleteAllSubscriptionGroups() {
+        viewModelScope.launch {
+            try {
+                val urls = preferencesDataStore.subscriptionUrls.first()
+                for (group in urls.keys) {
+                    preferencesDataStore.deleteSubscriptionUrl(group)
+                }
+            } catch (_: Exception) {}
+            deleteProfilesMatching { it.subscriptionGroup.isNotBlank() }
+        }
+    }
+
     fun exportProfilesToClipboard(predicate: (ServerProfile) -> Boolean): String {
         val targets = _uiState.value.profiles.filter(predicate)
         return targets.joinToString("\n") { configExporter.exportStandardUri(it) }

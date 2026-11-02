@@ -1443,26 +1443,50 @@ class VpnRepositoryImpl @Inject constructor(
                 sent = DohBridge.getTunnelTxBytes()
                 received = DohBridge.getTunnelRxBytes()
             }
+            TunnelType.MASTERDNS, TunnelType.STORMDNS, TunnelType.COTTENDNS,
+            TunnelType.SOAR, TunnelType.MELI -> {
+                // For MasterDNS family: only count traffic if client is running,
+                // session handshake is verified ready, AND remote packets have actually been received.
+                if (!app.slipnet.tunnel.MasterDnsBridge.isRunning() || !app.slipnet.tunnel.MasterDnsBridge.isSessionReady()) {
+                    sent = 0L
+                    received = 0L
+                } else {
+                    val stats = HevSocks5Tunnel.getStats()
+                    if (stats != null && stats.rxBytes > 0) {
+                        sent = stats.txBytes
+                        received = stats.rxBytes
+                        pktSent = stats.txPackets
+                        pktReceived = stats.rxPackets
+                    } else {
+                        sent = 0L
+                        received = 0L
+                    }
+                }
+            }
             else -> {
-                // Snowflake falls through here. It's Go-backed and gomobile
-                // doesn't expose byte counters, so in VPN mode we read
-                // TUN-level stats via HevSocks5Tunnel; in proxy-only mode
-                // Snowflake currently shows 0 bytes until Go-side counter
-                // exposure is added.
+                // In VPN mode read TUN-level stats via HevSocks5Tunnel.
+                // Guard: only report traffic if remote packets have actually been received (rxBytes > 0).
+                // Without rxBytes, txBytes are purely local OS kernel probes/DNS requests queued to dead TUN.
                 val stats = HevSocks5Tunnel.getStats() ?: return
-                sent = stats.txBytes
-                received = stats.rxBytes
-                pktSent = stats.txPackets
-                pktReceived = stats.rxPackets
+                if (stats.rxBytes > 0) {
+                    sent = stats.txBytes
+                    received = stats.rxBytes
+                    pktSent = stats.txPackets
+                    pktReceived = stats.rxPackets
+                } else {
+                    sent = 0L
+                    received = 0L
+                }
             }
         }
 
-        // Compute speed normalized by actual elapsed time
+        // Compute speed normalized by actual elapsed time.
+        // Guard: if received == 0L, tunnel is not delivering internet data; keep speeds at 0.
         val now = System.currentTimeMillis()
         val elapsedMs = now - prevTimestamp
         val upSpeed: Long
         val downSpeed: Long
-        if (prevTimestamp == 0L || elapsedMs <= 0) {
+        if (received == 0L || prevTimestamp == 0L || elapsedMs <= 0) {
             upSpeed = 0L
             downSpeed = 0L
         } else {
