@@ -31,6 +31,7 @@ android/app/src/full/jniLibs/
 
 # Secrets, keys, and environment files
 *.keystore
+!android/slipnet-release.keystore
 *.jks
 keystore.properties
 *.env
