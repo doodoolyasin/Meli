@@ -15,7 +15,7 @@ plugins {
 
 val minSdkVersion = 24
 val appVersionName = "2.8.0"
-val appVersionCode = 108
+val appVersionCode = 109
 val cargoProfile = (findProperty("CARGO_PROFILE") as String?) ?: run {
     val isRelease = gradle.startParameter.taskNames.any { it.contains("Release", ignoreCase = true) }
     if (isRelease) "release" else "debug"
@@ -81,7 +81,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "app.slipnet"
+        applicationId = "app.aryanang"
         minSdk = minSdkVersion
         targetSdk = 35
         versionCode = appVersionCode

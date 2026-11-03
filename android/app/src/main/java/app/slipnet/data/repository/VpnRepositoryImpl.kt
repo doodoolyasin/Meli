@@ -748,11 +748,8 @@ class VpnRepositoryImpl @Inject constructor(
         return when (profile.dnsTransport) {
             DnsTransport.UDP -> {
                 val list = resolvers.map { "${resolveHost(it.host)}:${it.port}" }.filter { it.isNotBlank() }
-                val isCotten = profile.tunnelType == TunnelType.COTTENDNS || profile.tunnelType == TunnelType.COTTENDNS_SSH || profile.domain.contains("cotten", ignoreCase = true)
-                if (isCotten && (list.isEmpty() || list.all { it.startsWith("8.8.8.8") || it.startsWith("1.1.1.1") })) {
-                    "45.38.249.16:53"
-                } else if (list.isEmpty()) {
-                    "45.38.249.16:53,8.8.8.8:53,1.1.1.1:53"
+                if (list.isEmpty()) {
+                    "8.8.8.8:53,8.8.4.4:53"
                 } else {
                     list.joinToString(",")
                 }

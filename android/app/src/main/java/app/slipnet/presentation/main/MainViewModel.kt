@@ -1481,14 +1481,14 @@ class MainViewModel @Inject constructor(
                 if (profile.resolvers.isNotEmpty()) {
                     profile.resolvers.first().let { it.host to it.port }
                 } else {
-                    "45.38.249.16" to 53
+                    "8.8.8.8" to 53
                 }
             }
             TunnelType.WIREGUARD, TunnelType.OPENVPN, TunnelType.L2TP,
             TunnelType.HYSTERIA2, TunnelType.TUIC,
             TunnelType.TROJAN, TunnelType.SHADOWSOCKS, TunnelType.SHADOWSOCKSR,
             TunnelType.VMESS, TunnelType.SNELL, TunnelType.VLESS_REALITY -> {
-                val host = profile.domain.takeIf { it.isNotBlank() } ?: "45.38.249.16"
+                val host = profile.domain.takeIf { it.isNotBlank() } ?: "8.8.8.8"
                 val port = if (profile.cdnPort > 0) profile.cdnPort else 443
                 host to port
             }
@@ -1496,7 +1496,7 @@ class MainViewModel @Inject constructor(
                 if (profile.domain.isNotBlank()) {
                     profile.domain to (if (profile.cdnPort > 0) profile.cdnPort else 53)
                 } else {
-                    "45.38.249.16" to 53
+                    "8.8.8.8" to 53
                 }
             }
         }

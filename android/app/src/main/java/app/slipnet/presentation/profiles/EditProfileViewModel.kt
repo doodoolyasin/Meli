@@ -538,10 +538,10 @@ class EditProfileViewModel @Inject constructor(
                 initialTunnelType == TunnelType.WIREGUARD ||
                 initialTunnelType == TunnelType.OPENVPN ||
                 initialTunnelType == TunnelType.L2TP ||
-                initialTunnelType == TunnelType.SSH -> "45.38.249.16"
+                initialTunnelType == TunnelType.SSH -> ""
                 else -> ""
             },
-            cdnIp = if (initialTunnelType == TunnelType.VLESS) "45.38.249.16" else "",
+            cdnIp = "",
             cdnPort = when (initialTunnelType) {
                 TunnelType.SOCKS5 -> "1080"
                 TunnelType.SHADOWSOCKS, TunnelType.SHADOWSOCKSR -> "8388"
@@ -588,10 +588,7 @@ class EditProfileViewModel @Inject constructor(
                 isDnsttInitial -> "15bedeebebf104e83f1ed0a29b1d166fbee7e59a0e7892182dea8dd42f0fa80a"
                 else -> ""
             },
-            resolvers = when {
-                isDnsTunnelInitial -> "45.38.249.16:53"
-                else -> "8.8.8.8:53"
-            },
+            resolvers = "8.8.8.8:53",
             authoritativeMode = false,
             dnsttAuthoritative = false,
             tunnelEncryptionMethod = 1,
@@ -619,8 +616,8 @@ class EditProfileViewModel @Inject constructor(
 
     private fun prefillLocalResolver() {
         if (!isDnsTunnelInitial) return
-        if (_uiState.value.resolvers.isBlank() || _uiState.value.resolvers == "8.8.8.8:53" || _uiState.value.resolvers == "8.8.8.8") {
-            _uiState.value = _uiState.value.copy(resolvers = "45.38.249.16:53")
+        if (_uiState.value.resolvers.isBlank()) {
+            _uiState.value = _uiState.value.copy(resolvers = "8.8.8.8:53")
         }
     }
 
@@ -661,8 +658,8 @@ class EditProfileViewModel @Inject constructor(
                             TunnelType.NOOSHDAROO, TunnelType.NOOSHDAROO_SSH,
                             TunnelType.QWDTT, TunnelType.QWDTT_SSH
                         )
-                        if (isDns && (rawResolvers.isBlank() || (profile.tunnelType in setOf(TunnelType.COTTENDNS, TunnelType.COTTENDNS_SSH) && rawResolvers.trim() in setOf("8.8.8.8", "8.8.8.8:53")))) {
-                            "45.38.249.16:53"
+                        if (isDns && rawResolvers.isBlank()) {
+                            "8.8.8.8:53"
                         } else {
                             rawResolvers
                         }
@@ -781,8 +778,8 @@ class EditProfileViewModel @Inject constructor(
             TunnelType.QWDTT, TunnelType.QWDTT_SSH
         )
         val currentResolvers = _uiState.value.resolvers
-        val newResolvers = if (isDns && (currentResolvers.isBlank() || currentResolvers == "8.8.8.8:53" || currentResolvers == "8.8.8.8")) {
-            "45.38.249.16:53"
+        val newResolvers = if (isDns && currentResolvers.isBlank()) {
+            "8.8.8.8:53"
         } else currentResolvers
 
         val needsDante = type in setOf(
@@ -1917,7 +1914,7 @@ class EditProfileViewModel @Inject constructor(
 
     fun addFastPublicResolvers() {
         val current = _uiState.value.resolvers.trim()
-        val fastList = listOf("8.8.8.8:53", "1.1.1.1:53", "9.9.9.9:53", "45.38.249.16:53")
+        val fastList = listOf("8.8.8.8:53", "8.8.4.4:53", "1.1.1.1:53", "9.9.9.9:53")
         val merged = if (current.isEmpty()) {
             fastList.joinToString(", ")
         } else {
@@ -2050,7 +2047,7 @@ class EditProfileViewModel @Inject constructor(
         // Auto-heal empty Resolvers for DNS tunnels
         if (state.isDnsttOrNoizOrVaydnsBased || state.isSlipstreamBased) {
             if (state.resolvers.isBlank()) {
-                val defaultRes = "45.38.249.16:53"
+                val defaultRes = "8.8.8.8:53"
                 _uiState.value = _uiState.value.copy(resolvers = defaultRes)
                 state = _uiState.value
             }

@@ -553,14 +553,14 @@ class SlipNetVpnService : VpnService() {
                     TunnelType.QWDTT, TunnelType.QWDTT_SSH
                 )
 
-                // For DNS tunnels, ensure resolvers default to the active tunnel server (45.38.249.16:53)
-                // CottenDNS NS records point directly to 45.38.249.16, so queries to 8.8.8.8 fail MTU upload
+                // For DNS tunnels, ensure resolvers default to reliable Google DNS (8.8.8.8:53, 8.8.4.4:53) if empty
                 val effectiveProfile = if (isDnsTunnel) {
-                    val needsServerResolver = profile.resolvers.isEmpty() ||
-                            ((currentTunnelType == TunnelType.COTTENDNS || currentTunnelType == TunnelType.COTTENDNS_SSH || profile.domain.contains("cotten", ignoreCase = true)) &&
-                             profile.resolvers.all { it.host == "8.8.8.8" || it.host == "1.1.1.1" })
-                    if (needsServerResolver) {
-                        profile.copy(resolvers = listOf(app.slipnet.domain.model.DnsResolver(host = "45.38.249.16", port = 53)))
+                    val needsDefaultResolver = profile.resolvers.isEmpty()
+                    if (needsDefaultResolver) {
+                        profile.copy(resolvers = listOf(
+                            app.slipnet.domain.model.DnsResolver(host = "8.8.8.8", port = 53),
+                            app.slipnet.domain.model.DnsResolver(host = "8.8.4.4", port = 53)
+                        ))
                     } else {
                         profile
                     }
@@ -569,19 +569,11 @@ class SlipNetVpnService : VpnService() {
                 }
 
                 val override = globalResolverOverride
-                val effectiveGlobalResolverOverride = if (isDnsTunnel && (currentTunnelType == TunnelType.COTTENDNS || currentTunnelType == TunnelType.COTTENDNS_SSH || profile.domain.contains("cotten", ignoreCase = true))) {
-                    if (override != null && override.all { it.host == "8.8.8.8" || it.host == "1.1.1.1" }) {
-                        listOf(app.slipnet.domain.model.DnsResolver(host = "45.38.249.16", port = 53))
-                    } else {
-                        override
-                    }
-                } else {
-                    override
-                }
+                val effectiveGlobalResolverOverride = override
 
                 val effectiveResolverHost = effectiveGlobalResolverOverride?.firstOrNull()?.host
                     ?: effectiveProfile.resolvers.firstOrNull()?.host
-                    ?: if (isDnsTunnel) "45.38.249.16" else null
+                    ?: if (isDnsTunnel) "8.8.8.8" else null
                 val dnsServer = resolveToIp(effectiveResolverHost, globalDnsIp)
 
                 // Remote DNS: the DNS servers used on the remote side of the tunnel
@@ -597,8 +589,8 @@ class SlipNetVpnService : VpnService() {
                         remoteDns = profileResolverHost
                         remoteDnsFallback = effectiveProfile.resolvers.getOrNull(1)?.host?.takeIf { DomainRouter.isIpAddress(it) } ?: "8.8.8.8"
                     } else if (isDnsTunnel) {
-                        remoteDns = "45.38.249.16"
-                        remoteDnsFallback = "8.8.8.8"
+                        remoteDns = "8.8.8.8"
+                        remoteDnsFallback = "8.8.4.4"
                     } else {
                         remoteDns = preferencesDataStore.getEffectiveRemoteDns().first()
                         remoteDnsFallback = preferencesDataStore.getEffectiveRemoteDnsFallback().first()
@@ -620,9 +612,9 @@ class SlipNetVpnService : VpnService() {
                     .map { "${it.host}:${it.port}" }
                     .filter { it.isNotBlank() }
                     .ifEmpty {
-                        if (isDnsTunnel) listOf("45.38.249.16:53")
+                        if (isDnsTunnel) listOf("8.8.8.8:53", "8.8.4.4:53")
                         else if (remoteDns.isNotBlank()) listOf(if (remoteDns.contains(":")) remoteDns else "$remoteDns:53")
-                        else listOf("45.38.249.16:53")
+                        else listOf("8.8.8.8:53", "8.8.4.4:53")
                     }
                 app.slipnet.util.AppLog.setActiveResolvers(activeResolversList)
 
@@ -4728,11 +4720,12 @@ class SlipNetVpnService : VpnService() {
                     TunnelType.QWDTT, TunnelType.QWDTT_SSH
                 )
                 val healedProfile = if (isReconnectDnsTunnel) {
-                    val needsServerResolver = profile.resolvers.isEmpty() ||
-                            ((currentTunnelType == TunnelType.COTTENDNS || currentTunnelType == TunnelType.COTTENDNS_SSH || profile.domain.contains("cotten", ignoreCase = true)) &&
-                             profile.resolvers.all { it.host == "8.8.8.8" || it.host == "1.1.1.1" })
-                    if (needsServerResolver) {
-                        profile.copy(resolvers = listOf(app.slipnet.domain.model.DnsResolver(host = "45.38.249.16", port = 53)))
+                    val needsDefaultResolver = profile.resolvers.isEmpty()
+                    if (needsDefaultResolver) {
+                        profile.copy(resolvers = listOf(
+                            app.slipnet.domain.model.DnsResolver(host = "8.8.8.8", port = 53),
+                            app.slipnet.domain.model.DnsResolver(host = "8.8.4.4", port = 53)
+                        ))
                     } else profile
                 } else profile
 
@@ -4745,7 +4738,7 @@ class SlipNetVpnService : VpnService() {
                     .map { "${it.host}:${it.port}" }
                     .filter { it.isNotBlank() }
                     .ifEmpty {
-                        if (isReconnectDnsTunnel) listOf("45.38.249.16:53")
+                        if (isReconnectDnsTunnel) listOf("8.8.8.8:53", "8.8.4.4:53")
                         else if (remoteDns.isNotBlank()) listOf(if (remoteDns.contains(":")) remoteDns else "$remoteDns:53")
                         else emptyList()
                     }
