@@ -1077,7 +1077,7 @@ fun MainScreen(
                                         modifier = Modifier.heightIn(min = 38.dp),
                                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 2.dp),
                                         text = { Text("Tcping", fontSize = 13.sp) },
-                                        leadingIcon = { Icon(Icons.Default.NetworkCheck, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                                        leadingIcon = { Icon(Icons.Default.NetworkPing, contentDescription = null, modifier = Modifier.size(18.dp)) },
                                         onClick = {
                                             showOverflowMenu = false
                                             viewModel.pingAllProfilesSimple()
@@ -1088,7 +1088,7 @@ fun MainScreen(
                                         modifier = Modifier.heightIn(min = 38.dp),
                                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 2.dp),
                                         text = { Text("Sort configs", fontSize = 13.sp) },
-                                        leadingIcon = { Icon(Icons.Default.Sort, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                                        leadingIcon = { Icon(Icons.Default.AltRoute, contentDescription = null, modifier = Modifier.size(18.dp)) },
                                         onClick = {
                                             showOverflowMenu = false
                                             showProtocolSortDialog = true
