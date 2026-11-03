@@ -5693,6 +5693,7 @@ class SlipNetVpnService : VpnService() {
             .setMtu(mtu)
             .addAddress(VPN_ADDRESS, 32)
             .addDnsServer(resolvedSafeDns)
+            .addDnsServer("178.22.122.100")
             .addDnsServer("8.8.8.8")
             .addDnsServer("1.1.1.1")
             .setBlocking(false)

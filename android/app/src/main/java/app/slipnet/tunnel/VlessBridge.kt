@@ -415,8 +415,10 @@ object VlessBridge {
 
     private fun resolveDoh(payload: ByteArray): ByteArray? {
         val dohEndpoints = listOf(
+            "https://178.22.122.100/dns-query",
+            "https://cloudflare-dns.com/dns-query",
+            "https://dns.google/dns-query",
             "https://1.1.1.1/dns-query",
-            "https://162.159.36.1/dns-query",
             "https://8.8.8.8/dns-query"
         )
         for (ep in dohEndpoints) {
@@ -495,7 +497,7 @@ object VlessBridge {
     }
 
     private fun queryUdpDns(payload: ByteArray, dnsServers: List<String>): ByteArray? {
-        val targetResolvers = dnsServers.take(4)
+        val targetResolvers = dnsServers
         val pool = Executors.newFixedThreadPool(targetResolvers.size)
         val completion = java.util.concurrent.ExecutorCompletionService<ByteArray>(pool)
         val openSockets = CopyOnWriteArrayList<DatagramSocket>()
@@ -505,7 +507,7 @@ object VlessBridge {
                     val dSocket = DatagramSocket()
                     openSockets.add(dSocket)
                     vpnService?.protect(dSocket)
-                    dSocket.soTimeout = 1000
+                    dSocket.soTimeout = 1200
                     val packet = DatagramPacket(payload, payload.size, InetAddress.getByName(dnsIp), 53)
                     dSocket.send(packet)
                     val recvBuf = ByteArray(4096)
@@ -516,7 +518,7 @@ object VlessBridge {
             }
             for (i in targetResolvers.indices) {
                 try {
-                    val future = completion.poll(1100, java.util.concurrent.TimeUnit.MILLISECONDS) ?: break
+                    val future = completion.poll(1300, java.util.concurrent.TimeUnit.MILLISECONDS) ?: break
                     val resp = future.get()
                     if (resp != null && resp.isNotEmpty()) return resp
                 } catch (_: Exception) {}
@@ -535,7 +537,15 @@ object VlessBridge {
         output.flush()
         logd("${protocol.uppercase()} SOCKS5 FWD_UDP session started")
 
-        val dnsServers = listOf("1.1.1.1", "8.8.8.8", "8.8.4.4", "9.9.9.9", "178.22.122.100")
+        val dnsServers = listOf(
+            "178.22.122.100",  // Electro (Clean Iran DNS)
+            "185.51.200.2",    // Shecan 1 (Clean Iran DNS)
+            "10.202.10.202",   // Shecan 2 (Clean Iran DNS)
+            "10.202.10.10",    // 403.online (Clean Iran DNS)
+            "8.8.8.8",
+            "1.1.1.1",
+            "9.9.9.9"
+        )
         val udpPool = Executors.newFixedThreadPool(4)
         try {
             while (running.get() && !Thread.currentThread().isInterrupted) {
