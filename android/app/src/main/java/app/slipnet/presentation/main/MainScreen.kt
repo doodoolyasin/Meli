@@ -4392,8 +4392,6 @@ private fun ConnectionStatusStrip(
                             }
                         }
                     }
-                }
-            }
 
             // DNS warning
             AnimatedVisibility(
@@ -4525,6 +4523,7 @@ private fun ConnectionStatusStrip(
                 }
             }
         }
+    }
 
         // Central 56dp Connect Button cradled gently into the top of the status field (PattNG style)
         FloatingActionButton(
