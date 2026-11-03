@@ -3019,7 +3019,7 @@ private fun VpnProtocolsSection(
             value = uiState.domain,
             onValueChange = { viewModel.updateDomain(it) },
             label = { Text("Server Host (IP or Domain)") },
-            placeholder = { Text("45.38.249.16") },
+            placeholder = { Text("16.171.182.108") },
             singleLine = true,
             modifier = Modifier.fillMaxWidth()
         )
@@ -3064,7 +3064,7 @@ private fun VpnProtocolsSection(
             value = uiState.domain,
             onValueChange = { viewModel.updateDomain(it) },
             label = { Text("Server Host (IP or Domain)") },
-            placeholder = { Text("45.38.249.16") },
+            placeholder = { Text("16.171.182.108") },
             singleLine = true,
             modifier = Modifier.fillMaxWidth()
         )

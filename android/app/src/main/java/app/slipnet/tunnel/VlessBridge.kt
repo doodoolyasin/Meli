@@ -535,7 +535,7 @@ object VlessBridge {
         output.flush()
         logd("${protocol.uppercase()} SOCKS5 FWD_UDP session started")
 
-        val dnsServers = listOf("1.1.1.1", "8.8.8.8", "9.9.9.9", "45.38.249.16", "178.22.122.100")
+        val dnsServers = listOf("1.1.1.1", "8.8.8.8", "8.8.4.4", "9.9.9.9", "178.22.122.100")
         val udpPool = Executors.newFixedThreadPool(4)
         try {
             while (running.get() && !Thread.currentThread().isInterrupted) {

@@ -465,7 +465,7 @@ private fun analyzeEngineLogs(lines: List<app.slipnet.util.LogEntry>): List<Diag
                 status = "FAILED",
                 isOk = false,
                 detail = "Resolvers failed MTU probes or dropped tunnel datagrams.",
-                recommendation = "Switch DNS Resolver directly to 45.38.249.16:53 or ensure domain NS records in Cloudflare point to current active server IP."
+                recommendation = "Switch DNS Resolver directly to 16.171.182.108:53 or ensure domain NS records in Cloudflare point to current active server IP."
             )
         )
     } else if (logText.contains("MTU Testing Completed") || logText.contains("Accepted (")) {

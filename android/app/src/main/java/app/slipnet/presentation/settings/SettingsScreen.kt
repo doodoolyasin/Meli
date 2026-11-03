@@ -278,7 +278,7 @@ fun SettingsScreen(
                     description = if (uiState.globalResolverList.isNotBlank()) {
                         "${uiState.globalResolverList.split(",", "\n").filter { it.isNotBlank() }.size} custom resolvers active"
                     } else {
-                        "Auto (default: 45.38.249.16:53)"
+                        "Auto (default: Google DNS 8.8.8.8:53)"
                     },
                     onClick = { showGlobalResolverDialog = true }
                 )
