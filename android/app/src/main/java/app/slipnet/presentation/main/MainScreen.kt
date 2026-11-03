@@ -1103,12 +1103,31 @@ fun MainScreen(
                                                         horizontalArrangement = Arrangement.SpaceBetween
                                                     ) {
                                                         Text("Add profile manually", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                                                        Icon(
-                                                            imageVector = Icons.Default.KeyboardArrowLeft,
-                                                            contentDescription = "Open sub-menu",
-                                                            modifier = Modifier.size(18.dp),
-                                                            tint = if (activeAddSubmenu == AddSubmenuType.PROTOCOLS) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                                                        )
+                                                        Box(
+                                                            modifier = Modifier
+                                                                .size(24.dp)
+                                                                .clip(RoundedCornerShape(6.dp))
+                                                                .background(
+                                                                    if (activeAddSubmenu == AddSubmenuType.PROTOCOLS)
+                                                                        MaterialTheme.colorScheme.primaryContainer
+                                                                    else
+                                                                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+                                                                )
+                                                                .clickable {
+                                                                    activeAddSubmenu = if (activeAddSubmenu == AddSubmenuType.PROTOCOLS) null else AddSubmenuType.PROTOCOLS
+                                                                },
+                                                            contentAlignment = Alignment.Center
+                                                        ) {
+                                                            Icon(
+                                                                imageVector = Icons.Default.Apps,
+                                                                contentDescription = "Select protocol",
+                                                                modifier = Modifier.size(15.dp),
+                                                                tint = if (activeAddSubmenu == AddSubmenuType.PROTOCOLS)
+                                                                    MaterialTheme.colorScheme.primary
+                                                                else
+                                                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                                            )
+                                                        }
                                                     }
                                                 },
                                                 leadingIcon = { Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp)) },
@@ -1381,12 +1400,28 @@ fun MainScreen(
                                                             fontSize = 13.sp,
                                                             fontWeight = if (activeOverflowSubmenu == OverflowMenuPage.DELETE) FontWeight.SemiBold else FontWeight.Normal
                                                         )
-                                                        Icon(
-                                                            imageVector = Icons.Default.KeyboardArrowLeft,
-                                                            contentDescription = "Open delete menu",
-                                                            modifier = Modifier.size(18.dp),
-                                                            tint = if (activeOverflowSubmenu == OverflowMenuPage.DELETE) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                                                        )
+                                                        Box(
+                                                            modifier = Modifier
+                                                                .size(24.dp)
+                                                                .clip(RoundedCornerShape(6.dp))
+                                                                .background(
+                                                                    if (activeOverflowSubmenu == OverflowMenuPage.DELETE)
+                                                                        MaterialTheme.colorScheme.primaryContainer
+                                                                    else
+                                                                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+                                                                )
+                                                                .clickable {
+                                                                    activeOverflowSubmenu = if (activeOverflowSubmenu == OverflowMenuPage.DELETE) null else OverflowMenuPage.DELETE
+                                                                },
+                                                            contentAlignment = Alignment.Center
+                                                        ) {
+                                                            Icon(
+                                                                imageVector = Icons.Default.Apps,
+                                                                contentDescription = "Open delete menu",
+                                                                modifier = Modifier.size(15.dp),
+                                                                tint = if (activeOverflowSubmenu == OverflowMenuPage.DELETE) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                                            )
+                                                        }
                                                     }
                                                 },
                                                 leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(18.dp)) },
@@ -1409,12 +1444,28 @@ fun MainScreen(
                                                             fontSize = 13.sp,
                                                             fontWeight = if (activeOverflowSubmenu == OverflowMenuPage.EXPORT) FontWeight.SemiBold else FontWeight.Normal
                                                         )
-                                                        Icon(
-                                                            imageVector = Icons.Default.KeyboardArrowLeft,
-                                                            contentDescription = "Open export menu",
-                                                            modifier = Modifier.size(18.dp),
-                                                            tint = if (activeOverflowSubmenu == OverflowMenuPage.EXPORT) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                                                        )
+                                                        Box(
+                                                            modifier = Modifier
+                                                                .size(24.dp)
+                                                                .clip(RoundedCornerShape(6.dp))
+                                                                .background(
+                                                                    if (activeOverflowSubmenu == OverflowMenuPage.EXPORT)
+                                                                        MaterialTheme.colorScheme.primaryContainer
+                                                                    else
+                                                                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+                                                                )
+                                                                .clickable {
+                                                                    activeOverflowSubmenu = if (activeOverflowSubmenu == OverflowMenuPage.EXPORT) null else OverflowMenuPage.EXPORT
+                                                                },
+                                                            contentAlignment = Alignment.Center
+                                                        ) {
+                                                            Icon(
+                                                                imageVector = Icons.Default.Apps,
+                                                                contentDescription = "Open export menu",
+                                                                modifier = Modifier.size(15.dp),
+                                                                tint = if (activeOverflowSubmenu == OverflowMenuPage.EXPORT) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                                            )
+                                                        }
                                                     }
                                                 },
                                                 leadingIcon = { Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(18.dp)) },
@@ -1438,12 +1489,28 @@ fun MainScreen(
                                                             fontSize = 13.sp,
                                                             fontWeight = if (activeOverflowSubmenu == OverflowMenuPage.PING) FontWeight.SemiBold else FontWeight.Normal
                                                         )
-                                                        Icon(
-                                                            imageVector = Icons.Default.KeyboardArrowLeft,
-                                                            contentDescription = "Open ping menu",
-                                                            modifier = Modifier.size(18.dp),
-                                                            tint = if (activeOverflowSubmenu == OverflowMenuPage.PING) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                                                        )
+                                                        Box(
+                                                            modifier = Modifier
+                                                                .size(24.dp)
+                                                                .clip(RoundedCornerShape(6.dp))
+                                                                .background(
+                                                                    if (activeOverflowSubmenu == OverflowMenuPage.PING)
+                                                                        MaterialTheme.colorScheme.primaryContainer
+                                                                    else
+                                                                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+                                                                )
+                                                                .clickable {
+                                                                    activeOverflowSubmenu = if (activeOverflowSubmenu == OverflowMenuPage.PING) null else OverflowMenuPage.PING
+                                                                },
+                                                            contentAlignment = Alignment.Center
+                                                        ) {
+                                                            Icon(
+                                                                imageVector = Icons.Default.Apps,
+                                                                contentDescription = "Open ping menu",
+                                                                modifier = Modifier.size(15.dp),
+                                                                tint = if (activeOverflowSubmenu == OverflowMenuPage.PING) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                                            )
+                                                        }
                                                     }
                                                 },
                                                 leadingIcon = { Icon(Icons.Default.Speed, contentDescription = null, modifier = Modifier.size(18.dp)) },
@@ -1466,12 +1533,28 @@ fun MainScreen(
                                                             fontSize = 13.sp,
                                                             fontWeight = if (activeOverflowSubmenu == OverflowMenuPage.SORT) FontWeight.SemiBold else FontWeight.Normal
                                                         )
-                                                        Icon(
-                                                            imageVector = Icons.Default.KeyboardArrowLeft,
-                                                            contentDescription = "Open sort menu",
-                                                            modifier = Modifier.size(18.dp),
-                                                            tint = if (activeOverflowSubmenu == OverflowMenuPage.SORT) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                                                        )
+                                                        Box(
+                                                            modifier = Modifier
+                                                                .size(24.dp)
+                                                                .clip(RoundedCornerShape(6.dp))
+                                                                .background(
+                                                                    if (activeOverflowSubmenu == OverflowMenuPage.SORT)
+                                                                        MaterialTheme.colorScheme.primaryContainer
+                                                                    else
+                                                                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+                                                                )
+                                                                .clickable {
+                                                                    activeOverflowSubmenu = if (activeOverflowSubmenu == OverflowMenuPage.SORT) null else OverflowMenuPage.SORT
+                                                                },
+                                                            contentAlignment = Alignment.Center
+                                                        ) {
+                                                            Icon(
+                                                                imageVector = Icons.Default.Apps,
+                                                                contentDescription = "Open sort menu",
+                                                                modifier = Modifier.size(15.dp),
+                                                                tint = if (activeOverflowSubmenu == OverflowMenuPage.SORT) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                                            )
+                                                        }
                                                     }
                                                 },
                                                 leadingIcon = { Icon(Icons.Default.AltRoute, contentDescription = null, modifier = Modifier.size(18.dp)) },
@@ -1505,26 +1588,16 @@ fun MainScreen(
                                                 onClick = {
                                                     showOverflowMenu = false
                                                     activeOverflowSubmenu = null
-                                                    viewModel.updateDnsList { count, err ->
+                                                    viewModel.updateDnsSubscriptions { count, err ->
                                                         scope.launch {
                                                             if (err != null) snackbarHostState.showSnackbar("DNS update failed: $err")
-                                                            else snackbarHostState.showSnackbar("Updated $count DNS resolvers")
+                                                            else snackbarHostState.showSnackbar("Updated $count DNS configs and resolvers")
                                                         }
                                                     }
                                                 }
                                             )
                                         }
                                     }
-                                }
-                                            showOverflowMenu = false
-                                            viewModel.updateDnsSubscriptions { count, err ->
-                                                scope.launch {
-                                                    if (err != null) snackbarHostState.showSnackbar("DNS update failed: $err")
-                                                    else snackbarHostState.showSnackbar("Updated $count DNS configs and resolvers")
-                                                }
-                                            }
-                                        }
-                                    )
                                 }
                             }
                         }
