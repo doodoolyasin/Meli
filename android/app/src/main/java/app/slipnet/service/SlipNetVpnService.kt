@@ -3146,19 +3146,13 @@ class SlipNetVpnService : VpnService() {
         }
 
         val domain = profile.domain
-        val r = profile.resolvers.first()
-        val resolver = "${r.host}:${r.port}"
-        val encryptionKey = profile.dnsttPublicKey
-        if (encryptionKey.isBlank()) {
-            Log.e(TAG, "Meli connection aborted: missing encryption key")
-            connectionManager.onVpnError("Meli profile configuration error: encryption key is required")
-            MeliBridge.setVpnService(null)
-            vpnInterface?.close()
-            vpnInterface = null
-            stopForeground(STOP_FOREGROUND_REMOVE)
-            stopSelf()
-            return
-        }
+        val defaultMeliKey = "1937e96db977fb13ebc205e43ac5d5dad7ef61c8434cd7f08b8e166135595972"
+        val encryptionKey = profile.dnsttPublicKey.trim().ifEmpty { defaultMeliKey }
+
+        // Smart Pool Engine: Staggered Wave with RFC 1035 0x20 randomization and Early Exit
+        val activeResolvers = (globalResolverOverride ?: profile.resolvers).filter { it.host.isNotBlank() }
+        val winningResolver = findFastestMeliResolver(activeResolvers, domain) ?: activeResolvers.firstOrNull()?.let { "${it.host}:${it.port}" } ?: "${profile.resolvers.first().host}:${profile.resolvers.first().port}"
+        val resolver = winningResolver
 
         Log.i(TAG, "Starting Meli Protocol Rust Client: domain=$domain, resolver=$resolver, port=$meliPort")
         val startResult = MeliBridge.startClient(
@@ -3261,6 +3255,126 @@ class SlipNetVpnService : VpnService() {
         delay(500)
         Log.d(TAG, "Meli tunnel started successfully")
         finishConnection()
+    }
+
+    /**
+     * Staggered Wave Resolver Probe for Meli:
+     * Dispatches probes with 0x20-randomized QNAME (e.g., test-rnd.m.dhafhdtjdti.site)
+     * spaced by staggered delays, returning the fastest resolver that successfully responds (Early Exit).
+     */
+    private suspend fun findFastestMeliResolver(
+        resolvers: List<app.slipnet.domain.model.DnsResolver>,
+        domain: String
+    ): String? = withContext(Dispatchers.IO) {
+        if (resolvers.isEmpty()) return@withContext null
+        if (resolvers.size == 1) {
+            val r = resolvers.first()
+            return@withContext "${r.host}:${r.port}"
+        }
+
+        val resultChannel = kotlinx.coroutines.channels.Channel<String>(1)
+        val probeScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + Dispatchers.IO)
+
+        try {
+            val jobs = resolvers.mapIndexed { index, res ->
+                probeScope.launch {
+                    val staggerDelay = (index * 120L).coerceAtMost(600L)
+                    if (staggerDelay > 0) delay(staggerDelay)
+
+                    val rndId = (1000..9999).random()
+                    // Apply RFC 1035 0x20 case randomization to domain
+                    val randomizedDomain = domain.map { c ->
+                        if (c.isLetter() && kotlin.random.Random.nextBoolean()) {
+                            c.uppercaseChar()
+                        } else {
+                            c.lowercaseChar()
+                        }
+                    }.joinToString("")
+                    val probeQname = "test-$rndId.$randomizedDomain"
+
+                    val isAlive = testMeliUdpProbe(res.host, res.port, probeQname, timeoutMs = 1200)
+                    if (isAlive) {
+                        Log.i(TAG, "[Meli Pool] Early Exit Winner: ${res.host}:${res.port} (probe=$probeQname)")
+                        resultChannel.trySend("${res.host}:${res.port}")
+                    }
+                }
+            }
+
+            // Wait for first responder or overall timeout
+            withTimeoutOrNull(2500) {
+                resultChannel.receive()
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "[Meli Pool] Exception during pool probe: ${e.message}")
+            null
+        } finally {
+            probeScope.cancel()
+        }
+    }
+
+    /**
+     * Lightweight native UDP DNS query for Meli probe.
+     */
+    private fun testMeliUdpProbe(host: String, port: Int, qname: String, timeoutMs: Int): Boolean {
+        return try {
+            val socket = java.net.DatagramSocket()
+            socket.soTimeout = timeoutMs
+            val txId = kotlin.random.Random.nextInt(0, 0xFFFF)
+            val queryBytes = buildDnsTxtQueryPacket(txId, qname)
+            val ip = java.net.InetAddress.getByName(host)
+            val packet = java.net.DatagramPacket(queryBytes, queryBytes.size, ip, port)
+            socket.send(packet)
+
+            val recvBuf = ByteArray(512)
+            val recvPacket = java.net.DatagramPacket(recvBuf, recvBuf.size)
+            socket.receive(recvPacket)
+            socket.close()
+
+            // Verify packet length & matching txId
+            if (recvPacket.length >= 12) {
+                val respTxId = ((recvBuf[0].toInt() and 0xFF) shl 8) or (recvBuf[1].toInt() and 0xFF)
+                val rcode = recvBuf[3].toInt() and 0x0F
+                respTxId == txId && rcode == 0
+            } else {
+                false
+            }
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    private fun buildDnsTxtQueryPacket(txId: Int, qname: String): ByteArray {
+        val stream = java.io.ByteArrayOutputStream()
+        // Header: ID(2), Flags(2)=0x0100 (RD), QDCOUNT=1, ANCOUNT=0, NSCOUNT=0, ARCOUNT=0
+        stream.write((txId shr 8) and 0xFF)
+        stream.write(txId and 0xFF)
+        stream.write(0x01) // QR=0, Opcode=0, AA=0, TC=0, RD=1
+        stream.write(0x00) // RA=0, Z=0, RCODE=0
+        stream.write(0x00) // QDCOUNT high
+        stream.write(0x01) // QDCOUNT low
+        stream.write(0x00) // ANCOUNT high
+        stream.write(0x00) // ANCOUNT low
+        stream.write(0x00) // NSCOUNT high
+        stream.write(0x00) // NSCOUNT low
+        stream.write(0x00) // ARCOUNT high
+        stream.write(0x00) // ARCOUNT low
+
+        // Question: QNAME
+        for (label in qname.split('.')) {
+            val bytes = label.toByteArray(Charsets.US_ASCII)
+            stream.write(bytes.size)
+            stream.write(bytes)
+        }
+        stream.write(0x00) // End of labels
+
+        // QTYPE = TXT (16)
+        stream.write(0x00)
+        stream.write(0x10)
+        // QCLASS = IN (1)
+        stream.write(0x00)
+        stream.write(0x01)
+
+        return stream.toByteArray()
     }
 
     /**
@@ -4095,8 +4209,8 @@ class SlipNetVpnService : VpnService() {
                     TunnelType.MASTERDNS, TunnelType.MASTERDNS_SSH,
                     TunnelType.STORMDNS, TunnelType.STORMDNS_SSH,
                     TunnelType.COTTENDNS, TunnelType.COTTENDNS_SSH,
-                    TunnelType.SOAR, TunnelType.SOAR_SSH,
-                    TunnelType.MELI, TunnelType.MELI_SSH -> MasterDnsBridge.isRunning()
+                    TunnelType.SOAR, TunnelType.SOAR_SSH -> MasterDnsBridge.isRunning()
+                    TunnelType.MELI, TunnelType.MELI_SSH -> MeliBridge.isRunning()
                     else -> true
                 }
 
@@ -5562,10 +5676,15 @@ class SlipNetVpnService : VpnService() {
             TunnelType.MASTERDNS, TunnelType.MASTERDNS_SSH,
             TunnelType.STORMDNS, TunnelType.STORMDNS_SSH,
             TunnelType.COTTENDNS, TunnelType.COTTENDNS_SSH,
-            TunnelType.SOAR, TunnelType.SOAR_SSH,
-            TunnelType.MELI, TunnelType.MELI_SSH -> {
-                Log.d(TAG, "Stopping MasterDNS / StormDNS / Cotten / Soar / Meli bridge")
+            TunnelType.SOAR, TunnelType.SOAR_SSH -> {
+                Log.d(TAG, "Stopping MasterDNS / StormDNS / Cotten / Soar bridge")
                 MasterDnsBridge.stopClient()
+                SshTunnelBridge.stop()
+            }
+            TunnelType.MELI, TunnelType.MELI_SSH -> {
+                Log.d(TAG, "Stopping Meli bridge")
+                MeliBridge.stopClient()
+                MeliBridge.setVpnService(null)
                 SshTunnelBridge.stop()
             }
             TunnelType.NOOSHDAROO, TunnelType.QWDTT -> {
@@ -5643,13 +5762,13 @@ class SlipNetVpnService : VpnService() {
             TunnelType.MASTERDNS,
             TunnelType.STORMDNS,
             TunnelType.COTTENDNS,
-            TunnelType.SOAR,
-            TunnelType.MELI -> MasterDnsBridge.isRunning() && MasterDnsBridge.isSessionReady()
+            TunnelType.SOAR -> MasterDnsBridge.isRunning() && MasterDnsBridge.isSessionReady()
+            TunnelType.MELI -> MeliBridge.isRunning()
             TunnelType.MASTERDNS_SSH,
             TunnelType.STORMDNS_SSH,
             TunnelType.COTTENDNS_SSH,
-            TunnelType.SOAR_SSH,
-            TunnelType.MELI_SSH -> MasterDnsBridge.isRunning() && MasterDnsBridge.isSessionReady() && SshTunnelBridge.isClientHealthy()
+            TunnelType.SOAR_SSH -> MasterDnsBridge.isRunning() && MasterDnsBridge.isSessionReady() && SshTunnelBridge.isClientHealthy()
+            TunnelType.MELI_SSH -> MeliBridge.isRunning() && SshTunnelBridge.isClientHealthy()
             else -> true
         }
     }

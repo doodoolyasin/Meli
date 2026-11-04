@@ -1062,8 +1062,8 @@ class VpnRepositoryImpl @Inject constructor(
             TunnelType.MASTERDNS, TunnelType.MASTERDNS_SSH,
             TunnelType.STORMDNS, TunnelType.STORMDNS_SSH,
             TunnelType.COTTENDNS, TunnelType.COTTENDNS_SSH,
-            TunnelType.SOAR, TunnelType.SOAR_SSH,
-            TunnelType.MELI, TunnelType.MELI_SSH -> false
+            TunnelType.SOAR, TunnelType.SOAR_SSH -> false
+            TunnelType.MELI, TunnelType.MELI_SSH -> true
             TunnelType.DNSTT, TunnelType.DNSTT_SSH,
             TunnelType.NOIZDNS, TunnelType.NOIZDNS_SSH,
             TunnelType.SLIPSTREAM, TunnelType.SLIPSTREAM_SSH,
@@ -1077,8 +1077,8 @@ class VpnRepositoryImpl @Inject constructor(
             TunnelType.MASTERDNS, TunnelType.MASTERDNS_SSH,
             TunnelType.STORMDNS, TunnelType.STORMDNS_SSH,
             TunnelType.COTTENDNS, TunnelType.COTTENDNS_SSH,
-            TunnelType.SOAR, TunnelType.SOAR_SSH,
-            TunnelType.MELI, TunnelType.MELI_SSH -> true
+            TunnelType.SOAR, TunnelType.SOAR_SSH -> true
+            TunnelType.MELI, TunnelType.MELI_SSH -> false
             else -> false
         }
 
@@ -1192,10 +1192,14 @@ class VpnRepositoryImpl @Inject constructor(
             TunnelType.MASTERDNS, TunnelType.MASTERDNS_SSH,
             TunnelType.STORMDNS, TunnelType.STORMDNS_SSH,
             TunnelType.COTTENDNS, TunnelType.COTTENDNS_SSH,
-            TunnelType.SOAR, TunnelType.SOAR_SSH,
-            TunnelType.MELI, TunnelType.MELI_SSH -> {
-                Log.d(TAG, "Stopping MasterDNS / StormDNS / Cotten / Soar / Meli proxy bridge")
+            TunnelType.SOAR, TunnelType.SOAR_SSH -> {
+                Log.d(TAG, "Stopping MasterDNS / StormDNS / Cotten / Soar proxy bridge")
                 MasterDnsBridge.stopClient()
+                SshTunnelBridge.stop()
+            }
+            TunnelType.MELI, TunnelType.MELI_SSH -> {
+                Log.d(TAG, "Stopping Meli proxy bridge")
+                app.slipnet.tunnel.MeliBridge.stopClient()
                 SshTunnelBridge.stop()
             }
             TunnelType.NOOSHDAROO, TunnelType.QWDTT -> {
