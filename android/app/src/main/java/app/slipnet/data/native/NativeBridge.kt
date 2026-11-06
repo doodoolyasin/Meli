@@ -1,5 +1,6 @@
 package app.slipnet.data.native
 
+import app.slipnet.tunnel.VpnServiceRegistry
 import app.slipnet.util.AppLog as Log
 import app.slipnet.domain.model.ConnectionState
 import app.slipnet.domain.model.TrafficStats

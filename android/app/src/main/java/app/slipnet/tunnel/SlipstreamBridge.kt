@@ -58,7 +58,7 @@ object SlipstreamBridge {
     @JvmStatic
     fun protectSocket(fd: Int): Boolean {
         if (proxyOnlyMode) return true // No VPN interface — protection not needed
-        val service = vpnServiceRef ?: VpnServiceRegistry.activeVpnService ?: MeliBridge.vpnServiceRef
+        val service = vpnServiceRef ?: VpnServiceRegistry.activeVpnService 
         if (service == null) {
             Log.e(TAG, "Cannot protect socket: VpnService not available")
             return false

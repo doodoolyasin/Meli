@@ -44,7 +44,7 @@ object MeliBridge {
     @JvmStatic
     fun protectSocket(fd: Int): Boolean {
         if (proxyOnlyMode) return true
-        val service = vpnServiceRef ?: VpnServiceRegistry.activeVpnService ?: SlipstreamBridge.vpnServiceRef
+        val service = vpnServiceRef ?: VpnServiceRegistry.activeVpnService 
         if (service == null) {
             Log.e(TAG, "Cannot protect socket: VpnService not available")
             return false
