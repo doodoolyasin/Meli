@@ -313,7 +313,7 @@ data class EditProfileUiState(
         get() = tunnelType == TunnelType.SOCKS5
 
     val needsDanteSocksAuth: Boolean
-        get() = isDnsttBased || isDnsttOrNoizBased || isVaydnsBased || isSlipstreamBased || isSocks5
+        get() = !useSsh && !isExplicitSshTunnel && (isDnsttBased || isDnsttOrNoizBased || isVaydnsBased || isSlipstreamBased || isSocks5)
 
     val isVless: Boolean
         get() = tunnelType == TunnelType.VLESS
@@ -2053,8 +2053,8 @@ class EditProfileViewModel @Inject constructor(
             }
         }
 
-        // Auto-heal empty SOCKS credentials for Dante auth if required
-        if (state.needsDanteSocksAuth && state.socksUsername.isBlank()) {
+        // Auto-heal empty SOCKS credentials for Dante auth if required (non-SSH only)
+        if (!state.useSsh && !state.isExplicitSshTunnel && state.needsDanteSocksAuth && state.socksUsername.isBlank()) {
             _uiState.value = _uiState.value.copy(
                 socksUsername = "yasin",
                 socksPassword = if (state.socksPassword.isBlank()) "yasin" else state.socksPassword
@@ -2152,8 +2152,8 @@ class EditProfileViewModel @Inject constructor(
                     keepAliveInterval = keepAlive,
                     congestionControl = state.congestionControl,
                     gsoEnabled = state.gsoEnabled,
-                    socksUsername = state.socksUsername.takeIf { it.isNotBlank() } ?: if (state.needsDanteSocksAuth) "yasin" else null,
-                    socksPassword = ((if (state.isTrojan && state.socksPassword.isNullOrBlank()) state.vlessUuid else state.socksPassword)?.takeIf { it.isNotBlank() } ?: if (state.needsDanteSocksAuth) "yasin" else null),
+                    socksUsername = if (state.useSsh || state.isExplicitSshTunnel) null else (state.socksUsername.takeIf { it.isNotBlank() } ?: if (state.needsDanteSocksAuth) "yasin" else null),
+                    socksPassword = if (state.useSsh || state.isExplicitSshTunnel) null else ((if (state.isTrojan && state.socksPassword.isNullOrBlank()) state.vlessUuid else state.socksPassword)?.takeIf { it.isNotBlank() } ?: if (state.needsDanteSocksAuth) "yasin" else null),
                     tunnelType = effectiveTunnelType,
                     dnsttPublicKey = state.dnsttPublicKey.trim(),
                     sshUsername = if (state.useSsh) state.sshUsername.trim() else "",

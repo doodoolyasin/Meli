@@ -1,0 +1,1 @@
+{"nodes": [{"id": "pkg_github_com_blackestwhite_masterdns_qs_tunnel", "label": "github.com/blackestwhite/masterdns-qs-tunnel", "file_type": "code", "type": "package", "ecosystem": "go", "source_file": "android/masterdns-qs/go.mod", "source_location": "L1"}], "edges": []}

@@ -1,0 +1,1 @@
+{"nodes": [{"id": "$graphify-root$_pkg_tunnel_enums_dns_go", "label": "dns.go", "file_type": "code", "source_file": "pkg/tunnel/enums/dns.go", "source_location": "L1"}], "edges": [], "raw_calls": [], "go_imports": {}, "go_type_table": {"path": "$graphify-root$/pkg/tunnel/enums/dns.go", "table": {}}}

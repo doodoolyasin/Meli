@@ -239,6 +239,7 @@ class SlipNetVpnService : VpnService() {
 
     override fun onCreate() {
         super.onCreate()
+        app.slipnet.tunnel.VpnServiceRegistry.register(this@SlipNetVpnService)
         app.slipnet.util.AppLog.initPersistentLog(applicationContext)
         connectivityManager = getSystemService(ConnectivityManager::class.java)
         prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -6580,6 +6581,7 @@ class SlipNetVpnService : VpnService() {
         // disconnect() runs cleanup in a coroutine on serviceScope, but onDestroy()
         // cancels serviceScope before the coroutine reaches onVpnDisconnected().
         // Without this, the UI would still show "Connected" after another VPN connects.
+        app.slipnet.tunnel.VpnServiceRegistry.unregister(this@SlipNetVpnService)
         clearConnectionState()
         connectionManager.onVpnDisconnected()
 

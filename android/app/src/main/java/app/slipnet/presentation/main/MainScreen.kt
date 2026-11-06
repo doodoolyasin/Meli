@@ -1876,8 +1876,9 @@ fun MainScreen(
                                                 }
                                             } else {
                                                 val isVpnConnected = uiState.connectionState is ConnectionState.Connected
+                                                val isVpnConnecting = uiState.connectionState is ConnectionState.Connecting
                                                 val isCurrentlyActive = profile.id == uiState.connectedProfileId || profile.id == uiState.activeProfile?.id
-                                                if (isVpnConnected && !isCurrentlyActive) {
+                                                if ((isVpnConnected || isVpnConnecting) && !isCurrentlyActive) {
                                                     val now = System.currentTimeMillis()
                                                     if (pendingSwitchProfileId == profile.id && now - lastSwitchTapTime <= 2000L) {
                                                         pendingSwitchProfileId = null
@@ -1887,7 +1888,7 @@ fun MainScreen(
                                                         pendingSwitchProfileId = profile.id
                                                         lastSwitchTapTime = now
                                                         scope.launch {
-                                                            snackbarHostState.showSnackbar("Tap again within 2s to switch connected profile")
+                                                            snackbarHostState.showSnackbar("Tap again within 2s to switch active profile")
                                                         }
                                                     }
                                                 } else {

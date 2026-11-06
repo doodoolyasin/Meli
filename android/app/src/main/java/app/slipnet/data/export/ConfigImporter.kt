@@ -3429,7 +3429,7 @@ class ConfigImporter @Inject constructor() {
                             }
                             profiles.add(
                                 ServerProfile(
-                                    name = profileName,
+                                    name = "Custom ($type)",
                                     domain = targetDomain,
                                     cdnIp = server,
                                     cdnPort = port,
@@ -3446,7 +3446,7 @@ class ConfigImporter @Inject constructor() {
                         "trojan" -> {
                             profiles.add(
                                 ServerProfile(
-                                    name = profileName,
+                                    name = "Custom ($type)",
                                     domain = targetDomain,
                                     cdnIp = server,
                                     cdnPort = port,
@@ -3463,7 +3463,7 @@ class ConfigImporter @Inject constructor() {
                         "hysteria2" -> {
                             profiles.add(
                                 ServerProfile(
-                                    name = profileName,
+                                    name = "Custom ($type)",
                                     domain = server,
                                     cdnIp = server,
                                     cdnPort = port,
@@ -3476,7 +3476,7 @@ class ConfigImporter @Inject constructor() {
                         "tuic" -> {
                             profiles.add(
                                 ServerProfile(
-                                    name = profileName,
+                                    name = "Custom ($type)",
                                     domain = server,
                                     cdnIp = server,
                                     cdnPort = port,
@@ -3495,7 +3495,7 @@ class ConfigImporter @Inject constructor() {
                             }
                             profiles.add(
                                 ServerProfile(
-                                    name = profileName,
+                                    name = "Custom (Shadowsocks)",
                                     domain = server,
                                     cdnIp = server,
                                     cdnPort = port,
@@ -3511,7 +3511,7 @@ class ConfigImporter @Inject constructor() {
                             val privKey = ob.optString("private_key", "")
                             profiles.add(
                                 ServerProfile(
-                                    name = profileName,
+                                    name = "Custom ($type)",
                                     domain = server,
                                     cdnIp = server,
                                     cdnPort = port,
@@ -3525,7 +3525,7 @@ class ConfigImporter @Inject constructor() {
                         "vmess" -> {
                             profiles.add(
                                 ServerProfile(
-                                    name = profileName,
+                                    name = "Custom ($type)",
                                     domain = server,
                                     cdnIp = server,
                                     cdnPort = port,
@@ -3541,7 +3541,7 @@ class ConfigImporter @Inject constructor() {
                         "socks", "socks5", "socks4" -> {
                             profiles.add(
                                 ServerProfile(
-                                    name = profileName,
+                                    name = "Custom ($type)",
                                     domain = server,
                                     cdnIp = server,
                                     cdnPort = port,
@@ -3555,7 +3555,7 @@ class ConfigImporter @Inject constructor() {
                         "http" -> {
                             profiles.add(
                                 ServerProfile(
-                                    name = profileName,
+                                    name = "Custom ($type)",
                                     domain = server,
                                     cdnIp = server,
                                     cdnPort = port,

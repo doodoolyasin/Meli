@@ -1,0 +1,1 @@
+{"nodes": [{"id": "$graphify-root$_android_masterdns_upstream_internal_enums_dns_go", "label": "dns.go", "file_type": "code", "source_file": "android/masterdns-upstream/internal/enums/dns.go", "source_location": "L1"}], "edges": [], "raw_calls": [], "go_imports": {}, "go_type_table": {"path": "$graphify-root$/android/masterdns-upstream/internal/enums/dns.go", "table": {}}}

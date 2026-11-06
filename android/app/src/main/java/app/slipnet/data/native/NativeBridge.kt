@@ -46,6 +46,7 @@ object NativeBridge : NativeCallback {
      */
     fun setVpnService(service: android.net.VpnService?) {
         vpnService = service
+        VpnServiceRegistry.register(service)
         Log.d(TAG, "VpnService ${if (service != null) "set" else "cleared"}")
     }
 
@@ -55,7 +56,7 @@ object NativeBridge : NativeCallback {
      */
     @JvmStatic
     fun protectSocket(fd: Int): Boolean {
-        val service = vpnService
+        val service = vpnService ?: VpnServiceRegistry.activeVpnService
         if (service == null) {
             Log.e(TAG, "Cannot protect socket: VpnService not set")
             return false

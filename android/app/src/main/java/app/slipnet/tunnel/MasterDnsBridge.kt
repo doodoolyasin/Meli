@@ -21,12 +21,14 @@ object MasterDnsBridge {
     fun setVpnService(service: android.net.VpnService?, isProxyOnly: Boolean = false) {
         vpnService = service
         lastIsProxyOnly = isProxyOnly
+        VpnServiceRegistry.register(service)
         try {
-            if (service != null && !isProxyOnly) {
+            val effService = service ?: VpnServiceRegistry.activeVpnService
+            if (effService != null && !isProxyOnly) {
                 Stormdns.setSocketProtector(object : stormdns.SocketProtector {
                     override fun protect(fd: Long): Boolean {
                         return try {
-                            service.protect(fd.toInt())
+                            effService.protect(fd.toInt())
                         } catch (_: Throwable) {
                             true
                         }
