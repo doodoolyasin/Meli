@@ -588,7 +588,7 @@ class VpnRepositoryImpl @Inject constructor(
         val proxyPort = portOverride ?: preferencesDataStore.proxyListenPort.first()
         val proxyHost = hostOverride ?: preferencesDataStore.proxyListenAddress.first()
 
-        val key = profile.dnsttPublicKey.trim().ifEmpty { "137e43fd04a5b9dfdaf29e103fddcce2" }
+        val key = profile.dnsttPublicKey.trim().ifEmpty { "@shadow_vpn_masterdns_secret2026" }
         val domain = profile.domain.trim().ifEmpty { "goi.dhafhdtjdti.site" }
 
         val tuningDirective = buildList {

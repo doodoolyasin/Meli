@@ -582,13 +582,13 @@ class EditProfileViewModel @Inject constructor(
             dnsttPublicKey = when {
                 initialTunnelType == TunnelType.WIREGUARD -> "wojxQsiNgLLmm8WowTn/hoqvQ/QMVW6D4QRC27NAxBY="
                 isMeliInitial -> "1937e96db977fb13ebc205e43ac5d5dad7ef61c8434cd7f08b8e166135595972"
-                isMasterDnsInitial -> "137e43fd04a5b9dfdaf29e103fddcce2"
+                isMasterDnsInitial -> "@shadow_vpn_masterdns_secret2026"
                 isVaydnsInitial -> "278431382be3d3711377ed94bcc97c7b20181c2d276ae7a389a79e6b3c7abc23"
                 isNoizdnsInitial -> "80c627491b20a8f8bccd613abb4b933650c51fb68f3982e01a607ec5d07a8a0a"
                 isDnsttInitial -> "15bedeebebf104e83f1ed0a29b1d166fbee7e59a0e7892182dea8dd42f0fa80a"
                 else -> ""
             },
-            resolvers = "8.8.8.8:53",
+            resolvers = if (isMasterDnsInitial) "16.171.182.108:53" else "8.8.8.8:53",
             authoritativeMode = false,
             dnsttAuthoritative = false,
             tunnelEncryptionMethod = 1,
