@@ -444,10 +444,10 @@ class EditProfileViewModel @Inject constructor(
         isNooshdarooInitial -> TunnelType.NOOSHDAROO
         isQwdttInitial -> TunnelType.QWDTT
         isVaydnsInitial -> TunnelType.VAYDNS
-        isNoizdnsInitial -> TunnelType.NOIZDNS
-        isDnsttInitial -> TunnelType.DNSTT
-        isSlipstreamInitial -> TunnelType.SLIPSTREAM
-        else -> rawTunnelTypeArg?.let { TunnelType.fromValue(it) } ?: TunnelType.DNSTT
+        isNoizdnsInitial -> TunnelType.NOIZDNS_SSH
+        isDnsttInitial -> TunnelType.DNSTT_SSH
+        isSlipstreamInitial -> TunnelType.SLIPSTREAM_SSH
+        else -> rawTunnelTypeArg?.let { TunnelType.fromValue(it) } ?: TunnelType.DNSTT_SSH
     }
 
     private val isDanteSocksAuthInitial: Boolean =
@@ -491,9 +491,9 @@ class EditProfileViewModel @Inject constructor(
                 isNooshdarooInitial -> "Nooshdaroo Tunnel"
                 isQwdttInitial -> "qWDTT Tunnel"
                 isVaydnsInitial -> "VayDNS Tunnel"
-                isNoizdnsInitial -> "NoizDNS Tunnel"
-                isDnsttInitial -> "DNSTT Tunnel"
-                isSlipstreamInitial -> "Slipstream Tunnel"
+                isNoizdnsInitial -> "NoizDNS + SSH Tunnel"
+                isDnsttInitial -> "DNSTT + SSH Tunnel"
+                isSlipstreamInitial -> "Slipstream + SSH Tunnel"
                 initialTunnelType == TunnelType.WIREGUARD -> "WireGuard Profile"
                 initialTunnelType == TunnelType.HYSTERIA2 -> "Hysteria 2 Profile"
                 initialTunnelType == TunnelType.TUIC -> "TUIC Profile"
@@ -588,12 +588,12 @@ class EditProfileViewModel @Inject constructor(
                 isDnsttInitial -> "15bedeebebf104e83f1ed0a29b1d166fbee7e59a0e7892182dea8dd42f0fa80a"
                 else -> ""
             },
-            resolvers = if (isMasterDnsInitial) "16.171.182.108:53" else "8.8.8.8:53",
+            resolvers = "8.8.8.8:53",
             authoritativeMode = false,
             dnsttAuthoritative = false,
             tunnelEncryptionMethod = 1,
             sshPort = "22",
-            sshUsername = "",
+            sshUsername = "ubuntu",
             sshPassword = ""
         )
     )

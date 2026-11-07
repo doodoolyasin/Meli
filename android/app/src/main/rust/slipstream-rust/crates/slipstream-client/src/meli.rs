@@ -764,6 +764,7 @@ pub extern "system" fn Java_app_slipnet_tunnel_MeliBridge_nativeStartClient(
         decode_key(&key_str)
     };
 
+    CLIENT_PORT.store(listen_port as u16, Ordering::SeqCst);
     let (shutdown_tx, shutdown_rx) = mpsc::channel(1);
     let opts = MeliClientOptions {
         domain: dom,
