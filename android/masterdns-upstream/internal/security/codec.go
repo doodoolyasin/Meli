@@ -10,6 +10,7 @@ package security
 import (
 	"crypto/aes"
 	"crypto/cipher"
+	"crypto/md5"
 	"crypto/rand"
 	"crypto/sha256"
 	"errors"
@@ -80,13 +81,12 @@ func NewCodec(method int, rawKey string) (*Codec, error) {
 	case 0:
 		codec.encrypt = codec.noCrypto
 		codec.decrypt = codec.noCrypto
-	case 1, 2:
-		aead, err := chacha20poly1305.New(derivedKey)
-		if err != nil {
-			return nil, fmt.Errorf("create chacha20poly1305 cipher: %w", err)
-		}
-		codec.encrypt = codec.makeAEADEncryptor(aead)
-		codec.decrypt = codec.makeAEADDecryptor(aead)
+	case 1:
+		codec.encrypt = codec.xorCrypto
+		codec.decrypt = codec.xorCrypto
+	case 2:
+		codec.encrypt = codec.chachaEncrypt
+		codec.decrypt = codec.chachaDecrypt
 	case 3, 4, 5:
 		aead, err := newAESGCM(derivedKey)
 		if err != nil {
@@ -336,22 +336,15 @@ func deriveKey(method int, rawKey string) []byte {
 	targetLen := requiredDerivedKeyLength(method)
 
 	switch method {
-	case 1, 2, 5:
+	case 2, 5:
 		sum := sha256.Sum256(bKey)
 		return sum[:]
 	case 3:
-		sum := sha256.Sum256(bKey)
-		return sum[:16]
-	case 4:
-		sum := sha256.Sum256(bKey)
-		return sum[:24]
+		sum := md5.Sum(bKey)
+		return sum[:]
 	default:
-		sum := sha256.Sum256(bKey)
-		if targetLen <= 32 {
-			return sum[:targetLen]
-		}
 		key := make([]byte, targetLen)
-		copy(key, sum[:])
+		copy(key, bKey)
 		return key
 	}
 }
