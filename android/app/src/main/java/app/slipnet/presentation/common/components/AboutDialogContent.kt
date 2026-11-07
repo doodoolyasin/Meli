@@ -26,8 +26,6 @@ import app.slipnet.BuildConfig
 @Composable
 fun AboutDialogContent() {
     val uriHandler = LocalUriHandler.current
-    val clipboardManager = LocalClipboardManager.current
-    val donationAddress = "0xd4140058389572D50dC8716e768e687C050Dd5C9"
 
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -78,77 +76,5 @@ fun AboutDialogContent() {
         )
 
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-
-        // Donate
-        Text(
-            text = "Support Aryana",
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.primary
-        )
-        Text(
-            text = "Your donation helps keep this tool free and improving for everyone who needs it.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        Text(
-            text = "USDT (BEP20 / ERC20 / Arbitrum)",
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.primary
-        )
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = donationAddress,
-                style = MaterialTheme.typography.bodySmall,
-                modifier = Modifier.weight(1f),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            IconButton(
-                onClick = {
-                    clipboardManager.setText(AnnotatedString(donationAddress))
-                },
-                modifier = Modifier.size(32.dp)
-            ) {
-                Icon(
-                    Icons.Default.ContentCopy,
-                    contentDescription = "Copy address",
-                    modifier = Modifier.size(18.dp)
-                )
-            }
-        }
-        val xmrAddress = "48wa9asF4AdZCq8KvPqBmqN3s98XFQ2MG7pL8MY6hAc6ZXBd8D61LArebdmAwCk5jBBbR2BuiHkSraEYFhx5AdDqLxDB4GU"
-        Text(
-            text = "Monero (XMR)",
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.primary
-        )
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = xmrAddress,
-                style = MaterialTheme.typography.bodySmall,
-                modifier = Modifier.weight(1f),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            IconButton(
-                onClick = {
-                    clipboardManager.setText(AnnotatedString(xmrAddress))
-                },
-                modifier = Modifier.size(32.dp)
-            ) {
-                Icon(
-                    Icons.Default.ContentCopy,
-                    contentDescription = "Copy address",
-                    modifier = Modifier.size(18.dp)
-                )
-            }
-        }
-
     }
 }

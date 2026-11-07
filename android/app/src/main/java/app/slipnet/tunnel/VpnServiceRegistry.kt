@@ -1,6 +1,7 @@
 package app.slipnet.tunnel
 
 import android.net.VpnService
+import java.lang.ref.WeakReference
 import app.slipnet.util.AppLog as Log
 
 /**
@@ -8,23 +9,27 @@ import app.slipnet.util.AppLog as Log
  * Ensures JNI socket protection hooks (Slipstream, Meli, MasterDNS, NativeBridge)
  * always resolve a valid VpnService reference and never fail with "Failed to protect UDP socket"
  * during tunnel transitions, reconnections, or between different native bridge calls.
+ * Uses WeakReference to completely prevent memory leaks if service is killed by OS.
  */
 object VpnServiceRegistry {
     private const val TAG = "VpnServiceRegistry"
 
     @Volatile
-    var activeVpnService: VpnService? = null
+    private var serviceRef: WeakReference<VpnService>? = null
+
+    val activeVpnService: VpnService?
+        get() = serviceRef?.get()
 
     fun register(service: VpnService?) {
         if (service != null) {
-            activeVpnService = service
+            serviceRef = WeakReference(service)
             Log.d(TAG, "Active VpnService registered: ${service.javaClass.simpleName}")
         }
     }
 
     fun unregister(service: VpnService?) {
-        if (activeVpnService === service) {
-            activeVpnService = null
+        if (serviceRef?.get() === service) {
+            serviceRef = null
             Log.d(TAG, "Active VpnService unregistered")
         }
     }

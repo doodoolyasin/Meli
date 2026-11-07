@@ -3151,12 +3151,13 @@ class SlipNetVpnService : VpnService() {
         val defaultMeliKey = "1937e96db977fb13ebc205e43ac5d5dad7ef61c8434cd7f08b8e166135595972"
         val encryptionKey = profile.dnsttPublicKey.trim().ifEmpty { defaultMeliKey }
 
-        // Smart Pool Engine: Staggered Wave with RFC 1035 0x20 randomization and Early Exit
+        // Smart Triple-Pool Engine: Selects top 3 fastest responsive resolvers using 0x20 randomization
         val activeResolvers = (globalResolverOverride ?: profile.resolvers).filter { it.host.isNotBlank() }
-        val winningResolver = findFastestMeliResolver(activeResolvers, domain) ?: activeResolvers.firstOrNull()?.let { "${it.host}:${it.port}" } ?: "${profile.resolvers.first().host}:${profile.resolvers.first().port}"
+        val triplePool = findFastestTripleMeliResolvers(activeResolvers, domain)
+        val winningResolver = triplePool.firstOrNull() ?: activeResolvers.firstOrNull()?.let { "${it.host}:${it.port}" } ?: "${profile.resolvers.first().host}:${profile.resolvers.first().port}"
         val resolver = winningResolver
 
-        Log.i(TAG, "Starting Meli Protocol Rust Client: domain=$domain, resolver=$resolver, port=$meliPort")
+        Log.i(TAG, "Starting Meli Protocol Rust Client: domain=$domain, activeResolver=$resolver (TriplePool=${triplePool.joinToString()}), port=$meliPort")
         val startResult = MeliBridge.startClient(
             domain = domain,
             resolver = resolver,
@@ -3262,25 +3263,24 @@ class SlipNetVpnService : VpnService() {
     /**
      * Staggered Wave Resolver Probe for Meli:
      * Dispatches probes with 0x20-randomized QNAME (e.g., test-rnd.m.dhafhdtjdti.site)
-     * spaced by staggered delays, returning the fastest resolver that successfully responds (Early Exit).
+     * spaced by staggered delays, returning up to 3 fastest verified resolvers in order of response (Triple Pool).
      */
-    private suspend fun findFastestMeliResolver(
+    private suspend fun findFastestTripleMeliResolvers(
         resolvers: List<app.slipnet.domain.model.DnsResolver>,
         domain: String
-    ): String? = withContext(Dispatchers.IO) {
-        if (resolvers.isEmpty()) return@withContext null
-        if (resolvers.size == 1) {
-            val r = resolvers.first()
-            return@withContext "${r.host}:${r.port}"
+    ): List<String> = withContext(Dispatchers.IO) {
+        if (resolvers.isEmpty()) return@withContext emptyList()
+        if (resolvers.size <= 3) {
+            return@withContext resolvers.map { "${it.host}:${it.port}" }
         }
 
-        val resultChannel = kotlinx.coroutines.channels.Channel<String>(1)
+        val collectedWinners = java.util.Collections.synchronizedList(mutableListOf<String>())
         val probeScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + Dispatchers.IO)
 
         try {
-            val jobs = resolvers.mapIndexed { index, res ->
+            resolvers.forEachIndexed { index, res ->
                 probeScope.launch {
-                    val staggerDelay = (index * 120L).coerceAtMost(600L)
+                    val staggerDelay = (index * 90L).coerceAtMost(600L)
                     if (staggerDelay > 0) delay(staggerDelay)
 
                     val rndId = (1000..9999).random()
@@ -3296,19 +3296,24 @@ class SlipNetVpnService : VpnService() {
 
                     val isAlive = testMeliUdpProbe(res.host, res.port, probeQname, timeoutMs = 1200)
                     if (isAlive) {
-                        Log.i(TAG, "[Meli Pool] Early Exit Winner: ${res.host}:${res.port} (probe=$probeQname)")
-                        resultChannel.trySend("${res.host}:${res.port}")
+                        val endpoint = "${res.host}:${res.port}"
+                        if (!collectedWinners.contains(endpoint)) {
+                            collectedWinners.add(endpoint)
+                            Log.i(TAG, "[Meli TriplePool] Found alive resolver #${collectedWinners.size}: $endpoint")
+                        }
                     }
                 }
             }
 
-            // Wait for first responder or overall timeout
-            withTimeoutOrNull(2500) {
-                resultChannel.receive()
+            // Wait for up to 3 resolvers or overall timeout of 2200ms
+            val startTime = System.currentTimeMillis()
+            while (System.currentTimeMillis() - startTime < 2200L && collectedWinners.size < 3) {
+                delay(60)
             }
+            collectedWinners.toList()
         } catch (e: Exception) {
-            Log.w(TAG, "[Meli Pool] Exception during pool probe: ${e.message}")
-            null
+            Log.w(TAG, "[Meli TriplePool] Exception during pool probe: ${e.message}")
+            collectedWinners.toList()
         } finally {
             probeScope.cancel()
         }

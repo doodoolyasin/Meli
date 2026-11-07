@@ -2053,11 +2053,10 @@ class EditProfileViewModel @Inject constructor(
             }
         }
 
-        // Auto-heal empty SOCKS credentials for Dante auth if required (non-SSH only)
-        if (!state.useSsh && !state.isExplicitSshTunnel && state.needsDanteSocksAuth && state.socksUsername.isBlank()) {
+        // Auto-heal empty SOCKS credentials for Dante auth if required (non-SSH only, never forced if user leaves empty)
+        if (!state.useSsh && !state.isExplicitSshTunnel && state.needsDanteSocksAuth && state.socksUsername.isNotBlank() && state.socksPassword.isBlank()) {
             _uiState.value = _uiState.value.copy(
-                socksUsername = "yasin",
-                socksPassword = if (state.socksPassword.isBlank()) "yasin" else state.socksPassword
+                socksPassword = state.socksUsername
             )
             state = _uiState.value
         }
@@ -2152,8 +2151,8 @@ class EditProfileViewModel @Inject constructor(
                     keepAliveInterval = keepAlive,
                     congestionControl = state.congestionControl,
                     gsoEnabled = state.gsoEnabled,
-                    socksUsername = if (state.useSsh || state.isExplicitSshTunnel) null else (state.socksUsername.takeIf { it.isNotBlank() } ?: if (state.needsDanteSocksAuth) "yasin" else null),
-                    socksPassword = if (state.useSsh || state.isExplicitSshTunnel) null else ((if (state.isTrojan && state.socksPassword.isNullOrBlank()) state.vlessUuid else state.socksPassword)?.takeIf { it.isNotBlank() } ?: if (state.needsDanteSocksAuth) "yasin" else null),
+                    socksUsername = if (state.useSsh || state.isExplicitSshTunnel) null else state.socksUsername.trim().takeIf { it.isNotBlank() },
+                    socksPassword = if (state.useSsh || state.isExplicitSshTunnel) null else ((if (state.isTrojan && state.socksPassword.isNullOrBlank()) state.vlessUuid else state.socksPassword)?.trim()?.takeIf { it.isNotBlank() }),
                     tunnelType = effectiveTunnelType,
                     dnsttPublicKey = state.dnsttPublicKey.trim(),
                     sshUsername = if (state.useSsh) state.sshUsername.trim() else "",

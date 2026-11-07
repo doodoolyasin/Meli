@@ -331,6 +331,7 @@ fun MainScreen(
     }
     var selectedCategoryIndex by remember { mutableIntStateOf(0) }
 
+    var isSubGroupsExpandedInDrawer by remember { mutableStateOf(false) }
     val subGroups = remember(uiState.profiles) {
         uiState.profiles
             .map { it.subscriptionGroup.trim() }
@@ -657,16 +658,172 @@ fun MainScreen(
 
                     Spacer(Modifier.height(8.dp))
 
-                    NavigationDrawerItem(
-                        label = { Text("Subscription", fontWeight = FontWeight.Medium) },
-                        selected = false,
-                        onClick = {
-                            scope.launch { drawerState.close() }
-                            showSubscriptionGroupsDialog = true
-                        },
-                        icon = { Icon(Icons.Default.Sync, contentDescription = null) },
-                        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
-                    )
+                    // PattNG Subscription Item with Left '>' toggle and direct tap action
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(NavigationDrawerItemDefaults.ItemPadding)
+                            .clip(RoundedCornerShape(28.dp))
+                            .clickable {
+                                scope.launch { drawerState.close() }
+                                showSubscriptionGroupsDialog = true
+                            },
+                        color = Color.Transparent
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            // Left-most arrow for expanding sub-groups (PattNG pattern)
+                            Box(
+                                modifier = Modifier
+                                    .size(28.dp)
+                                    .clip(CircleShape)
+                                    .clickable { isSubGroupsExpandedInDrawer = !isSubGroupsExpandedInDrawer },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = if (isSubGroupsExpandedInDrawer) Icons.Default.KeyboardArrowDown else Icons.Default.KeyboardArrowRight,
+                                    contentDescription = "Expand sub groups",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                            Spacer(Modifier.width(8.dp))
+                            Icon(
+                                Icons.Default.Sync,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(Modifier.width(12.dp))
+                            Text(
+                                "Subscription",
+                                fontWeight = FontWeight.Medium,
+                                style = MaterialTheme.typography.bodyLarge,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
+
+                    // Collapsible Sub-Groups List (PattNG Style)
+                    AnimatedVisibility(
+                        visible = isSubGroupsExpandedInDrawer,
+                        enter = expandVertically(),
+                        exit = shrinkVertically()
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(start = 32.dp, end = 16.dp, bottom = 4.dp)
+                        ) {
+                            // 1. Update this sub (Active or Selected)
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable {
+                                        scope.launch { drawerState.close() }
+                                        val currentGroup = groupTabs.getOrNull(selectedCategoryIndex)?.first
+                                        if (currentGroup != null && currentGroup != "All" && currentGroup != "Chains" && currentGroup != "Default") {
+                                            viewModel.updateSubscriptionGroup(currentGroup) { count, err ->
+                                                scope.launch {
+                                                    if (err != null) snackbarHostState.showSnackbar("Update failed: $err")
+                                                    else snackbarHostState.showSnackbar("Updated $count configs for $currentGroup")
+                                                }
+                                            }
+                                        } else {
+                                            showSubscriptionGroupsDialog = true
+                                        }
+                                    }
+                                    .padding(vertical = 10.dp, horizontal = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    Icons.Default.Refresh,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(Modifier.width(10.dp))
+                                Text(
+                                    "Update this sub",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
+
+                            // 2. Update all subs
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable {
+                                        scope.launch { drawerState.close() }
+                                        viewModel.updateAllSubscriptions { count, err ->
+                                            scope.launch {
+                                                if (err != null) snackbarHostState.showSnackbar("Update failed: $err")
+                                                else snackbarHostState.showSnackbar("Updated $count configs across all subs")
+                                            }
+                                        }
+                                    }
+                                    .padding(vertical = 10.dp, horizontal = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    Icons.Default.Sync,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(Modifier.width(10.dp))
+                                Text(
+                                    "Update all subs",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Normal,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+
+                            // Individual Group Items
+                            subGroups.forEach { grp ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .clickable {
+                                            scope.launch { drawerState.close() }
+                                            val idx = groupTabs.indexOfFirst { it.first == grp }
+                                            if (idx >= 0) selectedCategoryIndex = idx
+                                        }
+                                        .padding(vertical = 8.dp, horizontal = 12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        Icons.Default.Dns,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                    Spacer(Modifier.width(10.dp))
+                                    Text(
+                                        grp,
+                                        fontSize = 12.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    val cnt = uiState.profiles.count { it.subscriptionGroup == grp }
+                                    Text(
+                                        "$cnt",
+                                        fontSize = 11.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                                    )
+                                }
+                            }
+                        }
+                    }
 
                     NavigationDrawerItem(
                         label = { Text("Per app proxy", fontWeight = FontWeight.Medium) },
@@ -720,17 +877,6 @@ fun MainScreen(
                             onNavigateToDnsScanner()
                         },
                         icon = { Icon(Icons.Default.NetworkPing, contentDescription = null) },
-                        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
-                    )
-
-                    NavigationDrawerItem(
-                        label = { Text("Terminal", fontWeight = FontWeight.Medium) },
-                        selected = false,
-                        onClick = {
-                            scope.launch { drawerState.close() }
-                            onNavigateToTerminal()
-                        },
-                        icon = { Icon(Icons.Default.Dns, contentDescription = null, tint = ColorSelectionAccent) },
                         modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
                     )
 
@@ -953,6 +1099,9 @@ fun MainScreen(
                                 Icon(Icons.Default.Delete, contentDescription = "Delete selected")
                             }
                         } else if (!isSearchActive) {
+                            IconButton(onClick = { onNavigateToTerminal() }) {
+                                Icon(Icons.Default.Terminal, contentDescription = "Terminal", tint = ColorSelectionAccent)
+                            }
                             IconButton(onClick = { isSearchActive = true }) {
                                 Icon(Icons.Default.Search, contentDescription = "Search")
                             }
