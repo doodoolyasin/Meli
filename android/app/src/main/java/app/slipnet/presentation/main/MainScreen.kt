@@ -827,49 +827,153 @@ fun MainScreen(
                         }
                     }
 
-                    NavigationDrawerItem(
-                        label = { Text("Per app proxy", fontWeight = FontWeight.Medium) },
-                        selected = false,
-                        onClick = {
-                            scope.launch { drawerState.close() }
-                            onNavigateToAppSelector()
-                        },
-                        icon = { Icon(Icons.Default.Apps, contentDescription = null) },
-                        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                    // ── PattNG Section: Network & Engine Settings ──
+                    Text(
+                        text = "SETTINGS & PROXIES",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = ColorSelectionAccent,
+                        modifier = Modifier.padding(start = 28.dp, top = 12.dp, bottom = 4.dp)
                     )
 
-                    NavigationDrawerItem(
-                        label = { Text("Routing settings", fontWeight = FontWeight.Medium) },
-                        selected = false,
-                        onClick = {
-                            scope.launch { drawerState.close() }
-                            showRoutingSettingsDialog = true
-                        },
-                        icon = { Icon(Icons.Default.AltRoute, contentDescription = null) },
-                        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
-                    )
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 4.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                        tonalElevation = 1.dp
+                    ) {
+                        Column {
+                            // Per app proxy
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        scope.launch { drawerState.close() }
+                                        onNavigateToAppSelector()
+                                    }
+                                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    Icons.Default.Apps,
+                                    contentDescription = null,
+                                    tint = ColorSelectionAccent,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(Modifier.width(12.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text("Per app proxy", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                                    Text("Select bypass or routed applications", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                                Icon(
+                                    Icons.Default.KeyboardArrowRight,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
 
-                    NavigationDrawerItem(
-                        label = { Text("Asset file", fontWeight = FontWeight.Medium) },
-                        selected = false,
-                        onClick = {
-                            scope.launch { drawerState.close() }
-                            showAssetFilesDialog = true
-                        },
-                        icon = { Icon(Icons.Default.Folder, contentDescription = null) },
-                        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
-                    )
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
 
-                    NavigationDrawerItem(
-                        label = { Text("Settings", fontWeight = FontWeight.Medium) },
-                        selected = false,
-                        onClick = {
-                            scope.launch { drawerState.close() }
-                            onNavigateToSettings()
-                        },
-                        icon = { Icon(Icons.Default.Settings, contentDescription = null) },
-                        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
-                    )
+                            // Routing settings
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        scope.launch { drawerState.close() }
+                                        showRoutingSettingsDialog = true
+                                    }
+                                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    Icons.Default.AltRoute,
+                                    contentDescription = null,
+                                    tint = ColorSelectionAccent,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(Modifier.width(12.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text("Routing settings", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                                    Text("Domain rules, direct IPs & split tunnel", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                                Icon(
+                                    Icons.Default.KeyboardArrowRight,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+
+                            // Asset file
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        scope.launch { drawerState.close() }
+                                        showAssetFilesDialog = true
+                                    }
+                                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    Icons.Default.Folder,
+                                    contentDescription = null,
+                                    tint = ColorSelectionAccent,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(Modifier.width(12.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text("Asset files", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                                    Text("GeoIP and GeoSite database assets", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                                Icon(
+                                    Icons.Default.KeyboardArrowRight,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+
+                            // Settings
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        scope.launch { drawerState.close() }
+                                        onNavigateToSettings()
+                                    }
+                                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    Icons.Default.Settings,
+                                    contentDescription = null,
+                                    tint = ColorSelectionAccent,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(Modifier.width(12.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text("Settings", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                                    Text("Core engine, SOCKS5 & MTU config", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                                Icon(
+                                    Icons.Default.KeyboardArrowRight,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(Modifier.height(8.dp))
 
                     NavigationDrawerItem(
                         label = { Text("Resolver scanner", fontWeight = FontWeight.Medium) },

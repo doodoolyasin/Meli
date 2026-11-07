@@ -1352,6 +1352,38 @@ private fun TermiusSessionScreen(
                         .verticalScroll(outputScrollState)
                 )
             }
+
+            // Termius-Style Connecting Waiting Banner & Shimmer Animation
+            if (uiState.connectionState is TerminalConnectionState.Connecting) {
+                Surface(
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .padding(top = 16.dp)
+                        .clip(RoundedCornerShape(20.dp)),
+                    color = Color(0xFF1E293B).copy(alpha = 0.95f),
+                    border = BorderStroke(1.dp, Color(0xFF38BDF8).copy(alpha = 0.6f)),
+                    shadowElevation = 6.dp
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            strokeWidth = 2.dp,
+                            color = Color(0xFF38BDF8)
+                        )
+                        Text(
+                            text = "Connecting to ${uiState.host}...",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = Color(0xFFE2E8F0),
+                            fontFamily = FontFamily.Monospace
+                        )
+                    }
+                }
+            }
         }
 
         // Termius Accessory Tool Row (Shown above keyboard - Mode A)
