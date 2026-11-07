@@ -298,11 +298,11 @@ fun SettingsScreen(
                 // DNS Resolver Pool
                 ClickableSettingItem(
                     icon = Icons.Default.Sync,
-                    title = "DNS Resolver Pool & Scan",
+                    title = "Standby resolver pool",
                     description = if (uiState.dnsPoolText.isNotBlank()) {
-                        "${uiState.dnsPoolText.lines().filter { it.isNotBlank() }.size} pooled endpoints configured"
+                        "${app.slipnet.tunnel.DnsPoolScanner.parsePool(uiState.dnsPoolText).size} candidates, shared by all profiles"
                     } else {
-                        "Auto dynamic payload & carrier DNS pool"
+                        "Candidates tested at connect, shared by all profiles"
                     },
                     onClick = { showDnsPoolDialog = true }
                 )
@@ -1890,7 +1890,7 @@ private fun DnsPoolDialog(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "DNS Resolver Pool",
+                    text = "Standby resolver pool",
                     style = MaterialTheme.typography.titleLarge,
                     modifier = Modifier.weight(1f)
                 )
@@ -1900,7 +1900,7 @@ private fun DnsPoolDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
-                    "Candidates scanned on each connect — top 10 lowest-latency win.",
+                    "Candidates shared by all profiles. Each profile editor can promote them to Active, or test them at every connect (Auto-pick).",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

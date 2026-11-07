@@ -233,7 +233,7 @@ fun SshTerminalScreen(
                             icon = Icons.Default.CloudDownload,
                             title = "Quick Import",
                             subtitle = "Import SSH config, known_hosts or URI",
-                            iconTint = Color(0xFFA78BFA)
+                            iconTint = Color(0xFF60A5FA)
                         ) {
                             showActionBottomSheet = false
                             showNewHostDialog = true
@@ -558,7 +558,7 @@ fun SshTerminalScreen(
                                                 modifier = Modifier.padding(14.dp),
                                                 verticalAlignment = Alignment.CenterVertically
                                             ) {
-                                                Icon(Icons.Default.Key, contentDescription = null, tint = Color(0xFFA78BFA))
+                                                Icon(Icons.Default.Key, contentDescription = null, tint = Color(0xFF60A5FA))
                                                 Spacer(Modifier.width(10.dp))
                                                 Column(modifier = Modifier.weight(1f)) {
                                                     Text("SSH key, certificate, FIDO2", fontSize = 11.sp, color = Color(0xFF94A3B8))
@@ -766,7 +766,7 @@ fun SshTerminalScreen(
                                                 modifier = Modifier.padding(16.dp),
                                                 verticalAlignment = Alignment.CenterVertically
                                             ) {
-                                                Icon(icon, contentDescription = null, tint = Color(0xFFA78BFA), modifier = Modifier.size(24.dp))
+                                                Icon(icon, contentDescription = null, tint = Color(0xFF60A5FA), modifier = Modifier.size(24.dp))
                                                 Spacer(Modifier.width(16.dp))
                                                 Text(actionTitle, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
                                             }
@@ -1429,7 +1429,7 @@ private fun TermiusSessionScreen(
                 }
 
                 Surface(
-                    color = if (uiState.isExtendedKeyboardVisible) Color(0xFF4F46E5) else termKeyBg,
+                    color = if (uiState.isExtendedKeyboardVisible) Color(0xFF2563EB) else termKeyBg,
                     shape = RoundedCornerShape(6.dp),
                     modifier = Modifier.clickable { viewModel.toggleExtendedKeyboard() }
                 ) {
@@ -1766,7 +1766,7 @@ private fun TermiusToolText(
     onClick: () -> Unit
 ) {
     Surface(
-        color = if (isAccent) Color(0xFF4F46E5) else Color(0xFF2D3748),
+        color = if (isAccent) Color(0xFF2563EB) else Color(0xFF2D3748),
         shape = RoundedCornerShape(6.dp),
         modifier = Modifier.clickable { onClick() }
     ) {

@@ -2,6 +2,7 @@ package app.slipnet.presentation.profiles
 
 import android.content.Context
 import android.net.ConnectivityManager
+import android.net.Uri
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -23,14 +24,21 @@ import app.slipnet.tunnel.DohBridge
 import app.slipnet.tunnel.DohServer
 import app.slipnet.tunnel.HealthCheckEngine
 import app.slipnet.tunnel.HealthCheckReport
+import app.slipnet.tunnel.DnsPoolScanner
 import app.slipnet.tunnel.DnsResolverProber
+import app.slipnet.util.ResolverListParser
+import app.slipnet.util.ResolverMerge
+import app.slipnet.util.ResolverPoolText
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -602,6 +610,11 @@ class EditProfileViewModel @Inject constructor(
     private val _globalResolverEnabled = MutableStateFlow(false)
     val globalResolverEnabled: StateFlow<Boolean> = _globalResolverEnabled.asStateFlow()
 
+    // Resolver pools: Active (this profile) / Standby (shared candidates) / Harvested (scanner output).
+    private val _pools = MutableStateFlow(ResolverPoolsState())
+    val pools: StateFlow<ResolverPoolsState> = _pools.asStateFlow()
+    private val poolMutex = Mutex()
+
     init {
         if (profileId != null && profileId != 0L) {
             loadProfile(profileId)
@@ -612,6 +625,7 @@ class EditProfileViewModel @Inject constructor(
         viewModelScope.launch {
             preferencesDataStore.globalResolverEnabled.collect { _globalResolverEnabled.value = it }
         }
+        refreshPools()
     }
 
     private fun prefillLocalResolver() {
@@ -1886,7 +1900,7 @@ class EditProfileViewModel @Inject constructor(
                 }
 
                 if (resolverIp != null) {
-                    updateResolvers("$resolverIp:53")
+                    addResolver("$resolverIp:53")
                 } else {
                     _uiState.value = _uiState.value.copy(
                         error = "Could not detect DNS server"
@@ -1913,17 +1927,360 @@ class EditProfileViewModel @Inject constructor(
     }
 
     fun addFastPublicResolvers() {
-        val current = _uiState.value.resolvers.trim()
         val fastList = listOf("8.8.8.8:53", "8.8.4.4:53", "1.1.1.1:53", "9.9.9.9:53")
-        val merged = if (current.isEmpty()) {
-            fastList.joinToString(", ")
-        } else {
-            val existing = current.split(",").map { it.trim() }.toSet()
-            val toAdd = fastList.filter { it !in existing }
-            if (toAdd.isNotEmpty()) "$current, ${toAdd.joinToString(", ")}" else current
+        val merge = ResolverMerge.merge(activeResolvers(), fastList, MAX_RESOLVERS, defaultResolverPort())
+        if (merge.appended.isEmpty()) {
+            poolMessage(
+                if (merge.overLimit.isNotEmpty()) "Active is full ($MAX_RESOLVERS max)"
+                else "Fast resolvers are already in Active"
+            )
+            return
         }
-        updateResolvers(merged)
+        setActiveResolvers(merge.merged)
         updateResolverMode(ResolverMode.ROUND_ROBIN)
+        if (merge.overLimit.isNotEmpty()) {
+            poolMessage("Added ${merge.appended.size}; Active is full, ${merge.overLimit.size} skipped")
+        }
+    }
+
+    // ── Resolver pools ─────────────────────────────────────────────────────────
+
+    /** Port assumed for entries typed or imported without one: 853 for DoT, 53 otherwise. */
+    private fun defaultResolverPort(): Int {
+        val s = _uiState.value
+        return if (s.isDnsttOrNoizOrVaydnsBased && s.dnsTransport == DnsTransport.DOT) 853
+        else ResolverListParser.DEFAULT_PORT
+    }
+
+    private fun activeResolvers(): List<String> = ResolverListParser.splitStored(_uiState.value.resolvers)
+
+    private fun setActiveResolvers(list: List<String>) {
+        updateResolvers(list.joinToString(", "))
+    }
+
+    private fun poolMessage(text: String) {
+        _pools.update { it.copy(message = text) }
+    }
+
+    fun postPoolMessage(text: String) = poolMessage(text)
+
+    fun clearPoolMessage() {
+        _pools.update { it.copy(message = null) }
+    }
+
+    /** Re-reads Standby, Harvested and the auto-pick switch from storage. */
+    fun refreshPools() {
+        viewModelScope.launch { poolMutex.withLock { loadPools() } }
+    }
+
+    private suspend fun loadPools() {
+        val standby = ResolverPoolText.entries(preferencesDataStore.dnsPoolText.first())
+        val harvested = preferencesDataStore.getSavedDnsPool().orEmpty()
+        val label = preferencesDataStore.savedDnsPoolLabel.first()
+        val autoPick = preferencesDataStore.dnsPoolEnabled.first()
+        _pools.update {
+            it.copy(standby = standby, harvested = harvested, harvestedLabel = label, autoPick = autoPick)
+        }
+    }
+
+    fun setAutoPick(enabled: Boolean) {
+        viewModelScope.launch {
+            poolMutex.withLock {
+                preferencesDataStore.setDnsPoolEnabled(enabled)
+                _pools.update { it.copy(autoPick = enabled) }
+            }
+        }
+    }
+
+    /** Adds typed resolver(s) to Active. Returns true when the input was consumed and the field may be cleared. */
+    fun addResolver(raw: String): Boolean {
+        val port = defaultResolverPort()
+        val parsed = ResolverListParser.parse(raw, port)
+        if (parsed.valid.isEmpty()) {
+            poolMessage(
+                if (parsed.invalid.isEmpty()) "Nothing to add"
+                else "Not a valid resolver: ${parsed.invalid.first()}"
+            )
+            return false
+        }
+        val merge = ResolverMerge.merge(activeResolvers(), parsed.valid, MAX_RESOLVERS, port)
+        if (merge.appended.isEmpty()) {
+            if (merge.overLimit.isNotEmpty()) {
+                poolMessage("Active is full ($MAX_RESOLVERS max). Move one to Standby first.")
+                return false
+            }
+            poolMessage("Already in Active")
+            return true
+        }
+        setActiveResolvers(merge.merged)
+        if (merge.overLimit.isNotEmpty()) {
+            poolMessage("Added ${merge.appended.size}; Active is full, ${merge.overLimit.size} skipped")
+        }
+        return true
+    }
+
+    /** Copies a pool entry into Active (it stays in its pool: pools are candidates, Active is the live list). */
+    fun promoteResolver(entry: String) {
+        val port = defaultResolverPort()
+        val normalized = ResolverListParser.normalize(entry, port)
+        if (normalized == null) {
+            poolMessage("Skipped invalid entry: $entry")
+            return
+        }
+        val merge = ResolverMerge.merge(activeResolvers(), listOf(normalized), MAX_RESOLVERS, port)
+        when {
+            merge.appended.isNotEmpty() -> setActiveResolvers(merge.merged)
+            merge.overLimit.isNotEmpty() -> poolMessage("Active is full ($MAX_RESOLVERS max). Remove or move one down first.")
+            else -> poolMessage("Already in Active")
+        }
+    }
+
+    /** Moves an Active entry to Standby; nothing is removed unless Standby accepted it. */
+    fun demoteResolver(entry: String) {
+        viewModelScope.launch {
+            poolMutex.withLock {
+                val port = defaultResolverPort()
+                val text = preferencesDataStore.dnsPoolText.first()
+                val normalized = ResolverListParser.normalize(entry, port) ?: entry
+                val merge = ResolverMerge.merge(
+                    ResolverPoolText.entries(text), listOf(normalized), DnsPoolScanner.MAX_POOL_SIZE, port
+                )
+                if (merge.overLimit.isNotEmpty()) {
+                    poolMessage("Standby is full (${DnsPoolScanner.MAX_POOL_SIZE}). Clear some entries first.")
+                    return@withLock
+                }
+                if (merge.appended.isNotEmpty()) {
+                    preferencesDataStore.setDnsPoolText(ResolverPoolText.append(text, merge.appended))
+                }
+                setActiveResolvers(ResolverMerge.remove(activeResolvers(), entry, port))
+                loadPools()
+            }
+        }
+    }
+
+    fun removePoolEntry(pool: ResolverPool, entry: String) {
+        val port = defaultResolverPort()
+        when (pool) {
+            ResolverPool.ACTIVE -> setActiveResolvers(ResolverMerge.remove(activeResolvers(), entry, port))
+            ResolverPool.STANDBY -> viewModelScope.launch {
+                poolMutex.withLock {
+                    val text = preferencesDataStore.dnsPoolText.first()
+                    preferencesDataStore.setDnsPoolText(ResolverPoolText.remove(text, entry, port))
+                    loadPools()
+                }
+            }
+            ResolverPool.HARVESTED -> viewModelScope.launch {
+                poolMutex.withLock {
+                    val left = ResolverMerge.remove(preferencesDataStore.getSavedDnsPool().orEmpty(), entry, port)
+                    if (left.isEmpty()) preferencesDataStore.clearSavedDnsPool()
+                    else preferencesDataStore.saveDnsPool(left, _pools.value.harvestedLabel ?: "Saved")
+                    loadPools()
+                }
+            }
+        }
+    }
+
+    fun clearPool(pool: ResolverPool) {
+        viewModelScope.launch {
+            poolMutex.withLock {
+                val cleared = when (pool) {
+                    ResolverPool.STANDBY -> _pools.value.standby.size.also { preferencesDataStore.setDnsPoolText("") }
+                    ResolverPool.HARVESTED -> _pools.value.harvested.size.also { preferencesDataStore.clearSavedDnsPool() }
+                    ResolverPool.ACTIVE -> return@withLock
+                }
+                loadPools()
+                poolMessage("Cleared $cleared from ${pool.title}")
+            }
+        }
+    }
+
+    /** Active := the first entries of Harvested; what Active held and is not reused moves to Standby. */
+    fun useHarvested() {
+        viewModelScope.launch {
+            poolMutex.withLock {
+                val port = defaultResolverPort()
+                val picks = preferencesDataStore.getSavedDnsPool().orEmpty()
+                    .mapNotNull { ResolverListParser.normalize(it, port) }
+                    .distinct()
+                    .take(MAX_RESOLVERS)
+                if (picks.isEmpty()) {
+                    poolMessage("Harvested pool is empty")
+                    return@withLock
+                }
+                val pickKeys = picks.map { ResolverMerge.key(it, port) }.toSet()
+                val displaced = activeResolvers().filter { ResolverMerge.key(it, port) !in pickKeys }
+                val text = preferencesDataStore.dnsPoolText.first()
+                val merge = ResolverMerge.merge(
+                    ResolverPoolText.entries(text), displaced, DnsPoolScanner.MAX_POOL_SIZE, port
+                )
+                if (merge.overLimit.isNotEmpty()) {
+                    poolMessage("Standby is full (${DnsPoolScanner.MAX_POOL_SIZE}). Clear some entries first.")
+                    return@withLock
+                }
+                if (merge.appended.isNotEmpty()) {
+                    preferencesDataStore.setDnsPoolText(ResolverPoolText.append(text, merge.appended))
+                }
+                setActiveResolvers(picks)
+                loadPools()
+                poolMessage(
+                    "Active now uses the top ${picks.size} harvested" +
+                        if (merge.appended.isNotEmpty()) "; ${merge.appended.size} previous moved to Standby" else ""
+                )
+            }
+        }
+    }
+
+    fun moveHarvestedToStandby() {
+        viewModelScope.launch {
+            poolMutex.withLock {
+                val port = defaultResolverPort()
+                val harvested = preferencesDataStore.getSavedDnsPool().orEmpty()
+                    .mapNotNull { ResolverListParser.normalize(it, port) }
+                if (harvested.isEmpty()) {
+                    poolMessage("Harvested pool is empty")
+                    return@withLock
+                }
+                val text = preferencesDataStore.dnsPoolText.first()
+                val merge = ResolverMerge.merge(
+                    ResolverPoolText.entries(text), harvested, DnsPoolScanner.MAX_POOL_SIZE, port
+                )
+                if (merge.overLimit.isNotEmpty()) {
+                    poolMessage("Standby has room for ${merge.appended.size} of ${harvested.size}. Clear some entries first.")
+                    return@withLock
+                }
+                if (merge.appended.isNotEmpty()) {
+                    preferencesDataStore.setDnsPoolText(ResolverPoolText.append(text, merge.appended))
+                }
+                preferencesDataStore.clearSavedDnsPool()
+                loadPools()
+                poolMessage(
+                    "Moved ${merge.appended.size} to Standby" +
+                        if (merge.duplicates > 0) " (${merge.duplicates} already there)" else ""
+                )
+            }
+        }
+    }
+
+    /**
+     * Imports resolvers from text into [target]. For Active, entries beyond the profile limit flow on
+     * into Standby instead of being dropped.
+     */
+    fun importResolverText(text: String, target: ResolverPool, note: String? = null) {
+        val port = defaultResolverPort()
+        val parsed = ResolverListParser.parse(text, port)
+        if (parsed.valid.isEmpty()) {
+            poolMessage(
+                if (parsed.invalid.isEmpty()) "No resolvers found"
+                else "No valid resolvers (${parsed.invalid.size} rejected, e.g. ${parsed.invalid.first()})"
+            )
+            return
+        }
+        viewModelScope.launch {
+            poolMutex.withLock {
+                var toActive = 0
+                var toStandby = 0
+                var dups = parsed.duplicates
+                var dropped = 0
+                var incoming = parsed.valid
+                if (target == ResolverPool.ACTIVE) {
+                    val merge = ResolverMerge.merge(activeResolvers(), incoming, MAX_RESOLVERS, port)
+                    if (merge.appended.isNotEmpty()) setActiveResolvers(merge.merged)
+                    toActive = merge.appended.size
+                    dups += merge.duplicates
+                    incoming = merge.overLimit
+                }
+                if (incoming.isNotEmpty()) {
+                    val current = preferencesDataStore.dnsPoolText.first()
+                    val merge = ResolverMerge.merge(
+                        ResolverPoolText.entries(current), incoming, DnsPoolScanner.MAX_POOL_SIZE, port
+                    )
+                    if (merge.appended.isNotEmpty()) {
+                        preferencesDataStore.setDnsPoolText(ResolverPoolText.append(current, merge.appended))
+                    }
+                    toStandby = merge.appended.size
+                    dups += merge.duplicates
+                    dropped = merge.overLimit.size
+                }
+                loadPools()
+                val added = buildList {
+                    if (toActive > 0) add("$toActive to Active")
+                    if (toStandby > 0) add("$toStandby to Standby")
+                }
+                val notes = buildList {
+                    if (dups > 0) add("$dups duplicate${if (dups == 1) "" else "s"}")
+                    if (parsed.invalid.isNotEmpty()) add("${parsed.invalid.size} invalid")
+                    if (dropped > 0) add("$dropped over the ${DnsPoolScanner.MAX_POOL_SIZE} limit")
+                    if (note != null) add(note)
+                }
+                val head = if (added.isEmpty()) "Nothing new added" else "Added " + added.joinToString(", ")
+                poolMessage(if (notes.isEmpty()) head else "$head (${notes.joinToString(", ")})")
+            }
+        }
+    }
+
+    /** Reads a .txt file picked by the user (bounded to [MAX_IMPORT_CHARS]) and imports it into [target]. */
+    fun importResolverFile(uri: Uri, target: ResolverPool) {
+        viewModelScope.launch {
+            val read: Pair<String, Boolean>? = withContext(Dispatchers.IO) {
+                try {
+                    context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { reader ->
+                        val sb = StringBuilder()
+                        val buf = CharArray(8192)
+                        var truncated = false
+                        while (true) {
+                            val n = reader.read(buf)
+                            if (n < 0) break
+                            if (sb.length + n > MAX_IMPORT_CHARS) {
+                                sb.append(buf, 0, MAX_IMPORT_CHARS - sb.length)
+                                truncated = true
+                                break
+                            }
+                            sb.append(buf, 0, n)
+                        }
+                        // A cut line can still parse as a different, valid address, so drop it.
+                        if (truncated) sb.setLength(maxOf(sb.lastIndexOf("\n"), 0))
+                        sb.toString() to truncated
+                    }
+                } catch (e: Exception) {
+                    null
+                }
+            }
+            if (read == null) {
+                poolMessage("Could not read the file")
+                return@launch
+            }
+            importResolverText(read.first, target, if (read.second) "file cut at 1 MB" else null)
+        }
+    }
+
+    /**
+     * Scanner "Apply": the selection becomes Active; entries beyond the profile limit go to Standby
+     * instead of failing validation.
+     */
+    fun applyScannerSelection(selection: String) {
+        val port = defaultResolverPort()
+        val parsed = ResolverListParser.parse(selection, port)
+        if (parsed.valid.isEmpty()) {
+            updateResolvers(selection)
+            return
+        }
+        val top = parsed.valid.take(MAX_RESOLVERS)
+        val overflow = parsed.valid.drop(MAX_RESOLVERS)
+        setActiveResolvers(top)
+        if (overflow.isEmpty()) return
+        viewModelScope.launch {
+            poolMutex.withLock {
+                val current = preferencesDataStore.dnsPoolText.first()
+                val merge = ResolverMerge.merge(
+                    ResolverPoolText.entries(current), overflow, DnsPoolScanner.MAX_POOL_SIZE, port
+                )
+                if (merge.appended.isNotEmpty()) {
+                    preferencesDataStore.setDnsPoolText(ResolverPoolText.append(current, merge.appended))
+                }
+                loadPools()
+                poolMessage("Scanner: ${top.size} to Active, ${merge.appended.size} to Standby")
+            }
+        }
     }
 
     fun benchmarkAndAutoTune() {
@@ -2418,6 +2775,7 @@ class EditProfileViewModel @Inject constructor(
 
     companion object {
         const val MAX_RESOLVERS = 10
+        private const val MAX_IMPORT_CHARS = 1_000_000
         private const val BRIDGES_PER_TYPE = 2
 
         // Moat API (Tor bridge distribution)

@@ -136,7 +136,7 @@ fun EditProfileScreen(
     LaunchedEffect(selectedResolvers) {
         selectedResolvers?.let { resolvers ->
             if (resolvers.isNotBlank()) {
-                viewModel.updateResolvers(resolvers)
+                viewModel.applyScannerSelection(resolvers)
             }
         }
     }
@@ -1006,110 +1006,20 @@ fun EditProfileScreen(
                             )
                         }
                         if (uiState.useCustomResolver) {
-                            val isDoT = uiState.isDnsttOrNoizOrVaydnsBased && uiState.dnsTransport == DnsTransport.DOT
-                            OutlinedTextField(
-                                value = uiState.resolvers,
-                                onValueChange = { viewModel.updateResolvers(it) },
-                                label = { Text("DNS Resolver") },
-                                placeholder = { Text(if (isDoT) "e.g. dns.google:853" else "e.g. 8.8.8.8:53") },
-                                isError = uiState.resolversError != null,
-                                supportingText = {
-                                    Text(uiState.resolversError ?: if (isDoT) "IP or domain (host:853)" else "IP or domain (host:port)")
-                                },
-                                trailingIcon = {
-                                    IconButton(
-                                        onClick = { viewModel.autoDetectResolver() },
-                                        enabled = !uiState.isAutoDetecting
-                                    ) {
-                                        if (uiState.isAutoDetecting) {
-                                            CircularProgressIndicator(
-                                                modifier = Modifier.size(18.dp),
-                                                strokeWidth = 2.dp
-                                            )
-                                        } else {
-                                            Text(
-                                                text = "Local",
-                                                style = MaterialTheme.typography.labelMedium,
-                                                color = MaterialTheme.colorScheme.primary
-                                            )
-                                        }
-                                    }
-                                },
-                                singleLine = true,
-                                modifier = Modifier.fillMaxWidth()
+                            ResolverEditorHost(
+                                viewModel = viewModel,
+                                uiState = uiState,
+                                canScan = onNavigateToScanner != null,
+                                snackbarHostState = snackbarHostState
                             )
-                            if (onNavigateToScanner != null) {
-                                Button(
-                                    onClick = { viewModel.saveForScanner() },
-                                    modifier = Modifier.fillMaxWidth(),
-                                    shape = RoundedCornerShape(10.dp)
-                                ) {
-                                    Icon(Icons.Default.Search, contentDescription = null)
-                                    Spacer(Modifier.width(8.dp))
-                                    Text("Scan for Working Resolvers")
-                                }
-                            }
                         }
                     } else {
-                        val isDoT = uiState.isDnsttOrNoizOrVaydnsBased && uiState.dnsTransport == DnsTransport.DOT
-                        OutlinedTextField(
-                            value = uiState.resolvers,
-                            onValueChange = { viewModel.updateResolvers(it) },
-                            label = { Text("DNS Resolver") },
-                            placeholder = { Text(if (isDoT) "e.g. dns.google:853" else "e.g. 8.8.8.8:53") },
-                            isError = uiState.resolversError != null,
-                            supportingText = {
-                                Text(uiState.resolversError ?: if (isDoT) "IP or domain (host:853)" else "IP or domain (host:port)")
-                            },
-                            trailingIcon = {
-                                IconButton(
-                                    onClick = { viewModel.autoDetectResolver() },
-                                    enabled = !uiState.isAutoDetecting
-                                ) {
-                                    if (uiState.isAutoDetecting) {
-                                        CircularProgressIndicator(
-                                            modifier = Modifier.size(18.dp),
-                                            strokeWidth = 2.dp
-                                        )
-                                    } else {
-                                        Text(
-                                            text = "Local",
-                                            style = MaterialTheme.typography.labelMedium,
-                                            color = MaterialTheme.colorScheme.primary
-                                        )
-                                    }
-                                }
-                            },
-                            singleLine = true,
-                            modifier = Modifier.fillMaxWidth()
+                        ResolverEditorHost(
+                            viewModel = viewModel,
+                            uiState = uiState,
+                            canScan = onNavigateToScanner != null,
+                            snackbarHostState = snackbarHostState
                         )
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            OutlinedButton(
-                                onClick = { viewModel.addFastPublicResolvers() },
-                                modifier = Modifier.weight(1f),
-                                shape = RoundedCornerShape(10.dp)
-                            ) {
-                                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                                Spacer(Modifier.width(4.dp))
-                                Text("+ Fast Resolvers", fontSize = 12.sp)
-                            }
-
-                            if (onNavigateToScanner != null) {
-                                Button(
-                                    onClick = { viewModel.saveForScanner() },
-                                    modifier = Modifier.weight(1f),
-                                    shape = RoundedCornerShape(10.dp)
-                                ) {
-                                    Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(16.dp))
-                                    Spacer(Modifier.width(4.dp))
-                                    Text("Scan Resolvers", fontSize = 12.sp)
-                                }
-                            }
-                        }
                     }
                     // Multi-resolver mode (only shown when 2+ resolvers, not for slipstream which uses QUIC multipath)
                     if (uiState.resolvers.contains(",") && !uiState.isSlipstreamBased) {

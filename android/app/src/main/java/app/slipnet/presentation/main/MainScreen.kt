@@ -245,6 +245,103 @@ private enum class OverflowMenuPage {
     SORT
 }
 
+/** One row inside a drawer card: icon, title, hint and a chevron (PattNG style). */
+@Composable
+private fun DrawerCardRow(
+    icon: ImageVector,
+    title: String,
+    hint: String,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(icon, contentDescription = null, tint = ColorSelectionAccent, modifier = Modifier.size(20.dp))
+        Spacer(Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(title, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+            Text(hint, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Icon(
+            Icons.Default.KeyboardArrowRight,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(18.dp)
+        )
+    }
+}
+
+/**
+ * Parent row of the 3-dot menu (PattNG style): tapping the row runs its default
+ * action in one click; the small side button opens the full submenu on the left.
+ */
+@Composable
+private fun OverflowParentRow(
+    title: String,
+    hint: String,
+    icon: ImageVector,
+    isOpen: Boolean,
+    enabled: Boolean,
+    onDefault: () -> Unit,
+    onToggleSubmenu: () -> Unit
+) {
+    DropdownMenuItem(
+        modifier = Modifier.heightIn(min = 44.dp),
+        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
+        text = {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        title,
+                        fontSize = 13.sp,
+                        fontWeight = if (isOpen) FontWeight.SemiBold else FontWeight.Normal,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        hint,
+                        fontSize = 10.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                Box(
+                    modifier = Modifier
+                        .padding(start = 6.dp)
+                        .size(30.dp)
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(
+                            if (isOpen) MaterialTheme.colorScheme.primaryContainer
+                            else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+                        )
+                        .clickable(enabled = enabled, onClick = onToggleSubmenu),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Apps,
+                        contentDescription = "Open $title options",
+                        modifier = Modifier.size(16.dp),
+                        tint = if (isOpen) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        },
+        leadingIcon = { Icon(icon, contentDescription = null, modifier = Modifier.size(18.dp)) },
+        onClick = onDefault,
+        enabled = enabled
+    )
+}
+
 private fun Context.findActivity(): Activity? {
     var context = this
     while (context is ContextWrapper) {
@@ -333,7 +430,7 @@ fun MainScreen(
     }
     var selectedCategoryIndex by remember { mutableIntStateOf(0) }
 
-    var isSubGroupsExpandedInDrawer by remember { mutableStateOf(false) }
+    var isSubGroupsExpandedInDrawer by remember { mutableStateOf(true) }
     val subGroups = remember(uiState.profiles) {
         uiState.profiles
             .map { it.subscriptionGroup.trim() }
@@ -827,7 +924,7 @@ fun MainScreen(
                         }
                     }
 
-                    // ── PattNG Section: Network & Engine Settings ──
+                    // ── PattNG cards: every drawer entry lives in a card, same row style ──
                     Text(
                         text = "SETTINGS & PROXIES",
                         fontSize = 11.sp,
@@ -835,7 +932,6 @@ fun MainScreen(
                         color = ColorSelectionAccent,
                         modifier = Modifier.padding(start = 28.dp, top = 12.dp, bottom = 4.dp)
                     )
-
                     Surface(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -845,175 +941,79 @@ fun MainScreen(
                         tonalElevation = 1.dp
                     ) {
                         Column {
-                            // Per app proxy
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        scope.launch { drawerState.close() }
-                                        onNavigateToAppSelector()
-                                    }
-                                    .padding(horizontal = 14.dp, vertical = 12.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    Icons.Default.Apps,
-                                    contentDescription = null,
-                                    tint = ColorSelectionAccent,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                                Spacer(Modifier.width(12.dp))
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text("Per app proxy", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
-                                    Text("Select bypass or routed applications", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                }
-                                Icon(
-                                    Icons.Default.KeyboardArrowRight,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(18.dp)
-                                )
+                            DrawerCardRow(Icons.Default.Apps, "Per app proxy", "Select bypass or routed applications") {
+                                scope.launch { drawerState.close() }
+                                onNavigateToAppSelector()
                             }
-
                             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
-
-                            // Routing settings
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        scope.launch { drawerState.close() }
-                                        showRoutingSettingsDialog = true
-                                    }
-                                    .padding(horizontal = 14.dp, vertical = 12.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    Icons.Default.AltRoute,
-                                    contentDescription = null,
-                                    tint = ColorSelectionAccent,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                                Spacer(Modifier.width(12.dp))
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text("Routing settings", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
-                                    Text("Domain rules, direct IPs & split tunnel", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                }
-                                Icon(
-                                    Icons.Default.KeyboardArrowRight,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(18.dp)
-                                )
+                            DrawerCardRow(Icons.Default.AltRoute, "Routing settings", "Domain rules, direct IPs & split tunnel") {
+                                scope.launch { drawerState.close() }
+                                showRoutingSettingsDialog = true
                             }
-
                             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
-
-                            // Asset file
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        scope.launch { drawerState.close() }
-                                        showAssetFilesDialog = true
-                                    }
-                                    .padding(horizontal = 14.dp, vertical = 12.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    Icons.Default.Folder,
-                                    contentDescription = null,
-                                    tint = ColorSelectionAccent,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                                Spacer(Modifier.width(12.dp))
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text("Asset files", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
-                                    Text("GeoIP and GeoSite database assets", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                }
-                                Icon(
-                                    Icons.Default.KeyboardArrowRight,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(18.dp)
-                                )
+                            DrawerCardRow(Icons.Default.Folder, "Asset files", "GeoIP and GeoSite database assets") {
+                                scope.launch { drawerState.close() }
+                                showAssetFilesDialog = true
                             }
-
                             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
-
-                            // Settings
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        scope.launch { drawerState.close() }
-                                        onNavigateToSettings()
-                                    }
-                                    .padding(horizontal = 14.dp, vertical = 12.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    Icons.Default.Settings,
-                                    contentDescription = null,
-                                    tint = ColorSelectionAccent,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                                Spacer(Modifier.width(12.dp))
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text("Settings", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
-                                    Text("Core engine, SOCKS5 & MTU config", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                }
-                                Icon(
-                                    Icons.Default.KeyboardArrowRight,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(18.dp)
-                                )
+                            DrawerCardRow(Icons.Default.Settings, "Settings", "Core engine, SOCKS5 & MTU config") {
+                                scope.launch { drawerState.close() }
+                                onNavigateToSettings()
                             }
                         }
                     }
 
-                    Spacer(Modifier.height(8.dp))
-
-                    NavigationDrawerItem(
-                        label = { Text("Resolver scanner", fontWeight = FontWeight.Medium) },
-                        selected = false,
-                        onClick = {
-                            scope.launch { drawerState.close() }
-                            onNavigateToDnsScanner()
-                        },
-                        icon = { Icon(Icons.Default.NetworkPing, contentDescription = null) },
-                        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                    Text(
+                        text = "TOOLS",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = ColorSelectionAccent,
+                        modifier = Modifier.padding(start = 28.dp, top = 12.dp, bottom = 4.dp)
                     )
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 4.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                        tonalElevation = 1.dp
+                    ) {
+                        Column {
+                            DrawerCardRow(Icons.Default.NetworkPing, "Resolver scanner", "Find working DNS resolvers and fill your pools") {
+                                scope.launch { drawerState.close() }
+                                onNavigateToDnsScanner()
+                            }
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+                            DrawerCardRow(Icons.Default.BugReport, "Connection LOG", "Engine and tunnel log, live") {
+                                scope.launch { drawerState.close() }
+                                showLogSheet = true
+                            }
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+                            DrawerCardRow(Icons.Default.Save, "Backup & restore", "Export or import all profiles") {
+                                scope.launch { drawerState.close() }
+                                showBackupRestoreDialog = true
+                            }
+                        }
+                    }
 
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-
-                    NavigationDrawerItem(
-                        label = { Text("Connection LOG", fontWeight = FontWeight.Medium) },
-                        selected = false,
-                        onClick = {
-                            scope.launch { drawerState.close() }
-                            showLogSheet = true
-                        },
-                        icon = { Icon(Icons.Default.BugReport, contentDescription = null) },
-                        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                    Text(
+                        text = "APP",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = ColorSelectionAccent,
+                        modifier = Modifier.padding(start = 28.dp, top = 12.dp, bottom = 4.dp)
                     )
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 4.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                        tonalElevation = 1.dp
+                    ) {
+                        Column {
+                            DrawerCardRow(Icons.Default.Refresh, "Check for update", "Current: v${app.slipnet.BuildConfig.VERSION_NAME}") {
 
-                    NavigationDrawerItem(
-                        label = { Text("Backup & restore", fontWeight = FontWeight.Medium) },
-                        selected = false,
-                        onClick = {
-                            scope.launch { drawerState.close() }
-                            showBackupRestoreDialog = true
-                        },
-                        icon = { Icon(Icons.Default.Save, contentDescription = null) },
-                        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
-                    )
-
-                    NavigationDrawerItem(
-                        label = { Text("Check for update", fontWeight = FontWeight.Medium) },
-                        selected = false,
-                        onClick = {
                             scope.launch {
                                 drawerState.close()
                                 snackbarHostState.showSnackbar("Checking for updates...")
@@ -1039,21 +1039,16 @@ fun MainScreen(
                                     }
                                 }
                             }
-                        },
-                        icon = { Icon(Icons.Default.Refresh, contentDescription = null) },
-                        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
-                    )
-
-                    NavigationDrawerItem(
-                        label = { Text("About", fontWeight = FontWeight.Medium) },
-                        selected = false,
-                        onClick = {
-                            scope.launch { drawerState.close() }
-                            showAboutDialog = true
-                        },
-                        icon = { Icon(Icons.Default.Info, contentDescription = null) },
-                        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
-                    )
+                        
+                            }
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+                            DrawerCardRow(Icons.Default.Info, "About", "AryanaNG") {
+                                scope.launch { drawerState.close() }
+                                showAboutDialog = true
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(16.dp))
                 }
             }
         }
@@ -1434,7 +1429,21 @@ fun MainScreen(
                                                             DropdownMenuItem(
                                                                 modifier = Modifier.heightIn(min = 34.dp),
                                                                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 2.dp),
-                                                                text = { Text("This subscription configs", fontSize = 12.sp, fontWeight = FontWeight.SemiBold) },
+                                                                text = { Text("Clear test invalid", fontSize = 12.sp, fontWeight = FontWeight.SemiBold) },
+                                                                onClick = {
+                                                                    showOverflowMenu = false
+                                                                    activeOverflowSubmenu = null
+                                                                    viewModel.deleteProfilesMatching { p ->
+                                                                        val res = uiState.pingResults[p.id]
+                                                                        res != null && res is PingResult.Error
+                                                                    }
+                                                                    scope.launch { snackbarHostState.showSnackbar("Deleted invalid configs") }
+                                                                }
+                                                            )
+                                                            DropdownMenuItem(
+                                                                modifier = Modifier.heightIn(min = 34.dp),
+                                                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 2.dp),
+                                                                text = { Text("This subscription configs", fontSize = 12.sp) },
                                                                 onClick = {
                                                                     showOverflowMenu = false
                                                                     activeOverflowSubmenu = null
@@ -1445,20 +1454,6 @@ fun MainScreen(
                                                                         viewModel.deleteProfilesMatching { it.subscriptionGroup.isNotBlank() }
                                                                         scope.launch { snackbarHostState.showSnackbar("Deleted subscription configs") }
                                                                     }
-                                                                }
-                                                            )
-                                                            DropdownMenuItem(
-                                                                modifier = Modifier.heightIn(min = 34.dp),
-                                                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 2.dp),
-                                                                text = { Text("Clear test invalid", fontSize = 12.sp) },
-                                                                onClick = {
-                                                                    showOverflowMenu = false
-                                                                    activeOverflowSubmenu = null
-                                                                    viewModel.deleteProfilesMatching { p ->
-                                                                        val res = uiState.pingResults[p.id]
-                                                                        res != null && res is PingResult.Error
-                                                                    }
-                                                                    scope.launch { snackbarHostState.showSnackbar("Deleted invalid configs") }
                                                                 }
                                                             )
                                                             DropdownMenuItem(
@@ -1499,7 +1494,22 @@ fun MainScreen(
                                                             DropdownMenuItem(
                                                                 modifier = Modifier.heightIn(min = 34.dp),
                                                                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 2.dp),
-                                                                text = { Text("This subscription configs", fontSize = 12.sp, fontWeight = FontWeight.SemiBold) },
+                                                                text = { Text("Export valid configs", fontSize = 12.sp, fontWeight = FontWeight.SemiBold) },
+                                                                onClick = {
+                                                                    showOverflowMenu = false
+                                                                    activeOverflowSubmenu = null
+                                                                    val str = viewModel.exportProfilesToClipboard { p ->
+                                                                        val res = uiState.pingResults[p.id]
+                                                                        res != null && res is PingResult.Success && res.latencyMs > 0
+                                                                    }
+                                                                    clipboardManager.setText(AnnotatedString(str))
+                                                                    scope.launch { snackbarHostState.showSnackbar("Copied valid configs to clipboard") }
+                                                                }
+                                                            )
+                                                            DropdownMenuItem(
+                                                                modifier = Modifier.heightIn(min = 34.dp),
+                                                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 2.dp),
+                                                                text = { Text("This subscription configs", fontSize = 12.sp) },
                                                                 onClick = {
                                                                     showOverflowMenu = false
                                                                     activeOverflowSubmenu = null
@@ -1512,21 +1522,6 @@ fun MainScreen(
                                                                     }
                                                                     clipboardManager.setText(AnnotatedString(str))
                                                                     scope.launch { snackbarHostState.showSnackbar("Copied this subscription configs") }
-                                                                }
-                                                            )
-                                                            DropdownMenuItem(
-                                                                modifier = Modifier.heightIn(min = 34.dp),
-                                                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 2.dp),
-                                                                text = { Text("Export valid configs", fontSize = 12.sp) },
-                                                                onClick = {
-                                                                    showOverflowMenu = false
-                                                                    activeOverflowSubmenu = null
-                                                                    val str = viewModel.exportProfilesToClipboard { p ->
-                                                                        val res = uiState.pingResults[p.id]
-                                                                        res != null && res is PingResult.Success && res.latencyMs > 0
-                                                                    }
-                                                                    clipboardManager.setText(AnnotatedString(str))
-                                                                    scope.launch { snackbarHostState.showSnackbar("Copied valid configs to clipboard") }
                                                                 }
                                                             )
                                                             DropdownMenuItem(
@@ -1628,7 +1623,7 @@ fun MainScreen(
                                         }
 
                                         // Right Parent Menu Column (PattNG style)
-                                        Column(modifier = Modifier.width(190.dp)) {
+                                        Column(modifier = Modifier.width(214.dp)) {
                                             DropdownMenuItem(
                                                 modifier = Modifier.heightIn(min = 36.dp),
                                                 contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
@@ -1641,182 +1636,87 @@ fun MainScreen(
                                                     scope.launch { snackbarHostState.showSnackbar("Restarting service...") }
                                                 }
                                             )
-                                            DropdownMenuItem(
-                                                modifier = Modifier.heightIn(min = 36.dp),
-                                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
-                                                text = {
-                                                    Row(
-                                                        modifier = Modifier.fillMaxWidth(),
-                                                        verticalAlignment = Alignment.CenterVertically,
-                                                        horizontalArrangement = Arrangement.SpaceBetween
-                                                    ) {
-                                                        Text(
-                                                            "Delete configs",
-                                                            fontSize = 13.sp,
-                                                            fontWeight = if (activeOverflowSubmenu == OverflowMenuPage.DELETE) FontWeight.SemiBold else FontWeight.Normal
-                                                        )
-                                                        Box(
-                                                            modifier = Modifier
-                                                                .size(24.dp)
-                                                                .clip(RoundedCornerShape(6.dp))
-                                                                .background(
-                                                                    if (activeOverflowSubmenu == OverflowMenuPage.DELETE)
-                                                                        MaterialTheme.colorScheme.primaryContainer
-                                                                    else
-                                                                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
-                                                                )
-                                                                .clickable {
-                                                                    activeOverflowSubmenu = if (activeOverflowSubmenu == OverflowMenuPage.DELETE) null else OverflowMenuPage.DELETE
-                                                                },
-                                                            contentAlignment = Alignment.Center
-                                                        ) {
-                                                            Icon(
-                                                                imageVector = Icons.Default.Apps,
-                                                                contentDescription = "Open delete menu",
-                                                                modifier = Modifier.size(15.dp),
-                                                                tint = if (activeOverflowSubmenu == OverflowMenuPage.DELETE) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                                                            )
-                                                        }
+                                            OverflowParentRow(
+                                                title = "Delete configs",
+                                                hint = "Invalid (test failed)",
+                                                icon = Icons.Default.Delete,
+                                                isOpen = activeOverflowSubmenu == OverflowMenuPage.DELETE,
+                                                enabled = uiState.profiles.isNotEmpty(),
+                                                onDefault = {
+                                                    showOverflowMenu = false
+                                                    activeOverflowSubmenu = null
+                                                    val invalidIds = uiState.profiles
+                                                        .filter { uiState.pingResults[it.id] is PingResult.Error }
+                                                        .map { it.id }
+                                                        .toSet()
+                                                    if (invalidIds.isEmpty()) {
+                                                        scope.launch { snackbarHostState.showSnackbar("No invalid configs. Run Ping first.") }
+                                                    } else {
+                                                        viewModel.deleteProfilesMatching { it.id in invalidIds }
+                                                        scope.launch { snackbarHostState.showSnackbar("Deleted ${invalidIds.size} invalid configs") }
                                                     }
                                                 },
-                                                leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(18.dp)) },
-                                                onClick = {
+                                                onToggleSubmenu = {
                                                     activeOverflowSubmenu = if (activeOverflowSubmenu == OverflowMenuPage.DELETE) null else OverflowMenuPage.DELETE
-                                                },
-                                                enabled = uiState.profiles.isNotEmpty()
+                                                }
                                             )
-                                            DropdownMenuItem(
-                                                modifier = Modifier.heightIn(min = 36.dp),
-                                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
-                                                text = {
-                                                    Row(
-                                                        modifier = Modifier.fillMaxWidth(),
-                                                        verticalAlignment = Alignment.CenterVertically,
-                                                        horizontalArrangement = Arrangement.SpaceBetween
-                                                    ) {
-                                                        Text(
-                                                            "Export config to clipboard",
-                                                            fontSize = 13.sp,
-                                                            fontWeight = if (activeOverflowSubmenu == OverflowMenuPage.EXPORT) FontWeight.SemiBold else FontWeight.Normal
+                                            OverflowParentRow(
+                                                title = "Export config to clipboard",
+                                                hint = "Valid configs",
+                                                icon = Icons.Default.ContentCopy,
+                                                isOpen = activeOverflowSubmenu == OverflowMenuPage.EXPORT,
+                                                enabled = uiState.profiles.isNotEmpty(),
+                                                onDefault = {
+                                                    showOverflowMenu = false
+                                                    activeOverflowSubmenu = null
+                                                    val validIds = uiState.profiles
+                                                        .filter { p -> (uiState.pingResults[p.id] as? PingResult.Success)?.let { it.latencyMs > 0 } == true }
+                                                        .map { it.id }
+                                                        .toSet()
+                                                    val ids = if (validIds.isNotEmpty()) validIds else displayedProfiles.map { it.id }.toSet()
+                                                    val str = viewModel.exportProfilesToClipboard { it.id in ids }
+                                                    clipboardManager.setText(AnnotatedString(str))
+                                                    scope.launch {
+                                                        snackbarHostState.showSnackbar(
+                                                            if (validIds.isNotEmpty()) "Copied ${ids.size} valid configs"
+                                                            else "Copied ${ids.size} configs (no test results yet)"
                                                         )
-                                                        Box(
-                                                            modifier = Modifier
-                                                                .size(24.dp)
-                                                                .clip(RoundedCornerShape(6.dp))
-                                                                .background(
-                                                                    if (activeOverflowSubmenu == OverflowMenuPage.EXPORT)
-                                                                        MaterialTheme.colorScheme.primaryContainer
-                                                                    else
-                                                                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
-                                                                )
-                                                                .clickable {
-                                                                    activeOverflowSubmenu = if (activeOverflowSubmenu == OverflowMenuPage.EXPORT) null else OverflowMenuPage.EXPORT
-                                                                },
-                                                            contentAlignment = Alignment.Center
-                                                        ) {
-                                                            Icon(
-                                                                imageVector = Icons.Default.Apps,
-                                                                contentDescription = "Open export menu",
-                                                                modifier = Modifier.size(15.dp),
-                                                                tint = if (activeOverflowSubmenu == OverflowMenuPage.EXPORT) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                                                            )
-                                                        }
                                                     }
                                                 },
-                                                leadingIcon = { Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(18.dp)) },
-                                                onClick = {
+                                                onToggleSubmenu = {
                                                     activeOverflowSubmenu = if (activeOverflowSubmenu == OverflowMenuPage.EXPORT) null else OverflowMenuPage.EXPORT
-                                                },
-                                                enabled = uiState.profiles.isNotEmpty()
+                                                }
                                             )
                                             HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-                                            DropdownMenuItem(
-                                                modifier = Modifier.heightIn(min = 36.dp),
-                                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
-                                                text = {
-                                                    Row(
-                                                        modifier = Modifier.fillMaxWidth(),
-                                                        verticalAlignment = Alignment.CenterVertically,
-                                                        horizontalArrangement = Arrangement.SpaceBetween
-                                                    ) {
-                                                        Text(
-                                                            "Ping",
-                                                            fontSize = 13.sp,
-                                                            fontWeight = if (activeOverflowSubmenu == OverflowMenuPage.PING) FontWeight.SemiBold else FontWeight.Normal
-                                                        )
-                                                        Box(
-                                                            modifier = Modifier
-                                                                .size(24.dp)
-                                                                .clip(RoundedCornerShape(6.dp))
-                                                                .background(
-                                                                    if (activeOverflowSubmenu == OverflowMenuPage.PING)
-                                                                        MaterialTheme.colorScheme.primaryContainer
-                                                                    else
-                                                                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
-                                                                )
-                                                                .clickable {
-                                                                    activeOverflowSubmenu = if (activeOverflowSubmenu == OverflowMenuPage.PING) null else OverflowMenuPage.PING
-                                                                },
-                                                            contentAlignment = Alignment.Center
-                                                        ) {
-                                                            Icon(
-                                                                imageVector = Icons.Default.Apps,
-                                                                contentDescription = "Open ping menu",
-                                                                modifier = Modifier.size(15.dp),
-                                                                tint = if (activeOverflowSubmenu == OverflowMenuPage.PING) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                                                            )
-                                                        }
-                                                    }
+                                            OverflowParentRow(
+                                                title = "Ping",
+                                                hint = if (uiState.isPingRunning) "Tap to stop" else "Real delay",
+                                                icon = Icons.Default.Speed,
+                                                isOpen = activeOverflowSubmenu == OverflowMenuPage.PING,
+                                                enabled = uiState.profiles.isNotEmpty(),
+                                                onDefault = {
+                                                    showOverflowMenu = false
+                                                    activeOverflowSubmenu = null
+                                                    viewModel.pingAllProfiles()
                                                 },
-                                                leadingIcon = { Icon(Icons.Default.Speed, contentDescription = null, modifier = Modifier.size(18.dp)) },
-                                                onClick = {
+                                                onToggleSubmenu = {
                                                     activeOverflowSubmenu = if (activeOverflowSubmenu == OverflowMenuPage.PING) null else OverflowMenuPage.PING
-                                                },
-                                                enabled = uiState.profiles.isNotEmpty()
+                                                }
                                             )
-                                            DropdownMenuItem(
-                                                modifier = Modifier.heightIn(min = 36.dp),
-                                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
-                                                text = {
-                                                    Row(
-                                                        modifier = Modifier.fillMaxWidth(),
-                                                        verticalAlignment = Alignment.CenterVertically,
-                                                        horizontalArrangement = Arrangement.SpaceBetween
-                                                    ) {
-                                                        Text(
-                                                            "Sort configs",
-                                                            fontSize = 13.sp,
-                                                            fontWeight = if (activeOverflowSubmenu == OverflowMenuPage.SORT) FontWeight.SemiBold else FontWeight.Normal
-                                                        )
-                                                        Box(
-                                                            modifier = Modifier
-                                                                .size(24.dp)
-                                                                .clip(RoundedCornerShape(6.dp))
-                                                                .background(
-                                                                    if (activeOverflowSubmenu == OverflowMenuPage.SORT)
-                                                                        MaterialTheme.colorScheme.primaryContainer
-                                                                    else
-                                                                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
-                                                                )
-                                                                .clickable {
-                                                                    activeOverflowSubmenu = if (activeOverflowSubmenu == OverflowMenuPage.SORT) null else OverflowMenuPage.SORT
-                                                                },
-                                                            contentAlignment = Alignment.Center
-                                                        ) {
-                                                            Icon(
-                                                                imageVector = Icons.Default.Apps,
-                                                                contentDescription = "Open sort menu",
-                                                                modifier = Modifier.size(15.dp),
-                                                                tint = if (activeOverflowSubmenu == OverflowMenuPage.SORT) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                                                            )
-                                                        }
-                                                    }
+                                            OverflowParentRow(
+                                                title = "Sort configs",
+                                                hint = "By test result",
+                                                icon = Icons.Default.AltRoute,
+                                                isOpen = activeOverflowSubmenu == OverflowMenuPage.SORT,
+                                                enabled = uiState.profiles.isNotEmpty(),
+                                                onDefault = {
+                                                    showOverflowMenu = false
+                                                    activeOverflowSubmenu = null
+                                                    viewModel.sortProfilesByPing()
                                                 },
-                                                leadingIcon = { Icon(Icons.Default.AltRoute, contentDescription = null, modifier = Modifier.size(18.dp)) },
-                                                onClick = {
+                                                onToggleSubmenu = {
                                                     activeOverflowSubmenu = if (activeOverflowSubmenu == OverflowMenuPage.SORT) null else OverflowMenuPage.SORT
-                                                },
-                                                enabled = uiState.profiles.isNotEmpty()
+                                                }
                                             )
                                             HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
                                             DropdownMenuItem(
@@ -3394,172 +3294,49 @@ fun MainScreen(
         }
     }
 
-    // 1. Subscription Groups Dialog
+    // 1. Subscription page (PattNG style: Remark + URL cards)
     if (showSubscriptionGroupsDialog) {
-        var newSubUrl by remember { mutableStateOf("") }
-        var newSubName by remember { mutableStateOf("") }
-        var showAddSubField by remember { mutableStateOf(false) }
-
-        AlertDialog(
-            onDismissRequest = { showSubscriptionGroupsDialog = false },
-            title = {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Icon(Icons.Default.Dns, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                    Text("Subscription Groups", style = MaterialTheme.typography.titleLarge)
+        val subUrls by viewModel.subscriptionUrls.collectAsState()
+        var subStatus by remember { mutableStateOf<String?>(null) }
+        val subCounts = remember(uiState.profiles) {
+            uiState.profiles.groupingBy { it.subscriptionGroup }.eachCount()
+        }
+        SubscriptionPage(
+            urls = subUrls,
+            groups = subGroups,
+            counts = subCounts,
+            status = subStatus,
+            onDismiss = {
+                showSubscriptionGroupsDialog = false
+                subStatus = null
+            },
+            onSave = { old, remark, url ->
+                subStatus = "Fetching $remark..."
+                viewModel.saveSubscriptionEdit(old, remark, url) { count, err ->
+                    subStatus = if (err == null) "Saved $remark: $count configs" else "Error: $err"
                 }
             },
-            text = {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Text(
-                        "Manage subscription links, update all configs, or add new provider groups.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-
-                    if (subGroups.isEmpty()) {
-                        Card(
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                            ),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text(
-                                "No subscription groups configured yet. Add a subscription URL below to auto-fetch server nodes.",
-                                modifier = Modifier.padding(12.dp),
-                                style = MaterialTheme.typography.bodySmall
-                            )
-                        }
-                    } else {
-                        subGroups.forEach { groupName ->
-                            val count = uiState.profiles.count { it.subscriptionGroup == groupName }
-                            Card(
-                                modifier = Modifier.fillMaxWidth(),
-                                colors = CardDefaults.cardColors(
-                                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
-                                )
-                            ) {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(12.dp),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(groupName, fontWeight = FontWeight.SemiBold)
-                                        Text(
-                                            "$count configs",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        IconButton(onClick = {
-                                            viewModel.updateSubscriptionGroup(groupName) { count, err ->
-                                                scope.launch {
-                                                    if (err != null) snackbarHostState.showSnackbar("Update failed: $err")
-                                                    else snackbarHostState.showSnackbar("Updated $count configs for $groupName")
-                                                }
-                                            }
-                                        }) {
-                                            Icon(Icons.Default.Refresh, contentDescription = "Update", tint = MaterialTheme.colorScheme.primary)
-                                        }
-                                        IconButton(onClick = {
-                                            viewModel.deleteProfilesMatching { it.subscriptionGroup == groupName }
-                                            scope.launch { snackbarHostState.showSnackbar("Deleted subscription group: $groupName") }
-                                        }) {
-                                            Icon(Icons.Default.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error)
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    if (showAddSubField) {
-                        OutlinedTextField(
-                            value = newSubName,
-                            onValueChange = { newSubName = it },
-                            label = { Text("Group Name") },
-                            placeholder = { Text("e.g. VIP Subscription") },
-                            singleLine = true,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        OutlinedTextField(
-                            value = newSubUrl,
-                            onValueChange = { newSubUrl = it },
-                            label = { Text("Subscription URL") },
-                            placeholder = { Text("https://... or vless/vmess/sub") },
-                            singleLine = true,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        OutlinedButton(
-                            onClick = {
-                                if (!showAddSubField) {
-                                    showAddSubField = true
-                                } else if (newSubUrl.isNotBlank()) {
-                                    val group = newSubName.ifBlank { "Subscription" }
-                                    viewModel.saveSubscription(group, newSubUrl) { count, err ->
-                                        scope.launch {
-                                            if (err == null) {
-                                                snackbarHostState.showSnackbar("Saved and fetched $count configs into $group")
-                                            } else {
-                                                snackbarHostState.showSnackbar("Error: $err")
-                                            }
-                                        }
-                                    }
-                                    showAddSubField = false
-                                    newSubUrl = ""
-                                    newSubName = ""
-                                }
-                            },
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(Modifier.width(4.dp))
-                            Text(if (showAddSubField) "Save & Import" else "Add Group")
-                        }
-
-                        Button(
-                            onClick = {
-                                viewModel.updateAllSubscriptions { count, err ->
-                                    scope.launch {
-                                        if (err != null) {
-                                            snackbarHostState.showSnackbar("Update failed: $err")
-                                        } else {
-                                            snackbarHostState.showSnackbar("Updated $count configs across all subscriptions")
-                                        }
-                                    }
-                                }
-                                showSubscriptionGroupsDialog = false
-                            },
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(Modifier.width(4.dp))
-                            Text("Update All")
-                        }
-                    }
+            onUpdate = { remark ->
+                subStatus = "Updating $remark..."
+                viewModel.updateSubscriptionGroup(remark) { count, err ->
+                    subStatus = if (err == null) "Updated $remark: $count configs" else "Update failed: $err"
                 }
             },
-            confirmButton = {
-                TextButton(onClick = { showSubscriptionGroupsDialog = false }) {
-                    Text("Close")
+            onUpdateAll = {
+                subStatus = "Updating all..."
+                viewModel.updateAllSubscriptions { count, err ->
+                    subStatus = if (err == null) "Updated $count configs across all subscriptions" else "Update failed: $err"
                 }
+            },
+            onDelete = { remark ->
+                viewModel.deleteSubscriptionGroup(remark)
+                subStatus = "Deleted $remark"
+            },
+            onOpen = { remark ->
+                val idx = groupTabs.indexOfFirst { it.first == remark }
+                if (idx >= 0) selectedCategoryIndex = idx
+                showSubscriptionGroupsDialog = false
+                subStatus = null
             }
         )
     }
@@ -3977,8 +3754,8 @@ fun MainScreen(
         androidx.compose.ui.window.Dialog(onDismissRequest = { invalidConfigsErrors = null }) {
             Surface(
                 shape = RoundedCornerShape(20.dp),
-                color = Color(0xEE1E142B),
-                border = BorderStroke(1.dp, Color(0x55BB86FC)),
+                color = MaterialTheme.colorScheme.surface,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
                 shadowElevation = 8.dp,
                 modifier = Modifier
                     .fillMaxWidth()
@@ -3995,21 +3772,21 @@ fun MainScreen(
                         Icon(
                             Icons.Default.Warning,
                             contentDescription = null,
-                            tint = Color(0xFFCF6679),
+                            tint = MaterialTheme.colorScheme.error,
                             modifier = Modifier.size(24.dp)
                         )
                         Text(
                             "Invalid Configurations",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFFE8DEF8)
+                            color = MaterialTheme.colorScheme.onSurface
                         )
                     }
 
                     Text(
                         "The following invalid configurations could not be imported:",
                         style = MaterialTheme.typography.bodySmall,
-                        color = Color(0xFFD0BCFF)
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
 
                     LazyColumn(
@@ -4023,10 +3800,10 @@ fun MainScreen(
                                 modifier = Modifier.fillMaxWidth(),
                                 verticalAlignment = Alignment.Top
                             ) {
-                                Text("• ", color = Color(0xFFBB86FC), fontSize = 12.sp)
+                                Text("• ", color = MaterialTheme.colorScheme.primary, fontSize = 12.sp)
                                 Text(
                                     err,
-                                    color = Color(0xFFE6E1E5),
+                                    color = MaterialTheme.colorScheme.onSurface,
                                     style = MaterialTheme.typography.bodySmall,
                                     fontSize = 12.sp
                                 )
@@ -4036,11 +3813,10 @@ fun MainScreen(
 
                     Button(
                         onClick = { invalidConfigsErrors = null },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6B4C7D)),
                         shape = RoundedCornerShape(10.dp),
                         modifier = Modifier.align(Alignment.End)
                     ) {
-                        Text("Dismiss", color = Color.White)
+                        Text("Dismiss")
                     }
                 }
             }
@@ -4415,7 +4191,7 @@ private fun ConnectionStatusStrip(
 
     val statusColor by animateColorAsState(
         targetValue = when {
-            isConnected -> Color(0xFF8B5CF6)
+            isConnected -> ConnectedGreen
             isConnecting -> ConnectingOrange
             isError -> DisconnectedRed
             else -> MaterialTheme.colorScheme.outline
@@ -4533,7 +4309,7 @@ private fun ConnectionStatusStrip(
                                         text = " · $resolverCount DNS",
                                         style = MaterialTheme.typography.labelSmall,
                                         fontWeight = FontWeight.Medium,
-                                        color = if (isConnected) Color(0xFF8B5CF6) else MaterialTheme.colorScheme.primary
+                                        color = if (isConnected) ConnectedGreen else MaterialTheme.colorScheme.primary
                                     )
                                 }
                             }

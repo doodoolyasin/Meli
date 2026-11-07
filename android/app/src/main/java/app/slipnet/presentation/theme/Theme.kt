@@ -26,14 +26,14 @@ private val DarkColorScheme = darkColorScheme(
     onSecondary = Color.Black,
     secondaryContainer = SlipstreamSecondaryDark,
     onSecondaryContainer = Color.White,
-    tertiary = Pink80,
+    tertiary = Tertiary80,
     onTertiary = Color.Black,
     background = BackgroundDark,
     onBackground = Color.White,
     surface = SurfaceDark,
     onSurface = Color.White,
-    surfaceVariant = Color(0xFF49454F),
-    onSurfaceVariant = Color(0xFFCAC4D0),
+    surfaceVariant = SurfaceVariantDark,
+    onSurfaceVariant = OnSurfaceVariantDark,
     error = Color(0xFFF2B8B5),
     onError = Color(0xFF601410)
 )
@@ -47,14 +47,14 @@ private val AmoledColorScheme = darkColorScheme(
     onSecondary = Color.Black,
     secondaryContainer = SlipstreamSecondaryDark,
     onSecondaryContainer = Color.White,
-    tertiary = Pink80,
+    tertiary = Tertiary80,
     onTertiary = Color.Black,
     background = BackgroundAmoled,
     onBackground = Color.White,
     surface = SurfaceAmoled,
     onSurface = Color.White,
     surfaceVariant = SurfaceVariantAmoled,
-    onSurfaceVariant = Color(0xFFCAC4D0),
+    onSurfaceVariant = OnSurfaceVariantDark,
     error = Color(0xFFF2B8B5),
     onError = Color(0xFF601410)
 )
@@ -68,14 +68,14 @@ private val LightColorScheme = lightColorScheme(
     onSecondary = Color.White,
     secondaryContainer = SlipstreamSecondary,
     onSecondaryContainer = Color.Black,
-    tertiary = Pink40,
+    tertiary = Tertiary40,
     onTertiary = Color.White,
     background = BackgroundLight,
     onBackground = Color.Black,
     surface = SurfaceLight,
     onSurface = Color.Black,
-    surfaceVariant = Color(0xFFE7E0EC),
-    onSurfaceVariant = Color(0xFF49454F),
+    surfaceVariant = SurfaceVariantLight,
+    onSurfaceVariant = OnSurfaceVariantLight,
     error = Color(0xFFB3261E),
     onError = Color.White
 )
@@ -83,7 +83,7 @@ private val LightColorScheme = lightColorScheme(
 @Composable
 fun SlipstreamTheme(
     darkMode: DarkMode = DarkMode.SYSTEM,
-    dynamicColor: Boolean = true,
+    dynamicColor: Boolean = false,
     content: @Composable () -> Unit
 ) {
     val darkTheme = when (darkMode) {

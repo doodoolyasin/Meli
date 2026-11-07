@@ -2,14 +2,13 @@ package app.slipnet.presentation.theme
 
 import androidx.compose.ui.graphics.Color
 
-// Primary colors
-val Purple80 = Color(0xFFD0BCFF)
-val PurpleGrey80 = Color(0xFFCCC2DC)
-val Pink80 = Color(0xFFEFB8C8)
-
-val Purple40 = Color(0xFF6650a4)
-val PurpleGrey40 = Color(0xFF625b71)
-val Pink40 = Color(0xFF7D5260)
+// Neutral tertiary (teal) + slate surface variants (no purple/pink tint)
+val Tertiary80 = Color(0xFF5EEAD4)
+val Tertiary40 = Color(0xFF0F766E)
+val SurfaceVariantDark = Color(0xFF1E293B)
+val OnSurfaceVariantDark = Color(0xFFCBD5E1)
+val SurfaceVariantLight = Color(0xFFE2E8F0)
+val OnSurfaceVariantLight = Color(0xFF475569)
 
 // Slipstream brand colors
 val SlipstreamPrimary = Color(0xFF2196F3)
@@ -19,36 +18,36 @@ val SlipstreamSecondary = Color(0xFF03DAC6)
 val SlipstreamSecondaryDark = Color(0xFF00A896)
 
 // Status colors
-val ConnectedGreen = Color(0xFF8B5CF6)
-val ConnectedGreenDark = Color(0xFF7C3AED)
-val DisconnectedRed = Color(0xFFF44336)
-val DisconnectedRedDark = Color(0xFFD32F2F)
-val ConnectingOrange = Color(0xFFFF9800)
-val ConnectingOrangeDark = Color(0xFFF57C00)
-val WarningYellow = Color(0xFFFFC107)
+val ConnectedGreen = Color(0xFF10B981)
+val ConnectedGreenDark = Color(0xFF059669)
+val DisconnectedRed = Color(0xFFEF4444)
+val DisconnectedRedDark = Color(0xFFDC2626)
+val ConnectingOrange = Color(0xFFF59E0B)
+val ConnectingOrangeDark = Color(0xFFD97706)
+val WarningYellow = Color(0xFFFBBF24)
 
 // Background colors
-val SurfaceLight = Color(0xFFFFFBFE)
-val SurfaceDark = Color(0xFF1C1B1F)
-val BackgroundLight = Color(0xFFFFFBFE)
-val BackgroundDark = Color(0xFF1C1B1F)
+val SurfaceLight = Color(0xFFF8FAFC)
+val SurfaceDark = Color(0xFF0F172A)
+val BackgroundLight = Color(0xFFF8FAFC)
+val BackgroundDark = Color(0xFF0B0F19)
 
 // AMOLED dark colors (pure black)
 val SurfaceAmoled = Color(0xFF000000)
 val BackgroundAmoled = Color(0xFF000000)
-val SurfaceVariantAmoled = Color(0xFF1A1A1A)
+val SurfaceVariantAmoled = Color(0xFF111827)
 
 // Traffic indicator colors
-val UploadBlue = Color(0xFF2196F3)
-val DownloadGreen = Color(0xFFA855F7)
+val UploadBlue = Color(0xFF3B82F6)
+val DownloadGreen = Color(0xFF10B981)
 
-// PattNG UI signature colors (Purple themed)
-val ColorFabActive = Color(0xFF7C3AED)
-val ColorFabInactiveDark = Color(0xFF374151)
-val ColorFabInactiveLight = Color(0xFF9E9E9E)
-val ColorConfigType = Color(0xFF00ACC1)
-val ColorPingGreen = Color(0xFFA855F7)
-val ColorPingOrange = Color(0xFFFF9800)
-val ColorPingRed = Color(0xFFE53935)
-val ColorSelectionAccent = Color(0xFF8B5CF6)
+// Clean Neutral & Accent colors (Modern Slate & Royal Blue)
+val ColorFabActive = Color(0xFF2563EB)
+val ColorFabInactiveDark = Color(0xFF334155)
+val ColorFabInactiveLight = Color(0xFF94A3B8)
+val ColorConfigType = Color(0xFF0EA5E9)
+val ColorPingGreen = Color(0xFF10B981)
+val ColorPingOrange = Color(0xFFF59E0B)
+val ColorPingRed = Color(0xFFEF4444)
+val ColorSelectionAccent = Color(0xFF3B82F6)
 

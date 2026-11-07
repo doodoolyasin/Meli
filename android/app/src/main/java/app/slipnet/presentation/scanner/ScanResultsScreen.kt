@@ -119,6 +119,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.yield
 import app.slipnet.domain.model.E2eScannerState
 import app.slipnet.domain.model.E2eTestResult
+import app.slipnet.domain.model.ResolverRanking
 import app.slipnet.domain.model.ResolverScanResult
 import app.slipnet.domain.model.ResolverStatus
 import app.slipnet.domain.model.SimpleModeE2eState
@@ -312,10 +313,11 @@ fun ScanResultsScreen(
 
         fun doSave(ips: List<String>, label: String) {
             pendingAction = null
-            viewModel.saveToPool(ips, label)
+            // Best first, so "Use best" in the profile editor really takes the best resolvers.
+            viewModel.saveToPool(ResolverRanking.order(ips, throttledResults), label)
             scope.launch {
                 snackbarHostState.currentSnackbarData?.dismiss()
-                launch { snackbarHostState.showSnackbar("Saved ${ips.size} IPs to pool") }
+                launch { snackbarHostState.showSnackbar("Saved ${ips.size} IPs to the Harvested pool (best first)") }
                 delay(1800)
                 snackbarHostState.currentSnackbarData?.dismiss()
             }
@@ -324,12 +326,12 @@ fun ScanResultsScreen(
         val isSave = action == "save"
         val titleText = when (action) {
             "copy" -> "Copy IPs"
-            "save" -> "Save to Pool"
+            "save" -> "Save as Harvested pool"
             else -> "Export IPs"
         }
         val promptText = when (action) {
             "copy" -> "Which IPs do you want to copy?"
-            "save" -> "Choose which IPs to save as the resolver pool:"
+            "save" -> "Choose which IPs to keep in the Harvested pool (profile editor, Resolvers):"
             else -> "Which IPs do you want to export?"
         }
 
@@ -459,7 +461,7 @@ fun ScanResultsScreen(
                                     }
                                 )
                                 DropdownMenuItem(
-                                    text = { Text("Save to pool") },
+                                    text = { Text("Save as Harvested pool") },
                                     onClick = {
                                         showOverflowMenu = false
                                         pendingAction = "save"

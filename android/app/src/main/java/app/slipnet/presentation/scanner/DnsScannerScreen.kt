@@ -2361,7 +2361,7 @@ private fun ResolverListSection(
                             modifier = Modifier.size(18.dp)
                         )
                         Spacer(Modifier.width(8.dp))
-                        val label = if (savedPoolLabel != null) "$savedPoolLabel" else "Saved Pool"
+                        val label = if (savedPoolLabel != null) "$savedPoolLabel" else "Harvested pool"
                         Text("$label ($savedPoolSize IPs)")
                     }
                 }

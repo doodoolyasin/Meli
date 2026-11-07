@@ -33,7 +33,9 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
@@ -120,6 +122,10 @@ class MainViewModel @Inject constructor(
 
     private val _uiState = MutableStateFlow(MainUiState())
     val uiState: StateFlow<MainUiState> = _uiState.asStateFlow()
+
+    /** Saved subscription links: remark (group name) -> URL. Drives the Subscription page. */
+    val subscriptionUrls: StateFlow<Map<String, String>> = preferencesDataStore.subscriptionUrls
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
     private var bootstrapPollingJob: Job? = null
     private var trafficPollingJob: Job? = null
@@ -752,6 +758,32 @@ class MainViewModel @Inject constructor(
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) { onDone(0, e.message ?: "Failed to fetch subscription") }
             }
+        }
+    }
+
+    /**
+     * Create or edit a subscription (Remark + URL). When [oldRemark] differs from the new
+     * remark, its configs are re-tagged and the old saved link removed first, so a rename
+     * never leaves duplicates behind. The link is then fetched under the new remark.
+     */
+    fun saveSubscriptionEdit(
+        oldRemark: String?,
+        newRemark: String,
+        url: String,
+        onDone: (Int, String?) -> Unit
+    ) {
+        viewModelScope.launch {
+            val remark = newRemark.trim().ifBlank { "Subscription" }
+            val cleanUrl = url.trim()
+            if (!oldRemark.isNullOrBlank() && oldRemark != remark) {
+                withContext(Dispatchers.IO) {
+                    _uiState.value.profiles
+                        .filter { it.subscriptionGroup == oldRemark }
+                        .forEach { saveProfileUseCase(it.copy(subscriptionId = remark)) }
+                    preferencesDataStore.deleteSubscriptionUrl(oldRemark)
+                }
+            }
+            saveSubscription(remark, cleanUrl, onDone)
         }
     }
 
