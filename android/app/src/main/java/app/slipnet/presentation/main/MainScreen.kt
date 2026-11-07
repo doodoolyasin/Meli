@@ -105,6 +105,8 @@ import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.Check
