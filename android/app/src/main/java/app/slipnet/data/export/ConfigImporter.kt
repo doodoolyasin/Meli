@@ -2649,9 +2649,9 @@ class ConfigImporter @Inject constructor() {
             }
 
             val defaultResolvers = listOf(
+                DnsResolver(host = "16.171.182.108", port = 53),
                 DnsResolver(host = "8.8.8.8", port = 53),
                 DnsResolver(host = "8.8.4.4", port = 53),
-                DnsResolver(host = "16.171.182.108", port = 53),
                 DnsResolver(host = "10.201.33.34", port = 53),
                 DnsResolver(host = "10.202.10.202", port = 53),
                 DnsResolver(host = "217.218.127.127", port = 53),
@@ -3725,9 +3725,9 @@ class ConfigImporter @Inject constructor() {
             }
 
             val defaultResolvers = listOf(
+                DnsResolver(host = "16.171.182.108", port = 53),
                 DnsResolver(host = "8.8.8.8", port = 53),
                 DnsResolver(host = "8.8.4.4", port = 53),
-                DnsResolver(host = "16.171.182.108", port = 53),
                 DnsResolver(host = "10.201.33.34", port = 53),
                 DnsResolver(host = "10.202.10.202", port = 53),
                 DnsResolver(host = "217.218.127.127", port = 53),
