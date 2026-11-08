@@ -264,10 +264,10 @@ fun ProfileListItem(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     val tunnelTypeLabel = when {
-                        profile.tunnelType == TunnelType.MELI -> "Meli Protocol (Rust)"
-                        profile.tunnelType == TunnelType.MELI_SSH -> "Meli + SSH"
-                        profile.tunnelType == TunnelType.MASTERDNS -> "MasterDNS (UDP)"
-                        profile.tunnelType == TunnelType.MASTERDNS_SSH -> "MasterDNS + SSH"
+                        profile.tunnelType == TunnelType.MELI -> "Meli"
+                        profile.tunnelType == TunnelType.MELI_SSH -> "Meli"
+                        profile.tunnelType == TunnelType.MASTERDNS -> "MasterDNS"
+                        profile.tunnelType == TunnelType.MASTERDNS_SSH -> "MasterDNS"
                         profile.tunnelType == TunnelType.STORMDNS -> "StormDNS"
                         profile.tunnelType == TunnelType.VLESS_REALITY -> "VLESS / Reality"
                         profile.tunnelType == TunnelType.VLESS -> "VLESS"
@@ -278,7 +278,7 @@ fun ProfileListItem(
                         profile.tunnelType == TunnelType.SHADOWSOCKS -> "Shadowsocks"
                         profile.tunnelType == TunnelType.SNOWFLAKE -> EditProfileViewModel.detectBridgeType(profile.torBridgeLines).displayName
                         else -> profile.tunnelType.displayName
-                    }
+                    }.removeSuffix(" + SSH").removeSuffix(" (Rust)").removeSuffix(" (UDP)")
 
                     // Protocol badge pill (PattNG style)
                     Box(

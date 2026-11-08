@@ -495,6 +495,17 @@ fun SettingsScreen(
 
                 SettingsDivider()
 
+                val proxySocksChain by viewModel.proxySocksChain.collectAsState()
+                SwitchSettingItem(
+                    icon = Icons.Default.SettingsEthernet,
+                    title = "All protocols as proxy + SOCKS",
+                    description = "Run every DNS protocol as a plain SOCKS proxy instead of SSH. Off = SSH for all",
+                    checked = proxySocksChain,
+                    onCheckedChange = { viewModel.setProxySocksChain(it) }
+                )
+
+                SettingsDivider()
+
                 // Auto-connect on boot
                 SwitchSettingItem(
                     icon = Icons.Default.PowerSettingsNew,

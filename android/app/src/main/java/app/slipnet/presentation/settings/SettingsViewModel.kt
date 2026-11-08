@@ -35,6 +35,7 @@ data class SettingsUiState(
     val proxyAuthUsername: String = "",
     val proxyAuthPassword: String = "",
     val proxyOnlyMode: Boolean = false,
+    val proxySocksChain: Boolean = false,
     val killSwitch: Boolean = false,
     val autoReconnect: Boolean = false,
     val showNotificationTraffic: Boolean = true,
@@ -299,6 +300,16 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             preferencesDataStore.setDebugLogging(enabled)
         }
+    }
+
+    fun setProxySocksChain(enabled: Boolean) {
+        viewModelScope.launch { preferencesDataStore.setProxySocksChain(enabled) }
+    }
+
+    val proxySocksChain: kotlinx.coroutines.flow.StateFlow<Boolean> by lazy {
+        preferencesDataStore.proxySocksChain.stateIn(
+            viewModelScope, kotlinx.coroutines.flow.SharingStarted.Eagerly, false
+        )
     }
 
     // Proxy-Only Mode

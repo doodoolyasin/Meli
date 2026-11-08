@@ -4295,7 +4295,7 @@ private fun ConnectionStatusStrip(
                         if (effectiveProfile != null) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(
-                                    text = effectiveProfile.tunnelType.displayName,
+                                    text = effectiveProfile.tunnelType.displayName.removeSuffix(" + SSH"),
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f)
                                 )

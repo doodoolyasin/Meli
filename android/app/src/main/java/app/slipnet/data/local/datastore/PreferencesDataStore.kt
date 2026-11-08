@@ -71,6 +71,7 @@ class PreferencesDataStore @Inject constructor(
         // Proxy-Only Mode
         val PROXY_ONLY_MODE = booleanPreferencesKey("proxy_only_mode")
         val MANDATORY_SSH = booleanPreferencesKey("mandatory_ssh")
+        val PROXY_SOCKS_CHAIN = booleanPreferencesKey("proxy_socks_chain")
         val SUBSCRIPTION_URLS = stringPreferencesKey("subscription_urls_json")
         val SUBSCRIPTION_META = stringPreferencesKey("subscription_meta_json")
         // Kill Switch
@@ -573,6 +574,15 @@ class PreferencesDataStore @Inject constructor(
         dataStore.edit { prefs ->
             prefs[Keys.PROXY_ONLY_MODE] = enabled
         }
+    }
+
+    // Global: run DNS-tunnel protocols as plain SOCKS proxy instead of SSH
+    val proxySocksChain: Flow<Boolean> = dataStore.data.map { prefs ->
+        prefs[Keys.PROXY_SOCKS_CHAIN] ?: false
+    }
+
+    suspend fun setProxySocksChain(enabled: Boolean) {
+        dataStore.edit { prefs -> prefs[Keys.PROXY_SOCKS_CHAIN] = enabled }
     }
 
     // Mandatory SSH Mode

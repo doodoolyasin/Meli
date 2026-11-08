@@ -573,12 +573,40 @@ class SlipNetVpnService : VpnService() {
                 // Nooshdaroo / qWDTT / VayDNS (pure) carry no SOCKS or SSH credentials. Profiles saved
                 // by older builds may still hold the shared default, which would make the SOCKS
                 // greeting ask for username/password auth the server never offers.
-                val effectiveProfile = if (resolverReadyProfile.tunnelType == TunnelType.NOOSHDAROO ||
-                    resolverReadyProfile.tunnelType == TunnelType.QWDTT ||
-                    resolverReadyProfile.tunnelType == TunnelType.VAYDNS) {
-                    resolverReadyProfile.copy(socksUsername = null, socksPassword = null)
-                } else {
-                    resolverReadyProfile
+                // Profiles saved by older builds keep the old public key for our own tunnel
+                // domains. Those servers now use new keys, so rewrite by domain.
+                val migratedKey = when (resolverReadyProfile.domain.trim().lowercase()) {
+                    "vay.dhafhdtjdti.site" -> "0a06021a502e551939367e56a4054e3a477b9bcfd217f76ea95a232540d1cb73"
+                    "noosh.dhafhdtjdti.site" -> "6d61400cb6d38680787b2a2d0fe195682a3d3f1ae3076e39a90cfe31684cc749"
+                    "qwdtt.dhafhdtjdti.site" -> "6db22cdefb92019647f1082048b913dee102dac0473d258e9bb4f874d4336c2b"
+                    "noiz.dhafhdtjdti.site" -> "d5f1b651f955e7b70907512ececd0014b1fcbab759eff010f35aed7072e8b979"
+                    else -> null
+                }
+                val keyedProfile = if (migratedKey != null && resolverReadyProfile.dnsttPublicKey != migratedKey)
+                    resolverReadyProfile.copy(dnsttPublicKey = migratedKey) else resolverReadyProfile
+                // Global mode: every DNS-tunnel protocol is SSH by default (built-in credential,
+                // nothing asked in the UI); the "proxy + SOCKS" setting switches all to plain SOCKS.
+                val socksChain = preferencesDataStore.proxySocksChain.first()
+                val sshVariant = mapOf(
+                    TunnelType.DNSTT to TunnelType.DNSTT_SSH, TunnelType.NOIZDNS to TunnelType.NOIZDNS_SSH,
+                    TunnelType.VAYDNS to TunnelType.VAYDNS_SSH, TunnelType.SLIPSTREAM to TunnelType.SLIPSTREAM_SSH,
+                    TunnelType.NOOSHDAROO to TunnelType.NOOSHDAROO_SSH, TunnelType.QWDTT to TunnelType.QWDTT_SSH
+                )
+                val plainVariant = sshVariant.entries.associate { it.value to it.key }
+                val modeType = if (socksChain) (plainVariant[keyedProfile.tunnelType] ?: keyedProfile.tunnelType)
+                               else (sshVariant[keyedProfile.tunnelType] ?: keyedProfile.tunnelType)
+                val wantsSsh = !socksChain && modeType in plainVariant.keys
+                val ownServer = keyedProfile.domain.trim().lowercase().endsWith("dhafhdtjdti.site")
+                val effectiveProfile = keyedProfile.copy(
+                    tunnelType = modeType,
+                    socksUsername = null, socksPassword = null,
+                    sshUsername = if (wantsSsh && (ownServer || keyedProfile.sshUsername.isBlank())) "aryana" else keyedProfile.sshUsername,
+                    sshPassword = if (wantsSsh && (ownServer || keyedProfile.sshPassword.isBlank())) "WSu4QlWrVg5FjITDB86q" else keyedProfile.sshPassword,
+                    sshAuthType = if (wantsSsh && (ownServer || keyedProfile.sshPassword.isBlank())) app.slipnet.domain.model.SshAuthType.PASSWORD else keyedProfile.sshAuthType
+                )
+                if (modeType != currentTunnelType) {
+                    Log.i(TAG, "Protocol mode: $currentTunnelType -> $modeType (socksChain=$socksChain)")
+                    currentTunnelType = modeType
                 }
 
                 val override = globalResolverOverride
