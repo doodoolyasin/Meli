@@ -38,6 +38,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
+import androidx.compose.material.icons.filled.QrCode
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -108,6 +109,8 @@ internal fun SubscriptionPage(
     var pendingDelete by remember { mutableStateOf<String?>(null) }
     var updateTarget by remember { mutableStateOf<UpdateTarget?>(null) }
     val clipboard = LocalClipboardManager.current
+    var qrFor by remember { mutableStateOf<Pair<String, String>?>(null) }
+    qrFor?.let { (n, u) -> app.slipnet.presentation.common.components.QrCodeDialog(profileName = n, configUri = u, onDismiss = { qrFor = null }) }
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -160,6 +163,7 @@ internal fun SubscriptionPage(
                                 row = row,
                                 onOpen = { onOpen(row.remark) },
                                 onShare = { clipboard.setText(AnnotatedString(row.url)) },
+                                onQr = { qrFor = row.remark to row.url },
                                 onEdit = { editor = SubEditor(row.remark, row.remark, row.url, row.meta) },
                                 onDelete = { pendingDelete = row.remark },
                                 onToggle = { onToggle(row.remark, it) }
@@ -296,6 +300,7 @@ private fun SubscriptionCard(
     row: SubRow,
     onOpen: () -> Unit,
     onShare: () -> Unit,
+    onQr: () -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
     onToggle: (Boolean) -> Unit
@@ -322,6 +327,7 @@ private fun SubscriptionCard(
             }
             Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
                 IconButton(onClick = onShare, enabled = row.url.isNotBlank()) { Icon(Icons.Default.Share, contentDescription = "Copy link") }
+                IconButton(onClick = onQr, enabled = row.url.isNotBlank()) { Icon(Icons.Default.QrCode, contentDescription = "QR code") }
                 IconButton(onClick = onEdit) { Icon(Icons.Default.Edit, contentDescription = "Edit") }
                 IconButton(onClick = onDelete) { Icon(Icons.Default.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error) }
             }
