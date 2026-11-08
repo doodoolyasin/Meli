@@ -556,7 +556,7 @@ class SlipNetVpnService : VpnService() {
                 )
 
                 // For DNS tunnels, ensure resolvers default to reliable Google DNS (8.8.8.8:53, 8.8.4.4:53) if empty
-                val effectiveProfile = if (isDnsTunnel) {
+                val resolverReadyProfile = if (isDnsTunnel) {
                     val needsDefaultResolver = profile.resolvers.isEmpty()
                     if (needsDefaultResolver) {
                         profile.copy(resolvers = listOf(
@@ -568,6 +568,17 @@ class SlipNetVpnService : VpnService() {
                     }
                 } else {
                     profile
+                }
+
+                // Nooshdaroo / qWDTT / VayDNS (pure) carry no SOCKS or SSH credentials. Profiles saved
+                // by older builds may still hold the shared default, which would make the SOCKS
+                // greeting ask for username/password auth the server never offers.
+                val effectiveProfile = if (resolverReadyProfile.tunnelType == TunnelType.NOOSHDAROO ||
+                    resolverReadyProfile.tunnelType == TunnelType.QWDTT ||
+                    resolverReadyProfile.tunnelType == TunnelType.VAYDNS) {
+                    resolverReadyProfile.copy(socksUsername = null, socksPassword = null)
+                } else {
+                    resolverReadyProfile
                 }
 
                 val override = globalResolverOverride
@@ -4850,10 +4861,16 @@ class SlipNetVpnService : VpnService() {
                     } else profile
                 } else profile
 
-                val reconnectProfile = if (reconnectGlobalDnsIp != null && !DomainRouter.isIpAddress(healedProfile.domain)) {
-                    val resolved = VpnRepositoryImpl.resolveHost(healedProfile.domain, reconnectGlobalDnsIp)
-                    if (resolved != healedProfile.domain) healedProfile.copy(domain = resolved) else healedProfile
+                val reconnectProfile0 = if (healedProfile.tunnelType == TunnelType.NOOSHDAROO ||
+                    healedProfile.tunnelType == TunnelType.QWDTT ||
+                    healedProfile.tunnelType == TunnelType.VAYDNS) {
+                    healedProfile.copy(socksUsername = null, socksPassword = null)
                 } else healedProfile
+
+                val reconnectProfile = if (reconnectGlobalDnsIp != null && !DomainRouter.isIpAddress(reconnectProfile0.domain)) {
+                    val resolved = VpnRepositoryImpl.resolveHost(reconnectProfile0.domain, reconnectGlobalDnsIp)
+                    if (resolved != reconnectProfile0.domain) reconnectProfile0.copy(domain = resolved) else reconnectProfile0
+                } else reconnectProfile0
 
                 val reconnectActiveResolvers = (globalResolverOverride ?: reconnectProfile.resolvers)
                     .map { "${it.host}:${it.port}" }

@@ -320,8 +320,14 @@ data class EditProfileUiState(
     val isSocks5: Boolean
         get() = tunnelType == TunnelType.SOCKS5
 
+    // Nooshdaroo / qWDTT / VayDNS (pure transports) carry no SOCKS/SSH credentials.
+    val isCredentialFreeTransport: Boolean
+        get() = tunnelType == TunnelType.NOOSHDAROO || tunnelType == TunnelType.QWDTT ||
+                tunnelType == TunnelType.VAYDNS
+
     val needsDanteSocksAuth: Boolean
-        get() = !useSsh && !isExplicitSshTunnel && (isDnsttBased || isDnsttOrNoizBased || isVaydnsBased || isSlipstreamBased || isSocks5)
+        get() = !useSsh && !isExplicitSshTunnel && !isCredentialFreeTransport &&
+                (isDnsttBased || isDnsttOrNoizBased || isVaydnsBased || isSlipstreamBased || isSocks5)
 
     val isVless: Boolean
         get() = tunnelType == TunnelType.VLESS
@@ -459,11 +465,11 @@ class EditProfileViewModel @Inject constructor(
     }
 
     private val isDanteSocksAuthInitial: Boolean =
-        isDnsttInitial || isNoizdnsInitial || isVaydnsInitial || isSlipstreamInitial ||
+        isDnsttInitial || isNoizdnsInitial || isSlipstreamInitial ||
         initialTunnelType in setOf(
             TunnelType.DNSTT, TunnelType.DNSTT_SSH,
             TunnelType.NOIZDNS, TunnelType.NOIZDNS_SSH,
-            TunnelType.VAYDNS, TunnelType.VAYDNS_SSH,
+            TunnelType.VAYDNS_SSH,
             TunnelType.SLIPSTREAM, TunnelType.SLIPSTREAM_SSH,
             TunnelType.SOCKS5
         )
@@ -693,8 +699,8 @@ class EditProfileViewModel @Inject constructor(
                     keepAliveInterval = profile.keepAliveInterval.toString(),
                     congestionControl = profile.congestionControl,
                     gsoEnabled = profile.gsoEnabled,
-                    socksUsername = profile.socksUsername?.takeIf { it.isNotBlank() } ?: if (profile.tunnelType in setOf(TunnelType.DNSTT, TunnelType.DNSTT_SSH, TunnelType.NOIZDNS, TunnelType.NOIZDNS_SSH, TunnelType.VAYDNS, TunnelType.VAYDNS_SSH, TunnelType.SLIPSTREAM, TunnelType.SLIPSTREAM_SSH)) "yasin" else "",
-                    socksPassword = profile.socksPassword?.takeIf { it.isNotBlank() } ?: if (profile.tunnelType in setOf(TunnelType.DNSTT, TunnelType.DNSTT_SSH, TunnelType.NOIZDNS, TunnelType.NOIZDNS_SSH, TunnelType.VAYDNS, TunnelType.VAYDNS_SSH, TunnelType.SLIPSTREAM, TunnelType.SLIPSTREAM_SSH)) "yasin" else "",
+                    socksUsername = profile.socksUsername?.takeIf { it.isNotBlank() } ?: if (profile.tunnelType in setOf(TunnelType.DNSTT, TunnelType.DNSTT_SSH, TunnelType.NOIZDNS, TunnelType.NOIZDNS_SSH, TunnelType.VAYDNS_SSH, TunnelType.SLIPSTREAM, TunnelType.SLIPSTREAM_SSH)) "yasin" else "",
+                    socksPassword = profile.socksPassword?.takeIf { it.isNotBlank() } ?: if (profile.tunnelType in setOf(TunnelType.DNSTT, TunnelType.DNSTT_SSH, TunnelType.NOIZDNS, TunnelType.NOIZDNS_SSH, TunnelType.VAYDNS_SSH, TunnelType.SLIPSTREAM, TunnelType.SLIPSTREAM_SSH)) "yasin" else "",
                     tunnelType = profile.tunnelType,
                     dnsttPublicKey = profile.dnsttPublicKey,
                     sshUsername = profile.sshUsername,
@@ -799,7 +805,7 @@ class EditProfileViewModel @Inject constructor(
         val needsDante = type in setOf(
             TunnelType.DNSTT, TunnelType.DNSTT_SSH,
             TunnelType.NOIZDNS, TunnelType.NOIZDNS_SSH,
-            TunnelType.VAYDNS, TunnelType.VAYDNS_SSH,
+            TunnelType.VAYDNS_SSH,
             TunnelType.SLIPSTREAM, TunnelType.SLIPSTREAM_SSH,
             TunnelType.SOCKS5
         )
@@ -2508,8 +2514,8 @@ class EditProfileViewModel @Inject constructor(
                     keepAliveInterval = keepAlive,
                     congestionControl = state.congestionControl,
                     gsoEnabled = state.gsoEnabled,
-                    socksUsername = if (state.useSsh || state.isExplicitSshTunnel) null else state.socksUsername.trim().takeIf { it.isNotBlank() },
-                    socksPassword = if (state.useSsh || state.isExplicitSshTunnel) null else ((if (state.isTrojan && state.socksPassword.isNullOrBlank()) state.vlessUuid else state.socksPassword)?.trim()?.takeIf { it.isNotBlank() }),
+                    socksUsername = if (state.useSsh || state.isExplicitSshTunnel || state.isCredentialFreeTransport) null else state.socksUsername.trim().takeIf { it.isNotBlank() },
+                    socksPassword = if (state.useSsh || state.isExplicitSshTunnel || state.isCredentialFreeTransport) null else ((if (state.isTrojan && state.socksPassword.isNullOrBlank()) state.vlessUuid else state.socksPassword)?.trim()?.takeIf { it.isNotBlank() }),
                     tunnelType = effectiveTunnelType,
                     dnsttPublicKey = state.dnsttPublicKey.trim(),
                     sshUsername = if (state.useSsh) state.sshUsername.trim() else "",

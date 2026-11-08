@@ -252,13 +252,6 @@ fun EditProfileScreen(
                 // Permissions section (collapsible) - includes exact setup steps
                 MethodPermissionsSection(tunnelType = uiState.tunnelType)
 
-                // Health Check Section: (No-connect reachability probe)
-                HealthCheckSection(
-                    isRunning = uiState.isRunningHealthCheck,
-                    report = uiState.healthCheckReport,
-                    onRunCheck = { viewModel.runHealthCheck() }
-                )
-
                 // Domain / SSH Server (hidden for DOH, Snowflake, SOCKS5, and VLESS profiles)
                 if (!uiState.isDoh && !uiState.isSnowflake && !uiState.isSocks5 && !uiState.isVless &&
                     !uiState.isWireGuard && !uiState.isOpenVpn && !uiState.isL2tp && !uiState.isHysteria2 && !uiState.isTuic && !uiState.isTrojan && !uiState.isShadowsocks) {

@@ -27,9 +27,15 @@ import app.slipnet.domain.usecase.GetProfilesUseCase
 import app.slipnet.domain.usecase.SaveProfileUseCase
 import app.slipnet.domain.usecase.SetActiveProfileUseCase
 import app.slipnet.service.VpnConnectionManager
+import app.slipnet.util.DnsProbe
 import app.slipnet.tunnel.SnowflakeBridge
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -1068,9 +1074,27 @@ class MainViewModel @Inject constructor(
          *  this budget, remaining resolvers are skipped and the last error
          *  is surfaced. */
         private const val E2E_TOTAL_BUDGET_MS = 15000L
+        /** Profiles pinged at the same time. Probes are tiny (one datagram / one SYN). */
+        private const val PING_CONCURRENCY = 10
+        private const val TCP_PING_TIMEOUT_MS = 4000
     }
 
-    fun pingAllProfiles() {
+    // ── Ping ────────────────────────────────────────────────────────────
+    //
+    // DELAY    : default. DNS tunnels are probed through their resolvers for the profile's
+    //            own domain (see DnsProbe); TCP-based profiles get a TCP connect (best of 2).
+    // RESOLVER : client -> resolver round trip only (no tunnel involved).
+    // FULL     : starts a real tunnel client per resolver (slow; sequential for E2E types).
+
+    private enum class PingMode { DELAY, RESOLVER, FULL }
+
+    fun pingAllProfiles() = startPingAll(PingMode.DELAY)
+
+    fun pingAllProfilesSimple() = startPingAll(PingMode.RESOLVER)
+
+    fun pingAllProfilesFull() = startPingAll(PingMode.FULL)
+
+    private fun startPingAll(mode: PingMode) {
         if (_uiState.value.isPingRunning) {
             cancelPing()
             return
@@ -1079,110 +1103,34 @@ class MainViewModel @Inject constructor(
         val profiles = _uiState.value.profiles
         if (profiles.isEmpty()) return
 
-        val skipped = setOf(TunnelType.SNOWFLAKE)
         val initial = profiles.associate { profile ->
-            profile.id to if (profile.tunnelType in skipped) {
-                PingResult.Skipped
-            } else {
-                PingResult.Pending
-            }
+            profile.id to if (profile.tunnelType == TunnelType.SNOWFLAKE) PingResult.Skipped else PingResult.Pending
         }
         _uiState.update { it.copy(pingResults = initial, isPingRunning = true) }
 
         pingJob = viewModelScope.launch {
-            _uiState.update { it.copy(
-                pingingViaGlobalDns = preferencesDataStore.parsedGlobalResolvers()
-            ) }
+            _uiState.update { it.copy(pingingViaGlobalDns = preferencesDataStore.parsedGlobalResolvers()) }
             try {
-                val tcpProfiles = profiles.filter {
-                    it.tunnelType !in skipped && it.tunnelType !in E2E_TUNNEL_TYPES
-                }
-                val e2eProfiles = profiles.filter {
-                    it.tunnelType in E2E_TUNNEL_TYPES
-                }
-
-                // Launch all TCP pings in parallel
-                val tcpJobs = tcpProfiles.map { profile ->
-                    launch {
-                        val result = pingProfileTcp(profile)
-                        _uiState.update { current ->
-                            current.copy(pingResults = current.pingResults + (profile.id to result))
+                val light = Semaphore(PING_CONCURRENCY)
+                // Real tunnel clients are heavy, and Slipstream's native library is a singleton.
+                val heavy = Semaphore(1)
+                coroutineScope {
+                    profiles.filter { it.tunnelType != TunnelType.SNOWFLAKE }.map { profile ->
+                        async {
+                            val gate = if (mode == PingMode.FULL && profile.tunnelType in E2E_TUNNEL_TYPES) heavy else light
+                            val result = gate.withPermit { pingOne(profile, mode) }
+                            publishPing(profile.id, result)
                         }
-                    }
+                    }.awaitAll()
                 }
-
-                // E2E tests run sequentially: Slipstream still uses the singleton
-                // native lib; DNSTT/NoizDNS/Vaydns now use the isolated variant
-                // and *could* run in parallel, but a mixed list is simplest to
-                // schedule one-at-a-time.
-                val e2eJob = launch {
-                    for (profile in e2eProfiles) {
-                        val result = testProfileE2e(profile)
-                        _uiState.update { current ->
-                            current.copy(pingResults = current.pingResults + (profile.id to result))
-                        }
-                    }
-                }
-
-                tcpJobs.forEach { it.join() }
-                e2eJob.join()
             } finally {
                 _uiState.update { it.copy(isPingRunning = false) }
             }
         }
     }
 
-    fun pingAllProfilesSimple() {
-        if (_uiState.value.isPingRunning) {
-            cancelPing()
-            return
-        }
-
-        val profiles = _uiState.value.profiles
-        if (profiles.isEmpty()) return
-
-        val skipped = setOf(TunnelType.SNOWFLAKE)
-        val initial = profiles.associate { profile ->
-            profile.id to if (profile.tunnelType in skipped) {
-                PingResult.Skipped
-            } else {
-                PingResult.Pending
-            }
-        }
-        _uiState.update { it.copy(pingResults = initial, isPingRunning = true) }
-
-        pingJob = viewModelScope.launch {
-            _uiState.update { it.copy(
-                pingingViaGlobalDns = preferencesDataStore.parsedGlobalResolvers()
-            ) }
-            try {
-                val jobs = profiles.filter { it.tunnelType !in skipped }.map { profile ->
-                    launch {
-                        val target = getSimplePingTarget(profile)
-                        val result = if (target != null) {
-                            pingTcp(target.first, target.second)
-                        } else {
-                            PingResult.Error("No target")
-                        }
-                        _uiState.update { it.copy(
-                            pingResults = _uiState.value.pingResults + (profile.id to result)
-                        ) }
-                    }
-                }
-                jobs.forEach { it.join() }
-            } finally {
-                _uiState.update { it.copy(isPingRunning = false) }
-            }
-        }
-    }
-
-    private suspend fun getSimplePingTarget(profile: ServerProfile): Pair<String, Int>? {
-        // Try direct TCP target first
-        getTcpTarget(profile)?.let { return it }
-        // For DNS-tunneled profiles, ping the first resolver — honoring the
-        // global DNS override so the test mirrors what Connect actually uses.
-        val resolver = effectiveResolvers(profile).firstOrNull() ?: return null
-        return resolver.host to resolver.port
+    private fun publishPing(id: Long, result: PingResult) {
+        _uiState.update { it.copy(pingResults = it.pingResults + (id to result)) }
     }
 
     /**
@@ -1194,53 +1142,128 @@ class MainViewModel @Inject constructor(
         return preferencesDataStore.parsedGlobalResolvers().ifEmpty { profile.resolvers }
     }
 
-    private suspend fun pingTcp(host: String, port: Int): PingResult {
+    /** Same fallback Connect uses when a DNS profile has no resolver. */
+    private suspend fun pingTargets(profile: ServerProfile): List<DnsProbe.Target> {
+        val list = effectiveResolvers(profile).map { DnsProbe.Target(it.host, it.port) }
+        return list.ifEmpty { listOf(DnsProbe.Target("8.8.8.8", 53), DnsProbe.Target("8.8.4.4", 53)) }
+    }
+
+    private suspend fun pingOne(profile: ServerProfile, mode: PingMode): PingResult {
+        if (profile.tunnelType == TunnelType.SNOWFLAKE) return PingResult.Skipped
+        if (mode == PingMode.FULL && profile.tunnelType in E2E_TUNNEL_TYPES) return testProfileE2e(profile)
+        return try {
+            when (val plan = PingPlanner.plan(profile)) {
+                is PingPlan.Dns ->
+                    if (mode == PingMode.RESOLVER) pingResolvers(profile, plan) else pingDomain(profile, plan)
+                is PingPlan.Tcp -> pingTcpTarget(plan.host, plan.port)
+                PingPlan.Unmeasurable -> pingHostBestEffort(profile)
+                is PingPlan.Invalid -> PingResult.Error(plan.message)
+            }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            PingResult.Error(e.message?.take(24) ?: "Failed")
+        }
+    }
+
+    /** DNS tunnel: does any resolver relay the profile's domain to its tunnel server? */
+    private suspend fun pingDomain(profile: ServerProfile, plan: PingPlan.Dns): PingResult {
+        val out = DnsProbe.probeProfile(pingTargets(profile), plan.transport, plan.dohUrl, plan.domain)
+        return if (out.reached) PingResult.Success(out.best.rttMs) else PingResult.Error(out.best.label)
+    }
+
+    /** Client -> resolver round trip (root NS query), best resolver wins. */
+    private suspend fun pingResolvers(profile: ServerProfile, plan: PingPlan.Dns): PingResult {
+        val targets = if (plan.transport == DnsProbe.Transport.DOH) {
+            listOf(DnsProbe.Target("doh", 443))
+        } else {
+            pingTargets(profile)
+        }
+        val outs = coroutineScope {
+            targets.map { t -> async { DnsProbe.probeLiveness(t, plan.transport, plan.dohUrl) } }.awaitAll()
+        }
+        val ok = outs.filter { it.reached }
+        return if (ok.isNotEmpty()) {
+            PingResult.Success(ok.minOf { it.rttMs })
+        } else {
+            PingResult.Error(DnsProbe.bestFailure(outs).label)
+        }
+    }
+
+    /** TCP connect: first attempt warms ARP/route caches, the better of two is reported. */
+    private suspend fun pingTcpTarget(host: String, port: Int): PingResult {
+        val addr = DnsProbe.resolveBounded(host, 3000) ?: return PingResult.Error("DNS failed")
         return withContext(Dispatchers.IO) {
-            try {
-                val socket = Socket()
-                val start = System.nanoTime()
-                socket.connect(InetSocketAddress(host, port), 5000)
-                val elapsed = (System.nanoTime() - start) / 1_000_000
-                socket.close()
-                PingResult.Success(elapsed)
-            } catch (e: Exception) {
-                val msg = when (e) {
-                    is java.net.SocketTimeoutException -> "Timeout"
-                    is java.net.ConnectException -> "Refused"
-                    is java.net.UnknownHostException -> "DNS failed"
-                    else -> e.message?.take(20) ?: "Failed"
+            var best = Long.MAX_VALUE
+            repeat(2) { attempt ->
+                val t0 = System.nanoTime()
+                try {
+                    Socket().use { it.connect(InetSocketAddress(addr, port), TCP_PING_TIMEOUT_MS) }
+                    best = minOf(best, (System.nanoTime() - t0) / 1_000_000L)
+                } catch (e: Exception) {
+                    if (attempt == 0) return@withContext PingResult.Error(tcpFailureLabel(e))
                 }
-                PingResult.Error(msg)
+            }
+            PingResult.Success(best.coerceAtLeast(1))
+        }
+    }
+
+    /**
+     * Protocols whose server speaks UDP/ICMP/raw packets cannot be handshaken without
+     * bringing the tunnel up. The host is still timed with a TCP SYN: a connect or a RST
+     * both prove the host is alive and give the round trip. Anything else stays blank
+     * instead of showing a failure that the protocol itself might not share.
+     */
+    private suspend fun pingHostBestEffort(profile: ServerProfile): PingResult {
+        val host = profile.domain.trim()
+        if (host.isEmpty()) return PingResult.Skipped
+        val port = if (profile.cdnPort > 0) profile.cdnPort else 443
+        val addr = DnsProbe.resolveBounded(host, 3000) ?: return PingResult.Skipped
+        return withContext(Dispatchers.IO) {
+            val t0 = System.nanoTime()
+            try {
+                Socket().use { it.connect(InetSocketAddress(addr, port), 2500) }
+                PingResult.Success(((System.nanoTime() - t0) / 1_000_000L).coerceAtLeast(1))
+            } catch (e: java.net.ConnectException) {
+                if (e.message?.contains("refused", ignoreCase = true) == true) {
+                    PingResult.Success(((System.nanoTime() - t0) / 1_000_000L).coerceAtLeast(1))
+                } else {
+                    PingResult.Skipped
+                }
+            } catch (_: Exception) {
+                PingResult.Skipped
             }
         }
+    }
+
+    private fun tcpFailureLabel(e: Exception): String = when {
+        e is java.net.SocketTimeoutException -> "Timeout"
+        e is java.net.ConnectException && e.message?.contains("refused", true) == true -> "Refused"
+        e is java.net.ConnectException && e.message?.contains("unreachable", true) == true -> "Unreachable"
+        else -> e.message?.take(20) ?: "Failed"
     }
 
     fun pingSingleProfile(profile: ServerProfile) {
         if (profile.tunnelType == TunnelType.SNOWFLAKE) return
 
-        _uiState.update { it.copy(
-            pingResults = _uiState.value.pingResults + (profile.id to PingResult.Pending)
-        ) }
+        publishPing(profile.id, PingResult.Pending)
 
         viewModelScope.launch {
-            _uiState.update { it.copy(
-                pingingViaGlobalDns = preferencesDataStore.parsedGlobalResolvers()
-            ) }
-            val result = if (profile.tunnelType in E2E_TUNNEL_TYPES) {
-                testProfileE2e(profile)
-            } else {
-                pingProfileTcp(profile)
-            }
-            _uiState.update { it.copy(
-                pingResults = _uiState.value.pingResults + (profile.id to result)
-            ) }
+            _uiState.update { it.copy(pingingViaGlobalDns = preferencesDataStore.parsedGlobalResolvers()) }
+            publishPing(profile.id, pingOne(profile, PingMode.DELAY))
         }
     }
 
     fun cancelPing() {
         pingJob?.cancel()
         pingJob = null
-        _uiState.update { it.copy(isPingRunning = false) }
+        // Rows still waiting would otherwise spin forever.
+        _uiState.update { st ->
+            st.copy(
+                isPingRunning = false,
+                pingResults = st.pingResults.filterValues { it !is PingResult.Pending && it !is PingResult.Testing }
+            )
+        }
     }
 
     fun clearPingResults() {
@@ -1397,9 +1420,7 @@ class MainViewModel @Inject constructor(
                     fullVerification = false
                 ) { phase ->
                     val prefix = if (resolvers.size > 1) "[${index + 1}/${resolvers.size}] " else ""
-                    _uiState.update { it.copy(
-                        pingResults = _uiState.value.pingResults + (profile.id to PingResult.Testing(prefix + phase))
-                    ) }
+                    publishPing(profile.id, PingResult.Testing(prefix + phase))
                 }
 
                 if (result.success) {
@@ -1411,126 +1432,5 @@ class MainViewModel @Inject constructor(
             }
         }
         return PingResult.Error(lastError)
-    }
-
-    /**
-     * Simple TCP ping for non-tunnel profiles (SSH, Naive, DOH).
-     */
-    private suspend fun pingProfileTcp(profile: ServerProfile): PingResult {
-        val target = getTcpTarget(profile) ?: return PingResult.Error("No target")
-
-        val isDnsProfile = profile.tunnelType in listOf(
-            TunnelType.MASTERDNS, TunnelType.MASTERDNS_SSH,
-            TunnelType.STORMDNS, TunnelType.STORMDNS_SSH,
-            TunnelType.COTTENDNS, TunnelType.COTTENDNS_SSH,
-            TunnelType.SOAR, TunnelType.SOAR_SSH,
-            TunnelType.MELI, TunnelType.MELI_SSH,
-            TunnelType.QWDTT, TunnelType.QWDTT_SSH,
-            TunnelType.NOOSHDAROO, TunnelType.NOOSHDAROO_SSH
-        )
-        if (isDnsProfile) {
-            return pingDnsUdp(target.first, target.second)
-        }
-
-        return withContext(Dispatchers.IO) {
-            try {
-                val socket = Socket()
-                val start = System.nanoTime()
-                socket.connect(InetSocketAddress(target.first, target.second), 5000)
-                val elapsed = (System.nanoTime() - start) / 1_000_000
-                socket.close()
-                PingResult.Success(elapsed)
-            } catch (e: Exception) {
-                val msg = when (e) {
-                    is java.net.SocketTimeoutException -> "Timeout"
-                    is java.net.ConnectException -> "Refused"
-                    is java.net.UnknownHostException -> "DNS failed"
-                    else -> e.message?.take(20) ?: "Failed"
-                }
-                PingResult.Error(msg)
-            }
-        }
-    }
-
-    private suspend fun pingDnsUdp(host: String, port: Int = 53): PingResult = withContext(Dispatchers.IO) {
-        var socket: java.net.DatagramSocket? = null
-        try {
-            val start = System.nanoTime()
-            socket = java.net.DatagramSocket()
-            socket.soTimeout = 2500
-            val query = byteArrayOf(
-                0x12, 0x34, 0x01, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                0x01, 'm'.code.toByte(),
-                0x0c, 'd'.code.toByte(), 'h'.code.toByte(), 'a'.code.toByte(), 'f'.code.toByte(),
-                'h'.code.toByte(), 'd'.code.toByte(), 't'.code.toByte(), 'j'.code.toByte(),
-                'd'.code.toByte(), 't'.code.toByte(), 'i'.code.toByte(),
-                0x04, 's'.code.toByte(), 'i'.code.toByte(), 't'.code.toByte(), 'e'.code.toByte(),
-                0x00, 0x00, 0x01, 0x00, 0x01
-            )
-            val ip = java.net.InetAddress.getByName(host)
-            val packet = java.net.DatagramPacket(query, query.size, ip, port)
-            socket.send(packet)
-            val recvBuf = ByteArray(512)
-            val recvPacket = java.net.DatagramPacket(recvBuf, recvBuf.size)
-            socket.receive(recvPacket)
-            val elapsed = (System.nanoTime() - start) / 1_000_000
-            PingResult.Success(elapsed)
-        } catch (e: Exception) {
-            val msg = when (e) {
-                is java.net.SocketTimeoutException -> "Timeout"
-                else -> e.message?.take(20) ?: "Failed"
-            }
-            PingResult.Error(msg)
-        } finally {
-            try { socket?.close() } catch (_: Exception) {}
-        }
-    }
-
-    private fun getTcpTarget(profile: ServerProfile): Pair<String, Int>? {
-        return when (profile.tunnelType) {
-            TunnelType.SSH -> profile.domain to profile.sshPort
-            TunnelType.NAIVE_SSH -> profile.domain to profile.naivePort
-            TunnelType.NAIVE -> profile.domain to profile.naivePort
-            TunnelType.DOH -> {
-                val host = try {
-                    java.net.URL(profile.dohUrl).host
-                } catch (_: Exception) { return null }
-                host to 443
-            }
-            TunnelType.SOCKS5 -> profile.domain to profile.socks5ServerPort
-            TunnelType.VLESS -> {
-                val host = profile.cdnIp.takeIf { it.isNotBlank() } ?: profile.domain
-                val port = if (profile.cdnPort > 0) profile.cdnPort else 443
-                if (host.isBlank()) null else host to port
-            }
-            TunnelType.MASTERDNS, TunnelType.MASTERDNS_SSH,
-            TunnelType.STORMDNS, TunnelType.STORMDNS_SSH,
-            TunnelType.COTTENDNS, TunnelType.COTTENDNS_SSH,
-            TunnelType.SOAR, TunnelType.SOAR_SSH,
-            TunnelType.MELI, TunnelType.MELI_SSH,
-            TunnelType.QWDTT, TunnelType.QWDTT_SSH,
-            TunnelType.NOOSHDAROO, TunnelType.NOOSHDAROO_SSH -> {
-                if (profile.resolvers.isNotEmpty()) {
-                    profile.resolvers.first().let { it.host to it.port }
-                } else {
-                    "8.8.8.8" to 53
-                }
-            }
-            TunnelType.WIREGUARD, TunnelType.OPENVPN, TunnelType.L2TP,
-            TunnelType.HYSTERIA2, TunnelType.TUIC,
-            TunnelType.TROJAN, TunnelType.SHADOWSOCKS, TunnelType.SHADOWSOCKSR,
-            TunnelType.VMESS, TunnelType.SNELL, TunnelType.VLESS_REALITY -> {
-                val host = profile.domain.takeIf { it.isNotBlank() } ?: "8.8.8.8"
-                val port = if (profile.cdnPort > 0) profile.cdnPort else 443
-                host to port
-            }
-            else -> {
-                if (profile.domain.isNotBlank()) {
-                    profile.domain to (if (profile.cdnPort > 0) profile.cdnPort else 53)
-                } else {
-                    "8.8.8.8" to 53
-                }
-            }
-        }
     }
 }
