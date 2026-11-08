@@ -257,9 +257,10 @@ private fun ResolverEditor(
                 Column(Modifier.weight(1f)) {
                     Text("Auto-pick fastest at connect", style = MaterialTheme.typography.bodyMedium)
                     Text(
-                        text = "All profiles: tests this pool on every connect (adds a few seconds) and replaces " +
-                            "Active with the fastest responders. If none respond, the connect fails. " +
-                            "UDP/TCP profiles only; DoT and DoH skip it.",
+                        text = "Tests this pool at every connect (adds a few seconds) and replaces Active with " +
+                            "the fastest responders. If none respond, the connect fails. Applies to DNSTT, " +
+                            "NoizDNS, VayDNS and MasterDNS-type profiles over UDP/TCP. Slipstream, Meli, DoT " +
+                            "and DoH ignore it, and so does a global resolver list set in Settings.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )

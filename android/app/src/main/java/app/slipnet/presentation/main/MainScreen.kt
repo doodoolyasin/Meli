@@ -1712,7 +1712,11 @@ fun MainScreen(
                                                 onDefault = {
                                                     showOverflowMenu = false
                                                     activeOverflowSubmenu = null
-                                                    viewModel.sortProfilesByPing()
+                                                    if (uiState.pingResults.values.none { it is PingResult.Success }) {
+                                                        scope.launch { snackbarHostState.showSnackbar("No test results yet. Run Ping first.") }
+                                                    } else {
+                                                        viewModel.sortProfilesByPing()
+                                                    }
                                                 },
                                                 onToggleSubmenu = {
                                                     activeOverflowSubmenu = if (activeOverflowSubmenu == OverflowMenuPage.SORT) null else OverflowMenuPage.SORT

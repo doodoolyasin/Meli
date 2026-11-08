@@ -302,7 +302,7 @@ fun SettingsScreen(
                     description = if (uiState.dnsPoolText.isNotBlank()) {
                         "${app.slipnet.tunnel.DnsPoolScanner.parsePool(uiState.dnsPoolText).size} candidates, shared by all profiles"
                     } else {
-                        "Candidates tested at connect, shared by all profiles"
+                        "Candidates shared by all profiles"
                     },
                     onClick = { showDnsPoolDialog = true }
                 )
