@@ -3301,12 +3301,14 @@ fun MainScreen(
     // 1. Subscription page (PattNG style: Remark + URL cards)
     if (showSubscriptionGroupsDialog) {
         val subUrls by viewModel.subscriptionUrls.collectAsState()
+        val subMetas by viewModel.subscriptionMeta.collectAsState()
         var subStatus by remember { mutableStateOf<String?>(null) }
         val subCounts = remember(uiState.profiles) {
             uiState.profiles.groupingBy { it.subscriptionGroup }.eachCount()
         }
         SubscriptionPage(
             urls = subUrls,
+            metas = subMetas,
             groups = subGroups,
             counts = subCounts,
             status = subStatus,
@@ -3314,21 +3316,22 @@ fun MainScreen(
                 showSubscriptionGroupsDialog = false
                 subStatus = null
             },
-            onSave = { old, remark, url ->
+            onSave = { old, remark, url, meta ->
                 subStatus = "Fetching $remark..."
-                viewModel.saveSubscriptionEdit(old, remark, url) { count, err ->
+                viewModel.saveSubscriptionEdit(old, remark, url, meta) { count, err ->
                     subStatus = if (err == null) "Saved $remark: $count configs" else "Error: $err"
                 }
             },
-            onUpdate = { remark ->
+            onUpdate = { remark, flags ->
                 subStatus = "Updating $remark..."
-                viewModel.updateSubscriptionGroup(remark) { count, err ->
+                viewModel.updateSubscriptionGroup(remark, flags) { count, err ->
                     subStatus = if (err == null) "Updated $remark: $count configs" else "Update failed: $err"
                 }
             },
-            onUpdateAll = {
+            onToggle = { remark, on -> viewModel.setSubscriptionEnabled(remark, on) },
+            onUpdateAll = { flags ->
                 subStatus = "Updating all..."
-                viewModel.updateAllSubscriptions { count, err ->
+                viewModel.updateAllSubscriptions(flags) { count, err ->
                     subStatus = if (err == null) "Updated $count configs across all subscriptions" else "Update failed: $err"
                 }
             },
@@ -3402,6 +3405,15 @@ fun MainScreen(
                         label = { Text("Custom domains (one per line)") },
                         modifier = Modifier.fillMaxWidth().heightIn(min = 120.dp)
                     )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(onClick = {
+                            clipboardManager.getText()?.text?.let { t ->
+                                val add = t.lines().map { it.trim().lowercase() }.filter { it.isNotEmpty() && !it.contains(' ') }
+                                domainsText = (domainsText.lines().filter { it.isNotBlank() } + add).distinct().joinToString("\n")
+                            }
+                        }) { Text("Import clipboard") }
+                        OutlinedButton(onClick = { clipboardManager.setText(AnnotatedString(domainsText)) }) { Text("Export") }
+                    }
                 }
             },
             confirmButton = {

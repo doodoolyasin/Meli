@@ -72,6 +72,7 @@ class PreferencesDataStore @Inject constructor(
         val PROXY_ONLY_MODE = booleanPreferencesKey("proxy_only_mode")
         val MANDATORY_SSH = booleanPreferencesKey("mandatory_ssh")
         val SUBSCRIPTION_URLS = stringPreferencesKey("subscription_urls_json")
+        val SUBSCRIPTION_META = stringPreferencesKey("subscription_meta_json")
         // Kill Switch
         val KILL_SWITCH = booleanPreferencesKey("kill_switch")
         // Auto-Reconnect
@@ -606,6 +607,33 @@ class PreferencesDataStore @Inject constructor(
             val json = if (raw.isBlank()) org.json.JSONObject() else try { org.json.JSONObject(raw) } catch (_: Exception) { org.json.JSONObject() }
             json.put(group, url)
             prefs[Keys.SUBSCRIPTION_URLS] = json.toString()
+        }
+    }
+
+    val subscriptionMeta: Flow<Map<String, app.slipnet.util.SubMeta>> = dataStore.data.map { prefs ->
+        val raw = prefs[Keys.SUBSCRIPTION_META] ?: ""
+        if (raw.isBlank()) emptyMap() else try {
+            val o = org.json.JSONObject(raw)
+            o.keys().asSequence().associateWith { app.slipnet.util.SubMeta.fromJson(o.optString(it)) }
+        } catch (_: Exception) { emptyMap() }
+    }
+
+    suspend fun saveSubscriptionMeta(group: String, meta: app.slipnet.util.SubMeta) {
+        dataStore.edit { prefs ->
+            val raw = prefs[Keys.SUBSCRIPTION_META] ?: ""
+            val o = if (raw.isBlank()) org.json.JSONObject() else try { org.json.JSONObject(raw) } catch (_: Exception) { org.json.JSONObject() }
+            o.put(group, meta.toJson())
+            prefs[Keys.SUBSCRIPTION_META] = o.toString()
+        }
+    }
+
+    suspend fun deleteSubscriptionMeta(group: String) {
+        dataStore.edit { prefs ->
+            val raw = prefs[Keys.SUBSCRIPTION_META] ?: ""
+            if (raw.isNotBlank()) try {
+                val o = org.json.JSONObject(raw); o.remove(group)
+                prefs[Keys.SUBSCRIPTION_META] = o.toString()
+            } catch (_: Exception) {}
         }
     }
 

@@ -143,6 +143,7 @@ class MainViewModel @Inject constructor(
         observeDnsWarning()
         observeDnsPoolScan()
         observeProfiles()
+        runDueSubscriptionUpdates()
         observeChains()
         observeProxyOnlyMode()
         observeDebugLogging()
@@ -755,37 +756,97 @@ class MainViewModel @Inject constructor(
         return trimmed
     }
 
-    fun updateSubscriptionGroup(groupName: String, url: String, onDone: (Int, String?) -> Unit) {
-        viewModelScope.launch(Dispatchers.IO) {
-            try {
-                val conn = java.net.URL(resolveRedirects(url.trim())).openConnection() as java.net.HttpURLConnection
-                conn.connectTimeout = 15000
-                conn.readTimeout = 15000
-                conn.setRequestProperty("User-Agent", "v2rayNG/1.8.5")
-                conn.instanceFollowRedirects = true
-                val responseCode = conn.responseCode
-                if (responseCode !in 200..299) {
-                    withContext(Dispatchers.Main) { onDone(0, "HTTP $responseCode from subscription server") }
-                    return@launch
-                }
-                val raw = conn.inputStream.bufferedReader().use { it.readText() }.trim()
-                val decoded = decodeSubscriptionPayload(raw)
-                val result = configImporter.parseAndImport(decoded, connectionManager.getDeviceId())
-                if (result is ImportResult.Success && result.profiles.isNotEmpty()) {
-                    val group = groupName.ifBlank { "Subscription" }
-                    // Synchronously delete all existing profiles for this group first to prevent duplicates / stale servers
+    val subscriptionMeta: StateFlow<Map<String, app.slipnet.util.SubMeta>> = preferencesDataStore.subscriptionMeta
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
+
+    /** Download, decode, filter and import one subscription. Returns (count, error). */
+    private suspend fun fetchSubscription(group: String, url: String): Pair<Int, String?> = withContext(Dispatchers.IO) {
+        val meta = preferencesDataStore.subscriptionMeta.first()[group] ?: app.slipnet.util.SubMeta()
+        val u = url.trim()
+        if (!meta.enabled) return@withContext 0 to "Subscription is disabled"
+        if (u.startsWith("http://", ignoreCase = true) && !meta.allowInsecureHttp) {
+            return@withContext 0 to "Plain HTTP link blocked (enable \"Allow insecure HTTP\")"
+        }
+        val headers = meta.parseHeaders() ?: return@withContext 0 to "Request headers are not valid JSON"
+        val filter = if (meta.remarksFilter.isBlank()) null else try { Regex(meta.remarksFilter) } catch (_: Exception) {
+            return@withContext 0 to "Remarks filter is not a valid regex"
+        }
+        try {
+            val final = resolveRedirects(u)
+            val conn = java.net.URL(final).openConnection() as java.net.HttpURLConnection
+            conn.connectTimeout = 15000
+            conn.readTimeout = 15000
+            conn.setRequestProperty("User-Agent", meta.userAgent.ifBlank { "v2rayNG/1.8.5" })
+            headers.forEach { (k, v) -> conn.setRequestProperty(k, v) }
+            conn.instanceFollowRedirects = true
+            val code = conn.responseCode
+            if (code !in 200..299) return@withContext 0 to "HTTP $code from subscription server"
+            val raw = conn.inputStream.bufferedReader().use { it.readText() }.trim()
+            val decoded = decodeSubscriptionPayload(raw)
+            val result = configImporter.parseAndImport(decoded, connectionManager.getDeviceId())
+            when {
+                result is ImportResult.Success && result.profiles.isNotEmpty() -> {
+                    val kept = if (filter == null) result.profiles else result.profiles.filter { filter.containsMatchIn(it.name) }
+                    if (kept.isEmpty()) return@withContext 0 to "Remarks filter matched no configs"
                     profileRepository.deleteProfilesByGroup(group)
-                    for (p in result.profiles) {
-                        saveProfileUseCase(p.copy(subscriptionId = group))
-                    }
-                    withContext(Dispatchers.Main) { onDone(result.profiles.size, null) }
-                } else if (result is ImportResult.Error) {
-                    withContext(Dispatchers.Main) { onDone(0, result.message) }
-                } else {
-                    withContext(Dispatchers.Main) { onDone(0, "No profiles found in subscription") }
+                    for (p in kept) saveProfileUseCase(p.copy(subscriptionId = group))
+                    preferencesDataStore.saveSubscriptionMeta(group, meta.copy(lastUpdated = System.currentTimeMillis(), lastCount = kept.size))
+                    kept.size to null
                 }
-            } catch (e: Exception) {
-                withContext(Dispatchers.Main) { onDone(0, e.message ?: "Failed to fetch subscription") }
+                result is ImportResult.Error -> 0 to result.message
+                else -> 0 to "No profiles found in subscription"
+            }
+        } catch (e: Exception) {
+            0 to (e.message ?: "Failed to fetch subscription")
+        }
+    }
+
+    private suspend fun runPostUpdate(groups: Collection<String>, flags: app.slipnet.util.UpdateFlags) {
+        if (!flags.autoTest) return
+        withContext(Dispatchers.Main) { startPingAll(PingMode.DELAY) }
+        pingJob?.join()
+        if (flags.deleteInvalid) {
+            val st = _uiState.value
+            val bad = st.profiles.filter { it.subscriptionGroup in groups && st.pingResults[it.id] is PingResult.Error }.map { it.id }.toSet()
+            if (bad.isNotEmpty()) deleteProfilesMatching { it.id in bad }
+        }
+        if (flags.autoSort) sortProfilesByPing()
+    }
+
+    fun updateSubscriptionGroup(groupName: String, url: String, onDone: (Int, String?) -> Unit) =
+        updateSubscriptionGroup(groupName, url, app.slipnet.util.UpdateFlags(), onDone)
+
+    fun updateSubscriptionGroup(groupName: String, url: String, flags: app.slipnet.util.UpdateFlags, onDone: (Int, String?) -> Unit) {
+        viewModelScope.launch {
+            val group = groupName.ifBlank { "Subscription" }
+            val (n, err) = fetchSubscription(group, url)
+            if (err == null) runPostUpdate(listOf(group), flags)
+            onDone(n, err)
+        }
+    }
+
+    fun saveSubscriptionMeta(group: String, meta: app.slipnet.util.SubMeta) {
+        viewModelScope.launch { preferencesDataStore.saveSubscriptionMeta(group, meta) }
+    }
+
+    fun setSubscriptionEnabled(group: String, enabled: Boolean) {
+        viewModelScope.launch {
+            val cur = preferencesDataStore.subscriptionMeta.first()[group] ?: app.slipnet.util.SubMeta()
+            preferencesDataStore.saveSubscriptionMeta(group, cur.copy(enabled = enabled))
+        }
+    }
+
+    /** Re-fetch subscriptions whose automatic-update interval has elapsed. */
+    fun runDueSubscriptionUpdates() {
+        viewModelScope.launch(Dispatchers.IO) {
+            val urls = preferencesDataStore.subscriptionUrls.first()
+            val metas = preferencesDataStore.subscriptionMeta.first()
+            val now = System.currentTimeMillis()
+            for ((g, u) in urls) {
+                val m = metas[g] ?: continue
+                if (m.enabled && m.autoUpdate && u.isNotBlank() && now - m.lastUpdated >= m.intervalMinutes * 60_000L) {
+                    fetchSubscription(g, u)
+                }
             }
         }
     }
@@ -799,10 +860,15 @@ class MainViewModel @Inject constructor(
         oldRemark: String?,
         newRemark: String,
         url: String,
+        meta: app.slipnet.util.SubMeta? = null,
+        flags: app.slipnet.util.UpdateFlags = app.slipnet.util.UpdateFlags(),
         onDone: (Int, String?) -> Unit
     ) {
         viewModelScope.launch {
             val remark = newRemark.trim().ifBlank { "Subscription" }
+            val prevMeta = preferencesDataStore.subscriptionMeta.first()
+            val carried = meta ?: oldRemark?.let { prevMeta[it] }
+            if (carried != null) preferencesDataStore.saveSubscriptionMeta(remark, carried)
             val cleanUrl = url.trim()
             if (!oldRemark.isNullOrBlank() && oldRemark != remark) {
                 withContext(Dispatchers.IO) {
@@ -810,9 +876,12 @@ class MainViewModel @Inject constructor(
                         .filter { it.subscriptionGroup == oldRemark }
                         .forEach { saveProfileUseCase(it.copy(subscriptionId = remark)) }
                     preferencesDataStore.deleteSubscriptionUrl(oldRemark)
+                    preferencesDataStore.deleteSubscriptionMeta(oldRemark)
                 }
             }
-            saveSubscription(remark, cleanUrl, onDone)
+            preferencesDataStore.saveSubscriptionUrl(remark, cleanUrl)
+            if (cleanUrl.isBlank()) { onDone(0, null); return@launch }
+            updateSubscriptionGroup(remark, cleanUrl, flags, onDone)
         }
     }
 
@@ -829,55 +898,40 @@ class MainViewModel @Inject constructor(
         }
     }
 
-    fun updateSubscriptionGroup(groupName: String, onDone: (Int, String?) -> Unit) {
+    fun updateSubscriptionGroup(groupName: String, onDone: (Int, String?) -> Unit) =
+        updateSubscriptionGroup(groupName, app.slipnet.util.UpdateFlags(), onDone)
+
+    fun updateSubscriptionGroup(groupName: String, flags: app.slipnet.util.UpdateFlags, onDone: (Int, String?) -> Unit) {
         viewModelScope.launch(Dispatchers.IO) {
-            val map = preferencesDataStore.subscriptionUrls.first()
-            val url = map[groupName]
+            val url = preferencesDataStore.subscriptionUrls.first()[groupName]
             if (url.isNullOrBlank()) {
                 withContext(Dispatchers.Main) { onDone(0, "No URL configured for group $groupName") }
             } else {
-                updateSubscriptionGroup(groupName, url, onDone)
+                updateSubscriptionGroup(groupName, url, flags, onDone)
             }
         }
     }
 
-    fun updateAllSubscriptions(onDone: (Int, String?) -> Unit) {
+    fun updateAllSubscriptions(onDone: (Int, String?) -> Unit) =
+        updateAllSubscriptions(app.slipnet.util.UpdateFlags(), onDone)
+
+    fun updateAllSubscriptions(flags: app.slipnet.util.UpdateFlags, onDone: (Int, String?) -> Unit) {
         viewModelScope.launch(Dispatchers.IO) {
             val map = preferencesDataStore.subscriptionUrls.first()
             if (map.isEmpty()) {
                 withContext(Dispatchers.Main) { onDone(0, "No saved subscriptions found") }
                 return@launch
             }
-            var totalCount = 0
+            var total = 0
             var errorMsg: String? = null
+            val done = mutableListOf<String>()
             for ((group, url) in map) {
-                if (url.isNotBlank()) {
-                    try {
-                        val conn = java.net.URL(resolveRedirects(url.trim())).openConnection() as java.net.HttpURLConnection
-                        conn.connectTimeout = 15000
-                        conn.readTimeout = 15000
-                        conn.setRequestProperty("User-Agent", "v2rayNG/1.8.5")
-                        conn.instanceFollowRedirects = true
-                        if (conn.responseCode in 200..299) {
-                            val raw = conn.inputStream.bufferedReader().use { it.readText() }.trim()
-                            val decoded = decodeSubscriptionPayload(raw)
-                            val result = configImporter.parseAndImport(decoded, connectionManager.getDeviceId())
-                            if (result is ImportResult.Success && result.profiles.isNotEmpty()) {
-                                profileRepository.deleteProfilesByGroup(group)
-                                for (p in result.profiles) {
-                                    saveProfileUseCase(p.copy(subscriptionId = group))
-                                }
-                                totalCount += result.profiles.size
-                            }
-                        } else {
-                            errorMsg = "HTTP ${conn.responseCode} on $group"
-                        }
-                    } catch (e: Exception) {
-                        errorMsg = e.message
-                    }
-                }
+                if (url.isBlank()) continue
+                val (n, err) = fetchSubscription(group, url)
+                if (err == null) { total += n; done += group } else errorMsg = "$group: $err"
             }
-            withContext(Dispatchers.Main) { onDone(totalCount, errorMsg) }
+            runPostUpdate(done, flags)
+            withContext(Dispatchers.Main) { onDone(total, errorMsg) }
         }
     }
 
@@ -1397,6 +1451,7 @@ class MainViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 preferencesDataStore.deleteSubscriptionUrl(group)
+                preferencesDataStore.deleteSubscriptionMeta(group)
             } catch (_: Exception) {}
             deleteProfilesMatching { it.subscriptionGroup == group }
         }
