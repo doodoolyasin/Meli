@@ -2830,6 +2830,7 @@ class ConfigImporter @Inject constructor() {
                 "tcp", "raw" -> "tcp"
                 "grpc" -> "grpc"
                 "http", "h2" -> "http"
+                "splithttp" -> "xhttp"
                 else -> transport.lowercase()
             }
 
@@ -2854,6 +2855,17 @@ class ConfigImporter @Inject constructor() {
                 TunnelType.VLESS_REALITY
             } else {
                 TunnelType.VLESS
+            }
+
+            if (security.equals("reality", ignoreCase = true) || normalizedTransport in listOf("grpc", "xhttp", "httpupgrade", "kcp", "mkcp") ||
+                (normalizedTransport == "tcp" && params["flow"]?.isNotBlank() == true)) {
+                return ProfileParseResult.Success(ServerProfile(
+                    name = profileName,
+                    domain = server,
+                    cdnPort = port,
+                    tunnelType = TunnelType.XRAY,
+                    xrayConfigJson = app.slipnet.tunnel.XrayConfigFactory.fromVlessParams(uuid, server, port, params)
+                ))
             }
 
             val profile = ServerProfile(
@@ -3351,6 +3363,29 @@ class ConfigImporter @Inject constructor() {
             val root = org.json.JSONObject(jsonStr)
             val rootRemarks = root.optString("remarks", root.optString("description", "")).trim()
             val profiles = mutableListOf<ServerProfile>()
+
+            // A complete Xray-core config (outbounds use "protocol") runs as-is on the
+            // embedded core. The remark is kept exactly as the user wrote it.
+            val xrayObs = root.optJSONArray("outbounds")
+            if (xrayObs != null) {
+                var hasXrayProxy = false
+                for (k in 0 until xrayObs.length()) {
+                    val o = xrayObs.optJSONObject(k) ?: continue
+                    val pr = o.optString("protocol", "").lowercase()
+                    if (pr.isNotEmpty() && pr !in listOf("freedom", "blackhole", "dns", "loopback", "direct", "block")) hasXrayProxy = true
+                }
+                if (hasXrayProxy) {
+                    val real = app.slipnet.tunnel.XrayConfigFactory.protocolOf(jsonStr)
+                    val clean = org.json.JSONObject(jsonStr)
+                    clean.remove("remarks")
+                    return ImportResult.Success(listOf(ServerProfile(
+                        name = rootRemarks.ifBlank { "Custom ($real)" },
+                        domain = "xray",
+                        tunnelType = TunnelType.XRAY,
+                        xrayConfigJson = clean.toString()
+                    )), emptyList())
+                }
+            }
 
             val outbounds = root.optJSONArray("outbounds")
             if (outbounds != null && outbounds.length() > 0) {

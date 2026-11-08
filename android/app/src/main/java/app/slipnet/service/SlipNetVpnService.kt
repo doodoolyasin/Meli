@@ -22,6 +22,7 @@ import app.slipnet.data.local.datastore.PreferencesDataStore
 import app.slipnet.data.local.datastore.SplitTunnelingMode
 import app.slipnet.data.local.datastore.SshCipher
 import app.slipnet.tunnel.DomainRouter
+import app.slipnet.tunnel.XrayBridge
 import app.slipnet.tunnel.GeoBypassCountry
 import app.slipnet.tunnel.GeoBypassData
 import app.slipnet.data.repository.VpnRepositoryImpl
@@ -683,6 +684,7 @@ class SlipNetVpnService : VpnService() {
                     TunnelType.VAYDNS -> connectVaydns(effectiveProfile, dnsServer, remoteDns, remoteDnsFallback, effectiveGlobalResolverOverride)
                     TunnelType.VAYDNS_SSH -> connectVaydnsSsh(effectiveProfile, dnsServer, remoteDns, remoteDnsFallback, effectiveGlobalResolverOverride)
                     TunnelType.SOCKS5 -> connectSocks5(effectiveProfile, dnsServer, remoteDns)
+                    TunnelType.XRAY, TunnelType.SHADOWSOCKS, TunnelType.VMESS, TunnelType.HYSTERIA2 -> connectXray(effectiveProfile, dnsServer)
                     TunnelType.VLESS, TunnelType.VLESS_REALITY, TunnelType.TROJAN -> connectVless(effectiveProfile, dnsServer)
                     TunnelType.MASTERDNS,
                     TunnelType.STORMDNS,
@@ -698,8 +700,8 @@ class SlipNetVpnService : VpnService() {
                     TunnelType.NOOSHDAROO_SSH, TunnelType.QWDTT_SSH -> connectDnsttSsh(effectiveProfile, dnsServer, remoteDns, remoteDnsFallback, effectiveGlobalResolverOverride)
                     TunnelType.BALE -> connectBale(effectiveProfile, dnsServer, remoteDns)
                     TunnelType.PINGTUNNEL, TunnelType.SPOOF_TUNNEL, TunnelType.GOLDEN_GRE, TunnelType.PAQET,
-                    TunnelType.WIREGUARD, TunnelType.OPENVPN, TunnelType.L2TP, TunnelType.HYSTERIA2, TunnelType.TUIC, TunnelType.SHADOWSOCKS,
-                    TunnelType.VMESS, TunnelType.SNELL, TunnelType.SHADOWSOCKSR,
+                    TunnelType.WIREGUARD, TunnelType.OPENVPN, TunnelType.L2TP, TunnelType.TUIC,
+                    TunnelType.SNELL, TunnelType.SHADOWSOCKSR,
                     TunnelType.AETHER, TunnelType.WARP -> {
                         if (effectiveProfile.vlessUuid.isNotBlank() &&
                             (effectiveProfile.tunnelType == TunnelType.VLESS ||
@@ -1436,7 +1438,8 @@ class SlipNetVpnService : VpnService() {
             }
             TunnelType.DOH -> DohBridge.stop()
             TunnelType.SOCKS5, TunnelType.BALE, TunnelType.PINGTUNNEL, TunnelType.SPOOF_TUNNEL, TunnelType.GOLDEN_GRE, TunnelType.PAQET,
-            TunnelType.WIREGUARD, TunnelType.OPENVPN, TunnelType.L2TP, TunnelType.HYSTERIA2, TunnelType.TUIC, TunnelType.SHADOWSOCKS -> Socks5ProxyBridge.stopAll()
+            TunnelType.XRAY, TunnelType.SHADOWSOCKS, TunnelType.VMESS, TunnelType.HYSTERIA2 -> XrayBridge.stop()
+            TunnelType.WIREGUARD, TunnelType.OPENVPN, TunnelType.L2TP, TunnelType.TUIC -> Socks5ProxyBridge.stopAll()
             TunnelType.MASTERDNS, TunnelType.MASTERDNS_SSH,
             TunnelType.STORMDNS, TunnelType.STORMDNS_SSH,
             TunnelType.COTTENDNS, TunnelType.COTTENDNS_SSH,
@@ -3624,6 +3627,63 @@ class SlipNetVpnService : VpnService() {
      * App -> TUN -> hev-socks5-tunnel -> Socks5ProxyBridge (proxyPort)
      *   -> Remote SOCKS5 Proxy (domain:socks5ServerPort) -> Internet
      */
+    /**
+     * Xray-core path: JSON profiles, Shadowsocks, VMess, Hysteria2 and every other
+     * protocol Xray speaks. "Connected" is only reported after a real request has
+     * crossed the core (see XrayBridge.probe), never on a bare socket accept.
+     */
+    private suspend fun connectXray(profile: app.slipnet.domain.model.ServerProfile, dnsServer: String) {
+        val proxyPort = preferencesDataStore.proxyListenPort.first()
+        val proxyHost = preferencesDataStore.proxyListenAddress.first()
+        vpnRepository.setCurrentTunnelType(profile.tunnelType)
+        val json = profile.xrayConfigJson.ifBlank { app.slipnet.tunnel.XrayConfigFactory.fromProfile(profile).orEmpty() }
+        if (json.isBlank()) {
+            connectionManager.onVpnError("Xray: profile has no usable configuration")
+            return
+        }
+        val start = withContext(Dispatchers.IO) {
+            XrayBridge.start(applicationContext, json, proxyPort, if (isProxyOnly) proxyHost else "127.0.0.1")
+        }
+        if (start.isFailure) {
+            connectionManager.onVpnError(start.exceptionOrNull()?.message ?: "Xray failed to start")
+            return
+        }
+        if (!waitForProxyReady(proxyPort, maxAttempts = 40, delayMs = 100)) {
+            connectionManager.onVpnError("Xray inbound did not come up on $proxyPort")
+            XrayBridge.stop()
+            return
+        }
+        val probe = withContext(Dispatchers.IO) { XrayBridge.probe(proxyPort) }
+        if (probe.isFailure) {
+            Log.e(TAG, "Xray probe failed: ${probe.exceptionOrNull()?.message}")
+            connectionManager.onVpnError("Server unreachable: no traffic passes (${probe.exceptionOrNull()?.message})")
+            XrayBridge.stop()
+            return
+        }
+        Log.i(TAG, "Xray probe OK in ${probe.getOrNull()} ms")
+        if (isProxyOnly) {
+            vpnRepository.setProxyConnected(profile)
+            finishConnection()
+            return
+        }
+        vpnInterface = establishVpnInterface(dnsServer)
+        if (vpnInterface == null) {
+            connectionManager.onVpnError("Failed to establish VPN interface")
+            XrayBridge.stop()
+            return
+        }
+        delay(200)
+        val t2s = vpnRepository.startTun2Socks(profile, vpnInterface!!)
+        if (t2s.isFailure) {
+            connectionManager.onVpnError(t2s.exceptionOrNull()?.message ?: "Failed to start tunnel")
+            XrayBridge.stop()
+            vpnInterface?.close()
+            vpnInterface = null
+            return
+        }
+        finishConnection()
+    }
+
     private suspend fun connectSocks5(profile: app.slipnet.domain.model.ServerProfile, dnsServer: String, remoteDns: String) {
         val proxyPort = preferencesDataStore.proxyListenPort.first()
         val proxyHost = preferencesDataStore.proxyListenAddress.first()
@@ -4004,6 +4064,7 @@ class SlipNetVpnService : VpnService() {
             TunnelType.NAIVE -> NaiveBridge.isRunning()
             TunnelType.SNOWFLAKE -> SnowflakeBridge.isRunning()
             TunnelType.SOCKS5 -> Socks5ProxyBridge.isRunning()
+            TunnelType.XRAY, TunnelType.SHADOWSOCKS, TunnelType.VMESS, TunnelType.HYSTERIA2 -> XrayBridge.isRunning()
             TunnelType.VLESS, TunnelType.VLESS_REALITY, TunnelType.TROJAN -> VlessBridge.isRunning()
             else -> true
         }
@@ -4251,6 +4312,7 @@ class SlipNetVpnService : VpnService() {
                             Socks5ProxyBridge.getInstance("chain-socks5-$it")?.isRunning() == true
                         }
                     }
+                    TunnelType.XRAY, TunnelType.SHADOWSOCKS, TunnelType.VMESS, TunnelType.HYSTERIA2 -> XrayBridge.isRunning()
                     TunnelType.VLESS, TunnelType.VLESS_REALITY, TunnelType.TROJAN -> VlessBridge.isRunning()
                     TunnelType.MASTERDNS, TunnelType.MASTERDNS_SSH,
                     TunnelType.STORMDNS, TunnelType.STORMDNS_SSH,
@@ -5720,8 +5782,12 @@ class SlipNetVpnService : VpnService() {
                 VlessBridge.stop()
             }
             TunnelType.BALE, TunnelType.PINGTUNNEL, TunnelType.SPOOF_TUNNEL, TunnelType.GOLDEN_GRE, TunnelType.PAQET,
-            TunnelType.WIREGUARD, TunnelType.OPENVPN, TunnelType.L2TP, TunnelType.HYSTERIA2, TunnelType.TUIC, TunnelType.SHADOWSOCKS,
-            TunnelType.VMESS, TunnelType.SNELL, TunnelType.SHADOWSOCKSR, TunnelType.AETHER, TunnelType.WARP -> {
+            TunnelType.XRAY, TunnelType.SHADOWSOCKS, TunnelType.VMESS, TunnelType.HYSTERIA2 -> {
+                Log.d(TAG, "Stopping Xray core")
+                XrayBridge.stop()
+            }
+            TunnelType.WIREGUARD, TunnelType.OPENVPN, TunnelType.L2TP, TunnelType.TUIC,
+            TunnelType.SNELL, TunnelType.SHADOWSOCKSR, TunnelType.AETHER, TunnelType.WARP -> {
                 Log.d(TAG, "Stopping SOCKS5-compatible bridge")
                 Socks5ProxyBridge.stopAll()
             }
@@ -5810,6 +5876,7 @@ class SlipNetVpnService : VpnService() {
             TunnelType.NAIVE -> NaiveBridge.isClientHealthy() && NaiveSocksBridge.isClientHealthy()
             TunnelType.SNOWFLAKE -> SnowflakeBridge.isClientHealthy() && TorSocksBridge.isClientHealthy()
             TunnelType.SOCKS5 -> Socks5ProxyBridge.isRunning() && Socks5ProxyBridge.isClientHealthy()
+            TunnelType.XRAY, TunnelType.SHADOWSOCKS, TunnelType.VMESS, TunnelType.HYSTERIA2 -> XrayBridge.isRunning()
             TunnelType.VLESS, TunnelType.VLESS_REALITY, TunnelType.TROJAN -> VlessBridge.isRunning() && VlessBridge.isClientHealthy()
             TunnelType.MASTERDNS,
             TunnelType.STORMDNS,

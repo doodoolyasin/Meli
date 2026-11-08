@@ -11,7 +11,8 @@ build-full:
 		noizdns/mobile \
 		vaydns-mobile/vaydns \
 		snowflake-mobile/snowflake \
-		stormdns-go/mobile
+		stormdns-go/mobile \
+		xraylite
 
 build-lite:
 	mkdir -p ../app/libs
@@ -20,7 +21,8 @@ build-lite:
 		-o ../app/libs/golibs-lite.aar \
 		noizdns/mobile \
 		vaydns-mobile/vaydns \
-		stormdns-go/mobile
+		stormdns-go/mobile \
+		xraylite
 
 clean:
 	rm -f ../app/libs/golibs-full.aar ../app/libs/golibs-full-sources.jar

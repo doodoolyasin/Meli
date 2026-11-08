@@ -1183,9 +1183,13 @@ class VpnRepositoryImpl @Inject constructor(
                 NaiveSocksBridge.stop()
                 NaiveBridge.stop()
             }
+            TunnelType.XRAY, TunnelType.SHADOWSOCKS, TunnelType.VMESS, TunnelType.HYSTERIA2 -> {
+                Log.d(TAG, "Stopping Xray core")
+                app.slipnet.tunnel.XrayBridge.stop()
+            }
             TunnelType.SOCKS5, TunnelType.BALE, TunnelType.PINGTUNNEL, TunnelType.SPOOF_TUNNEL, TunnelType.GOLDEN_GRE, TunnelType.PAQET,
-            TunnelType.WIREGUARD, TunnelType.OPENVPN, TunnelType.L2TP, TunnelType.HYSTERIA2, TunnelType.TUIC, TunnelType.TROJAN, TunnelType.SHADOWSOCKS,
-            TunnelType.VMESS, TunnelType.SNELL, TunnelType.SHADOWSOCKSR, TunnelType.VLESS_REALITY, TunnelType.AETHER, TunnelType.WARP -> {
+            TunnelType.WIREGUARD, TunnelType.OPENVPN, TunnelType.L2TP, TunnelType.TUIC, TunnelType.TROJAN,
+            TunnelType.SNELL, TunnelType.SHADOWSOCKSR, TunnelType.VLESS_REALITY, TunnelType.AETHER, TunnelType.WARP -> {
                 Log.d(TAG, "Stopping SOCKS5-compatible proxy bridge")
                 Socks5ProxyBridge.stopAll()
             }
@@ -1431,6 +1435,10 @@ class VpnRepositoryImpl @Inject constructor(
             TunnelType.SOCKS5 -> {
                 sent = Socks5ProxyBridge.getTunnelTxBytes()
                 received = Socks5ProxyBridge.getTunnelRxBytes()
+            }
+            TunnelType.XRAY, TunnelType.SHADOWSOCKS, TunnelType.VMESS, TunnelType.HYSTERIA2 -> {
+                sent = app.slipnet.tunnel.XrayBridge.getTxBytes()
+                received = app.slipnet.tunnel.XrayBridge.getRxBytes()
             }
             TunnelType.VLESS, TunnelType.VLESS_REALITY, TunnelType.TROJAN -> {
                 sent = VlessBridge.getTunnelTxBytes()

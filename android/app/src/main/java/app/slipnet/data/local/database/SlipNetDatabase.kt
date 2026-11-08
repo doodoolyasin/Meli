@@ -7,7 +7,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [ProfileEntity::class, ChainEntity::class],
-    version = 43,
+    version = 44,
     exportSchema = true
 )
 abstract class SlipNetDatabase : RoomDatabase() {
@@ -522,6 +522,13 @@ abstract class SlipNetDatabase : RoomDatabase() {
         val MIGRATION_42_43 = object : Migration(42, 43) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE server_profiles ADD COLUMN tunnel_encryption_method INTEGER NOT NULL DEFAULT 1")
+            }
+        }
+
+        // Full Xray-core JSON for TunnelType.XRAY ("Custom") profiles.
+        val MIGRATION_43_44 = object : Migration(43, 44) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE server_profiles ADD COLUMN xray_config_json TEXT NOT NULL DEFAULT ''")
             }
         }
 

@@ -83,3 +83,7 @@
 -dontwarn com.google.zxing.**
 -keep class com.journeyapps.barcodescanner.** { *; }
 -dontwarn com.journeyapps.barcodescanner.**
+
+-keep class libv2ray.** { *; }
+-dontwarn libv2ray.**
+-keep class go.** { *; }

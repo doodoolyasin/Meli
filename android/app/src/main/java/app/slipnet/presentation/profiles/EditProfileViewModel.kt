@@ -773,6 +773,8 @@ class EditProfileViewModel @Inject constructor(
                     wsHeaderObfuscation = profile.wsHeaderObfuscation,
                     wsPaddingEnabled = profile.wsPaddingEnabled,
                     tunnelEncryptionMethod = profile.tunnelEncryptionMethod,
+                    xrayRawJson = profile.xrayConfigJson,
+                    xrayJsonMode = profile.tunnelType == TunnelType.XRAY,
                     masterDnsMaxUploadMtu = if (profile.dnsPayloadSize in 20..1500) profile.dnsPayloadSize.toString() else "150",
                     isLoading = false
                 )
@@ -2518,7 +2520,8 @@ class EditProfileViewModel @Inject constructor(
                     gsoEnabled = state.gsoEnabled,
                     socksUsername = if (state.useSsh || state.isExplicitSshTunnel || state.isCredentialFreeTransport) null else state.socksUsername.trim().takeIf { it.isNotBlank() },
                     socksPassword = if (state.useSsh || state.isExplicitSshTunnel || state.isCredentialFreeTransport) null else ((if (state.isTrojan && state.socksPassword.isNullOrBlank()) state.vlessUuid else state.socksPassword)?.trim()?.takeIf { it.isNotBlank() }),
-                    tunnelType = effectiveTunnelType,
+                    tunnelType = if (state.xrayJsonMode && state.xrayRawJson.isNotBlank()) TunnelType.XRAY else effectiveTunnelType,
+                    xrayConfigJson = if (state.xrayJsonMode) state.xrayRawJson.trim() else if (state.tunnelType == TunnelType.XRAY) state.xrayRawJson.trim() else "",
                     dnsttPublicKey = state.dnsttPublicKey.trim(),
                     sshUsername = if (state.useSsh) state.sshUsername.trim() else "",
                     sshPassword = if (state.useSsh && state.sshAuthType == SshAuthType.PASSWORD) state.sshPassword else "",

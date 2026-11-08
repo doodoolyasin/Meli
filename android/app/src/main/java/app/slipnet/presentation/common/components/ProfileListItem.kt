@@ -277,6 +277,7 @@ fun ProfileListItem(
                         profile.tunnelType == TunnelType.SOCKS5 -> "SOCKS5"
                         profile.tunnelType == TunnelType.SHADOWSOCKS -> "Shadowsocks"
                         profile.tunnelType == TunnelType.SNOWFLAKE -> EditProfileViewModel.detectBridgeType(profile.torBridgeLines).displayName
+                        profile.tunnelType == TunnelType.XRAY -> "Custom (${app.slipnet.tunnel.XrayConfigFactory.protocolOf(profile.xrayConfigJson)})"
                         else -> profile.tunnelType.displayName
                     }.removeSuffix(" + SSH").removeSuffix(" (Rust)").removeSuffix(" (UDP)")
 

@@ -8,4 +8,5 @@ import (
 	_ "snowflake-mobile/snowflake"
 	_ "vaydns-mobile/vaydns"
 	_ "stormdns-go/mobile"
+	_ "xraylite"
 )

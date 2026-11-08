@@ -165,7 +165,9 @@ data class ServerProfile(
     // 1 = XOR, 2 = ChaCha20, 3/4/5 = AES-128/192/256-GCM. Must match the
     // server's DATA_ENCRYPTION_METHOD.
     val tunnelEncryptionMethod: Int = 1,
-    val subscriptionId: String = ""
+    val subscriptionId: String = "",
+    // Full Xray-core JSON config for TunnelType.XRAY profiles (empty otherwise).
+    val xrayConfigJson: String = ""
 ) {
     val subscriptionGroup: String
         get() {
@@ -202,6 +204,7 @@ enum class CongestionControl(val value: String) {
 }
 
 enum class TunnelType(val value: String, val displayName: String) {
+    XRAY("xray", "Custom"),
     SLIPSTREAM("slipstream", "Slipstream"),
     SLIPSTREAM_SSH("slipstream_ssh", "Slipstream + SSH"),
     DNSTT("dnstt", "DNSTT"),

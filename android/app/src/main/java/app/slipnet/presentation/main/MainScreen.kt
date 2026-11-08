@@ -259,22 +259,17 @@ private fun DrawerCardRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .clip(RoundedCornerShape(28.dp))
             .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 12.dp),
+            .padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Icon(icon, contentDescription = null, tint = ColorSelectionAccent, modifier = Modifier.size(20.dp))
-        Spacer(Modifier.width(12.dp))
+        Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(22.dp))
+        Spacer(Modifier.width(16.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(title, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
-            Text(hint, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium, fontSize = 15.sp)
+            Text(hint, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
         }
-        Icon(
-            Icons.Default.KeyboardArrowRight,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(18.dp)
-        )
     }
 }
 
@@ -726,47 +721,44 @@ fun MainScreen(
                         .fillMaxSize()
                         .verticalScroll(rememberScrollState())
                 ) {
-                    Surface(
+                    Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f))
-                            .padding(24.dp)
+                            .padding(start = 28.dp, end = 24.dp, top = 40.dp, bottom = 20.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center
+                        Box(
+                            modifier = Modifier
+                                .size(52.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.primary),
+                            contentAlignment = Alignment.Center
                         ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(64.dp)
-                                    .clip(CircleShape)
-                                    .background(MaterialTheme.colorScheme.primary),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = "A",
-                                    fontSize = 32.sp,
-                                    fontWeight = FontWeight.Black,
-                                    color = Color.White
-                                )
-                            }
-                            Spacer(Modifier.height(10.dp))
                             Text(
-                                text = "AryanaNG",
-                                style = MaterialTheme.typography.titleLarge,
-                                fontWeight = FontWeight.Bold
+                                text = "A",
+                                fontSize = 26.sp,
+                                fontWeight = FontWeight.Black,
+                                color = MaterialTheme.colorScheme.onPrimary
                             )
+                        }
+                        Spacer(Modifier.width(16.dp))
+                        Column {
+                            Text("AryanaNG", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                             Text(
-                                text = "v${app.slipnet.BuildConfig.VERSION_NAME}",
+                                "v${app.slipnet.BuildConfig.VERSION_NAME}",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
+                    HorizontalDivider(
+                        modifier = Modifier.padding(horizontal = 28.dp),
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                    )
 
                     Spacer(Modifier.height(8.dp))
 
-                    // PattNG Subscription Item with Left '>' toggle and direct tap action
+                    // Subscription entry with Left '>' toggle and direct tap action
                     Surface(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -792,11 +784,16 @@ fun MainScreen(
                                     .clickable { isSubGroupsExpandedInDrawer = !isSubGroupsExpandedInDrawer },
                                 contentAlignment = Alignment.Center
                             ) {
+                                val chevron by animateFloatAsState(
+                                    targetValue = if (isSubGroupsExpandedInDrawer) 90f else 0f,
+                                    animationSpec = tween(220),
+                                    label = "subChevron"
+                                )
                                 Icon(
-                                    imageVector = if (isSubGroupsExpandedInDrawer) Icons.Default.KeyboardArrowDown else Icons.Default.KeyboardArrowRight,
+                                    imageVector = Icons.Default.KeyboardArrowRight,
                                     contentDescription = "Expand sub groups",
                                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(20.dp)
+                                    modifier = Modifier.size(20.dp).rotate(chevron)
                                 )
                             }
                             Spacer(Modifier.width(8.dp))
@@ -818,13 +815,13 @@ fun MainScreen(
                     // Collapsible Sub-Groups List (PattNG Style)
                     AnimatedVisibility(
                         visible = isSubGroupsExpandedInDrawer,
-                        enter = expandVertically(),
-                        exit = shrinkVertically()
+                        enter = expandVertically(tween(220)) + fadeIn(tween(220)),
+                        exit = shrinkVertically(tween(180)) + fadeOut(tween(120))
                     ) {
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(start = 32.dp, end = 16.dp, bottom = 4.dp)
+                                .padding(start = 56.dp, end = 16.dp, bottom = 4.dp)
                         ) {
                             // 1. Update this sub (Active or Selected)
                             Row(
@@ -851,15 +848,14 @@ fun MainScreen(
                                 Icon(
                                     Icons.Default.Refresh,
                                     contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                     modifier = Modifier.size(16.dp)
                                 )
                                 Spacer(Modifier.width(10.dp))
                                 Text(
                                     "Update this sub",
                                     fontSize = 13.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    color = MaterialTheme.colorScheme.primary
+                                    color = MaterialTheme.colorScheme.onSurface
                                 )
                             }
 
@@ -937,34 +933,25 @@ fun MainScreen(
                     Text(
                         text = "SETTINGS & PROXIES",
                         fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = ColorSelectionAccent,
-                        modifier = Modifier.padding(start = 28.dp, top = 12.dp, bottom = 4.dp)
+                        fontWeight = FontWeight.SemiBold,
+                        letterSpacing = 1.2.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(start = 28.dp, top = 16.dp, bottom = 6.dp)
                     )
-                    Surface(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 4.dp),
-                        shape = RoundedCornerShape(12.dp),
-                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
-                        tonalElevation = 1.dp
-                    ) {
+                    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
                         Column {
                             DrawerCardRow(Icons.Default.Apps, "Per app proxy", "Select bypass or routed applications") {
                                 scope.launch { drawerState.close() }
                                 onNavigateToAppSelector()
                             }
-                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
                             DrawerCardRow(Icons.Default.AltRoute, "Routing settings", "Domain rules, direct IPs & split tunnel") {
                                 scope.launch { drawerState.close() }
                                 showRoutingSettingsDialog = true
                             }
-                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
                             DrawerCardRow(Icons.Default.Folder, "Asset files", "GeoIP and GeoSite database assets") {
                                 scope.launch { drawerState.close() }
                                 showAssetFilesDialog = true
                             }
-                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
                             DrawerCardRow(Icons.Default.Settings, "Settings", "Core engine, SOCKS5 & MTU config") {
                                 scope.launch { drawerState.close() }
                                 onNavigateToSettings()
@@ -975,29 +962,21 @@ fun MainScreen(
                     Text(
                         text = "TOOLS",
                         fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = ColorSelectionAccent,
-                        modifier = Modifier.padding(start = 28.dp, top = 12.dp, bottom = 4.dp)
+                        fontWeight = FontWeight.SemiBold,
+                        letterSpacing = 1.2.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(start = 28.dp, top = 16.dp, bottom = 6.dp)
                     )
-                    Surface(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 4.dp),
-                        shape = RoundedCornerShape(12.dp),
-                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
-                        tonalElevation = 1.dp
-                    ) {
+                    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
                         Column {
                             DrawerCardRow(Icons.Default.NetworkPing, "Resolver scanner", "Find working DNS resolvers and fill your pools") {
                                 scope.launch { drawerState.close() }
                                 onNavigateToDnsScanner()
                             }
-                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
                             DrawerCardRow(Icons.Default.BugReport, "Connection LOG", "Engine and tunnel log, live") {
                                 scope.launch { drawerState.close() }
                                 showLogSheet = true
                             }
-                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
                             DrawerCardRow(Icons.Default.Save, "Backup & restore", "Export or import all profiles") {
                                 scope.launch { drawerState.close() }
                                 showBackupRestoreDialog = true
@@ -1008,18 +987,12 @@ fun MainScreen(
                     Text(
                         text = "APP",
                         fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = ColorSelectionAccent,
-                        modifier = Modifier.padding(start = 28.dp, top = 12.dp, bottom = 4.dp)
+                        fontWeight = FontWeight.SemiBold,
+                        letterSpacing = 1.2.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(start = 28.dp, top = 16.dp, bottom = 6.dp)
                     )
-                    Surface(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 4.dp),
-                        shape = RoundedCornerShape(12.dp),
-                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
-                        tonalElevation = 1.dp
-                    ) {
+                    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
                         Column {
                             DrawerCardRow(Icons.Default.Refresh, "Check for update", "Current: v${app.slipnet.BuildConfig.VERSION_NAME}") {
 
@@ -1050,7 +1023,6 @@ fun MainScreen(
                             }
                         
                             }
-                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
                             DrawerCardRow(Icons.Default.Info, "About", "AryanaNG") {
                                 scope.launch { drawerState.close() }
                                 showAboutDialog = true
@@ -4297,7 +4269,7 @@ private fun ConnectionStatusStrip(
                         if (effectiveProfile != null) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(
-                                    text = effectiveProfile.tunnelType.displayName.removeSuffix(" + SSH"),
+                                    text = (if (effectiveProfile.tunnelType == TunnelType.XRAY) "Custom (${app.slipnet.tunnel.XrayConfigFactory.protocolOf(effectiveProfile.xrayConfigJson)})" else effectiveProfile.tunnelType.displayName).removeSuffix(" + SSH"),
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f)
                                 )

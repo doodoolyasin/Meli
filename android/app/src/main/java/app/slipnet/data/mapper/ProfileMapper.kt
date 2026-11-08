@@ -114,7 +114,8 @@ class ProfileMapper @Inject constructor(
             wsHeaderObfuscation = entity.wsHeaderObfuscation,
             wsPaddingEnabled = entity.wsPaddingEnabled,
             dnsAutoTune = entity.dnsAutoTune,
-            tunnelEncryptionMethod = entity.tunnelEncryptionMethod
+            tunnelEncryptionMethod = entity.tunnelEncryptionMethod,
+            xrayConfigJson = entity.xrayConfigJson
         )
     }
 
@@ -205,7 +206,8 @@ class ProfileMapper @Inject constructor(
             wsHeaderObfuscation = profile.wsHeaderObfuscation,
             wsPaddingEnabled = profile.wsPaddingEnabled,
             dnsAutoTune = profile.dnsAutoTune,
-            tunnelEncryptionMethod = profile.tunnelEncryptionMethod
+            tunnelEncryptionMethod = profile.tunnelEncryptionMethod,
+            xrayConfigJson = profile.xrayConfigJson
         )
     }
 

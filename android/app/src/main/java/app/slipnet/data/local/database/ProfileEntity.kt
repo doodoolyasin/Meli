@@ -269,5 +269,8 @@ data class ProfileEntity(
     // DNS-tunnel payload encryption method (MasterDNS / StormDNS): 0 = none,
     // 1 = XOR, 2 = ChaCha20, 3/4/5 = AES-128/192/256-GCM.
     @ColumnInfo(name = "tunnel_encryption_method", defaultValue = "1")
-    val tunnelEncryptionMethod: Int = 1
+    val tunnelEncryptionMethod: Int = 1,
+
+    @ColumnInfo(name = "xray_config_json", defaultValue = "")
+    val xrayConfigJson: String = ""
 )
