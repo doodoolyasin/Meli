@@ -3412,6 +3412,10 @@ fun MainScreen(
                                 domainsText = (domainsText.lines().filter { it.isNotBlank() } + add).distinct().joinToString("\n")
                             }
                         }) { Text("Import clipboard") }
+                        OutlinedButton(onClick = {
+                            val preset = listOf("ir", "digikala.com", "aparat.com", "snapp.ir", "divar.ir", "shaparak.ir")
+                            domainsText = (domainsText.lines().filter { it.isNotBlank() } + preset).distinct().joinToString("\n")
+                        }) { Text("Predefined (Iran)") }
                         OutlinedButton(onClick = { clipboardManager.setText(AnnotatedString(domainsText)) }) { Text("Export") }
                     }
                 }
@@ -3435,6 +3439,7 @@ fun MainScreen(
         var busy by remember { mutableStateOf(false) }
         var urlText by remember { mutableStateOf("") }
         var nameText by remember { mutableStateOf("") }
+        var geoSource by remember { mutableStateOf("") }
         val files = remember(refresh) {
             (context.filesDir.listFiles() ?: emptyArray())
                 .filter { it.isFile && (it.name.endsWith(".cidr") || it.name.endsWith(".domains")) }
@@ -3463,13 +3468,26 @@ fun MainScreen(
                     HorizontalDivider()
                     OutlinedTextField(value = nameText, onValueChange = { nameText = it }, singleLine = true,
                         label = { Text("File name (e.g. ir.cidr)") }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = geoSource, onValueChange = { geoSource = it }, singleLine = true,
+                        label = { Text("Geo file source (optional)") },
+                        placeholder = { Text("owner/repo or https://base/url") },
+                        supportingText = { Text("Used when Source URL is empty: <source>/<file name>") },
+                        modifier = Modifier.fillMaxWidth())
                     OutlinedTextField(value = urlText, onValueChange = { urlText = it }, singleLine = true,
                         label = { Text("Source URL") }, modifier = Modifier.fillMaxWidth())
+                    val resolvedUrl = urlText.trim().ifBlank {
+                        val g = geoSource.trim().trimEnd('/')
+                        when {
+                            g.isBlank() || nameText.isBlank() -> ""
+                            g.startsWith("http", true) -> "$g/${nameText.trim()}"
+                            else -> "https://raw.githubusercontent.com/$g/release/${nameText.trim()}"
+                        }
+                    }
                     Button(
-                        enabled = !busy && urlText.isNotBlank() && nameText.isNotBlank(),
+                        enabled = !busy && resolvedUrl.isNotBlank() && nameText.isNotBlank(),
                         onClick = {
                             busy = true; msg = null
-                            viewModel.downloadRuleFile(context.filesDir, nameText.trim(), urlText.trim()) { ok, m ->
+                            viewModel.downloadRuleFile(context.filesDir, nameText.trim(), resolvedUrl) { ok, m ->
                                 busy = false; msg = m; if (ok) { refresh++; nameText = ""; urlText = "" }
                             }
                         },

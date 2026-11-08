@@ -64,6 +64,8 @@ import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -543,7 +545,8 @@ fun SettingsScreen(
             // ── 4. UI & Display Settings ───────────────────────────────────
             SettingsSection(
                 title = "UI & Display",
-                subtitle = "Theme and notification counters"
+                subtitle = "Theme and notification counters",
+                startExpanded = true
             ) {
                 // Real-time speed display in notification
                 SwitchSettingItem(
@@ -1094,26 +1097,11 @@ private fun RemoteDnsDialog(
 private fun SettingsSection(
     title: String,
     subtitle: String? = null,
+    startExpanded: Boolean = false,
     content: @Composable () -> Unit
 ) {
+    var expanded by androidx.compose.runtime.saveable.rememberSaveable(title) { mutableStateOf(startExpanded) }
     Column {
-        Row(
-            modifier = Modifier.padding(start = 4.dp, bottom = 10.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.primary
-            )
-            if (subtitle != null) {
-                Text(
-                    text = " · $subtitle",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(16.dp),
@@ -1122,10 +1110,39 @@ private fun SettingsSection(
             ),
             elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
         ) {
-            Column(
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
-            ) {
-                content()
+            Column {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { expanded = !expanded }
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = title,
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        if (subtitle != null) {
+                            Text(
+                                text = subtitle,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    Icon(
+                        imageVector = if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                        contentDescription = if (expanded) "Collapse" else "Expand",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                if (expanded) {
+                    Column(modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp)) {
+                        content()
+                    }
+                }
             }
         }
     }
