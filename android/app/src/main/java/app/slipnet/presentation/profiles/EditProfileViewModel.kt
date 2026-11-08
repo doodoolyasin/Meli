@@ -597,8 +597,10 @@ class EditProfileViewModel @Inject constructor(
                 initialTunnelType == TunnelType.WIREGUARD -> "wojxQsiNgLLmm8WowTn/hoqvQ/QMVW6D4QRC27NAxBY="
                 isMeliInitial -> "1937e96db977fb13ebc205e43ac5d5dad7ef61c8434cd7f08b8e166135595972"
                 isMasterDnsInitial -> "@shadow_vpn_masterdns_secret2026"
-                isVaydnsInitial -> "278431382be3d3711377ed94bcc97c7b20181c2d276ae7a389a79e6b3c7abc23"
-                isNoizdnsInitial -> "80c627491b20a8f8bccd613abb4b933650c51fb68f3982e01a607ec5d07a8a0a"
+                isVaydnsInitial -> "0a06021a502e551939367e56a4054e3a477b9bcfd217f76ea95a232540d1cb73"
+                isNooshdarooInitial -> "6d61400cb6d38680787b2a2d0fe195682a3d3f1ae3076e39a90cfe31684cc749"
+                isQwdttInitial -> "6db22cdefb92019647f1082048b913dee102dac0473d258e9bb4f874d4336c2b"
+                isNoizdnsInitial -> "d5f1b651f955e7b70907512ececd0014b1fcbab759eff010f35aed7072e8b979"
                 isDnsttInitial -> "15bedeebebf104e83f1ed0a29b1d166fbee7e59a0e7892182dea8dd42f0fa80a"
                 else -> ""
             },
