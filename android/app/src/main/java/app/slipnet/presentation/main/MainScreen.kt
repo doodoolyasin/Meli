@@ -79,6 +79,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -400,6 +401,11 @@ fun MainScreen(
     var showSubscriptionGroupsDialog by remember { mutableStateOf(false) }
     var showRoutingSettingsDialog by remember { mutableStateOf(false) }
     var showAssetFilesDialog by remember { mutableStateOf(false) }
+    var routingQrText by remember { mutableStateOf<String?>(null) }
+    val routingQrLauncher = rememberLauncherForActivityResult(contract = ScanContract()) { res ->
+        val c = res.contents
+        if (!c.isNullOrBlank()) routingQrText = c
+    }
     var showBackupRestoreDialog by remember { mutableStateOf(false) }
     var showImportDialog by remember { mutableStateOf(false) }
     var importText by remember { mutableStateOf("") }
@@ -438,9 +444,10 @@ fun MainScreen(
             .distinct()
     }
 
-    val groupTabs = remember(uiState.profiles, uiState.chains, subGroups) {
+    val uiPrefs by viewModel.uiPrefs.collectAsState()
+    val groupTabs = remember(uiState.profiles, uiState.chains, subGroups, uiPrefs.showAllTab) {
         val list = mutableListOf<Pair<String, Int>>()
-        list.add("All" to uiState.profiles.size)
+        if (uiPrefs.showAllTab) list.add("All" to uiState.profiles.size)
         val defaultCount = uiState.profiles.count { it.subscriptionGroup.isBlank() }
         if (defaultCount > 0 || subGroups.isNotEmpty()) {
             list.add("Default" to defaultCount)
@@ -1970,6 +1977,75 @@ fun MainScreen(
                             viewModel.moveProfile(from.index, to.index)
                         }
 
+                        val renderProfile: @Composable (app.slipnet.domain.model.ServerProfile, Modifier) -> Unit = { profile, itemModifier ->
+                            val isConnected = uiState.connectedProfileId == profile.id
+ProfileListItem(
+                                profile = profile,
+                                isSelected = if (isSelectionMode) selectedProfileIds.contains(profile.id) else profile.isActive,
+                                isConnected = isConnected,
+                                pingResult = uiState.pingResults[profile.id],
+                                onClick = {
+                                    if (isSelectionMode) {
+                                        selectedProfileIds = if (selectedProfileIds.contains(profile.id)) {
+                                            selectedProfileIds - profile.id
+                                        } else {
+                                            selectedProfileIds + profile.id
+                                        }
+                                    } else {
+                                        val isVpnConnected = uiState.connectionState is ConnectionState.Connected
+                                        val isVpnConnecting = uiState.connectionState is ConnectionState.Connecting
+                                        val isCurrentlyActive = profile.id == uiState.connectedProfileId || profile.id == uiState.activeProfile?.id
+                                        if ((isVpnConnected || isVpnConnecting) && !isCurrentlyActive) {
+                                            val now = System.currentTimeMillis()
+                                            if (pendingSwitchProfileId == profile.id && now - lastSwitchTapTime <= 2000L) {
+                                                pendingSwitchProfileId = null
+                                                lastSwitchTapTime = 0L
+                                                viewModel.setActiveProfile(profile)
+                                            } else {
+                                                pendingSwitchProfileId = profile.id
+                                                lastSwitchTapTime = now
+                                                scope.launch {
+                                                    snackbarHostState.showSnackbar("Tap again within 2s to switch active profile")
+                                                }
+                                            }
+                                        } else {
+                                            viewModel.setActiveProfile(profile)
+                                        }
+                                    }
+                                },
+                                onEditClick = { onNavigateToEditProfile(profile.id) },
+                                onDeleteClick = {
+                                    if (isConnected) {
+                                        scope.launch {
+                                            snackbarHostState.showSnackbar(
+                                                "Disconnect VPN before deleting this profile"
+                                            )
+                                        }
+                                    } else if (uiPrefs.deleteConfirm) {
+                                        profileToDelete = profile
+                                    } else {
+                                        viewModel.deleteProfile(profile)
+                                    }
+                                },
+                                onExportClick = {
+                                    exportLockProfile = profile
+                                    exportLockEnabled = false
+                                    exportLockPassword = ""
+                                    exportLockMode = "export"
+                                },
+                                onShareQrClick = {
+                                    exportLockProfile = profile
+                                    exportLockEnabled = false
+                                    exportLockPassword = ""
+                                    exportLockMode = "qr"
+                                },
+                                onPinClick = { viewModel.togglePinProfile(profile) },
+                                onPingClick = { viewModel.pingSingleProfile(profile) },
+                                isPingRunning = uiState.isPingRunning,
+                                modifier = itemModifier
+                            )
+                        }
+
                         Column(modifier = Modifier.fillMaxSize()) {
                             // Pinned indicator: always visible (above the scrollable list) so
                             // users see the active Global DNS context even after scrolling.
@@ -2002,6 +2078,22 @@ fun MainScreen(
                                 }
                             }
 
+                            if (uiPrefs.twoColumn) {
+                                androidx.compose.foundation.lazy.grid.LazyVerticalGrid(
+                                    columns = androidx.compose.foundation.lazy.grid.GridCells.Fixed(2),
+                                    contentPadding = PaddingValues(
+                                        start = 8.dp, end = 8.dp, top = 4.dp,
+                                        bottom = 140.dp + navBarPadding.calculateBottomPadding()
+                                    ),
+                                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    modifier = Modifier.fillMaxSize()
+                                ) {
+                                    gridItems(displayedProfiles, key = { it.id }) { profile ->
+                                        renderProfile(profile, Modifier)
+                                    }
+                                }
+                            } else
                             LazyColumn(
                                 state = lazyListState,
                                 contentPadding = PaddingValues(
@@ -2021,68 +2113,9 @@ fun MainScreen(
                                 ReorderableItem(reorderableLazyListState, key = profile.id) { isDragging ->
                                     val elevation = if (isDragging) 8.dp else 0.dp
 
-                                    ProfileListItem(
-                                        profile = profile,
-                                        isSelected = if (isSelectionMode) selectedProfileIds.contains(profile.id) else profile.isActive,
-                                        isConnected = isConnected,
-                                        pingResult = uiState.pingResults[profile.id],
-                                        onClick = {
-                                            if (isSelectionMode) {
-                                                selectedProfileIds = if (selectedProfileIds.contains(profile.id)) {
-                                                    selectedProfileIds - profile.id
-                                                } else {
-                                                    selectedProfileIds + profile.id
-                                                }
-                                            } else {
-                                                val isVpnConnected = uiState.connectionState is ConnectionState.Connected
-                                                val isVpnConnecting = uiState.connectionState is ConnectionState.Connecting
-                                                val isCurrentlyActive = profile.id == uiState.connectedProfileId || profile.id == uiState.activeProfile?.id
-                                                if ((isVpnConnected || isVpnConnecting) && !isCurrentlyActive) {
-                                                    val now = System.currentTimeMillis()
-                                                    if (pendingSwitchProfileId == profile.id && now - lastSwitchTapTime <= 2000L) {
-                                                        pendingSwitchProfileId = null
-                                                        lastSwitchTapTime = 0L
-                                                        viewModel.setActiveProfile(profile)
-                                                    } else {
-                                                        pendingSwitchProfileId = profile.id
-                                                        lastSwitchTapTime = now
-                                                        scope.launch {
-                                                            snackbarHostState.showSnackbar("Tap again within 2s to switch active profile")
-                                                        }
-                                                    }
-                                                } else {
-                                                    viewModel.setActiveProfile(profile)
-                                                }
-                                            }
-                                        },
-                                        onEditClick = { onNavigateToEditProfile(profile.id) },
-                                        onDeleteClick = {
-                                            if (isConnected) {
-                                                scope.launch {
-                                                    snackbarHostState.showSnackbar(
-                                                        "Disconnect VPN before deleting this profile"
-                                                    )
-                                                }
-                                            } else {
-                                                profileToDelete = profile
-                                            }
-                                        },
-                                        onExportClick = {
-                                            exportLockProfile = profile
-                                            exportLockEnabled = false
-                                            exportLockPassword = ""
-                                            exportLockMode = "export"
-                                        },
-                                        onShareQrClick = {
-                                            exportLockProfile = profile
-                                            exportLockEnabled = false
-                                            exportLockPassword = ""
-                                            exportLockMode = "qr"
-                                        },
-                                        onPinClick = { viewModel.togglePinProfile(profile) },
-                                        onPingClick = { viewModel.pingSingleProfile(profile) },
-                                        isPingRunning = uiState.isPingRunning,
-                                        modifier = Modifier
+                                    renderProfile(
+                                        profile,
+                                        Modifier
                                             .longPressDraggableHandle()
                                             .shadow(elevation, RoundedCornerShape(12.dp))
                                             .zIndex(if (isDragging) 1f else 0f)
@@ -3363,9 +3396,44 @@ fun MainScreen(
             domainsText = st.domains.sorted().joinToString("\n")
             loaded = true
         }
+        LaunchedEffect(routingQrText) {
+            routingQrText?.let { domainsText = mergeDomainLines(domainsText, it); routingQrText = null }
+        }
         AlertDialog(
             onDismissRequest = { showRoutingSettingsDialog = false },
-            title = { Text("Routing settings", style = MaterialTheme.typography.titleLarge) },
+            title = {
+                var menu by remember { mutableStateOf(false) }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Routing settings", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+                    Box {
+                        IconButton(onClick = { menu = true }) { Icon(Icons.Default.MoreVert, contentDescription = "More") }
+                        DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                            DropdownMenuItem(text = { Text("Import predefined rulesets") }, onClick = {
+                                menu = false
+                                domainsText = mergeDomainLines(domainsText, IRAN_PRESET)
+                            })
+                            DropdownMenuItem(text = { Text("Import ruleset from clipboard") }, onClick = {
+                                menu = false
+                                clipboardManager.getText()?.text?.let { domainsText = mergeDomainLines(domainsText, it) }
+                            })
+                            DropdownMenuItem(text = { Text("Import ruleset from QR code") }, onClick = {
+                                menu = false
+                                routingQrLauncher.launch(ScanOptions().apply {
+                                    setDesiredBarcodeFormats(ScanOptions.QR_CODE)
+                                    setPrompt("Scan ruleset QR code")
+                                    setOrientationLocked(true)
+                                    setCaptureActivity(QrScannerActivity::class.java)
+                                })
+                            })
+                            DropdownMenuItem(text = { Text("Export ruleset to clipboard") }, onClick = {
+                                menu = false
+                                clipboardManager.setText(AnnotatedString(domainsText))
+                                scope.launch { snackbarHostState.showSnackbar("Ruleset copied") }
+                            })
+                        }
+                    }
+                }
+            },
             text = {
                 Column(
                     modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
@@ -3405,19 +3473,6 @@ fun MainScreen(
                         label = { Text("Custom domains (one per line)") },
                         modifier = Modifier.fillMaxWidth().heightIn(min = 120.dp)
                     )
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(onClick = {
-                            clipboardManager.getText()?.text?.let { t ->
-                                val add = t.lines().map { it.trim().lowercase() }.filter { it.isNotEmpty() && !it.contains(' ') }
-                                domainsText = (domainsText.lines().filter { it.isNotBlank() } + add).distinct().joinToString("\n")
-                            }
-                        }) { Text("Import clipboard") }
-                        OutlinedButton(onClick = {
-                            val preset = listOf("ir", "digikala.com", "aparat.com", "snapp.ir", "divar.ir", "shaparak.ir")
-                            domainsText = (domainsText.lines().filter { it.isNotBlank() } + preset).distinct().joinToString("\n")
-                        }) { Text("Predefined (Iran)") }
-                        OutlinedButton(onClick = { clipboardManager.setText(AnnotatedString(domainsText)) }) { Text("Export") }
-                    }
                 }
             },
             confirmButton = {
@@ -4757,4 +4812,12 @@ private fun performInjectorHaptic(context: Context, durationMs: Long = 40L) {
             }
         }
     } catch (_: Exception) { }
+}
+
+private val IRAN_PRESET = listOf("ir", "digikala.com", "aparat.com", "snapp.ir", "divar.ir", "shaparak.ir").joinToString("\n")
+
+/** Merge newline/space-separated domain lists, lowercased, de-duplicated, order kept. */
+private fun mergeDomainLines(current: String, incoming: String): String {
+    fun parse(t: String) = t.split('\n', ',', ' ', '\t', '\r').map { it.trim().lowercase() }.filter { it.isNotEmpty() }
+    return (parse(current) + parse(incoming)).distinct().joinToString("\n")
 }

@@ -756,6 +756,12 @@ class MainViewModel @Inject constructor(
         return trimmed
     }
 
+    val uiPrefs: StateFlow<app.slipnet.util.UiPrefs> = combine(
+        preferencesDataStore.uiDeleteConfirm, preferencesDataStore.uiTwoColumn,
+        preferencesDataStore.uiShowAllTab, preferencesDataStore.uiDynamicColor
+    ) { d, t, a, c -> app.slipnet.util.UiPrefs(d, t, a, c) }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, app.slipnet.util.UiPrefs())
+
     val subscriptionMeta: StateFlow<Map<String, app.slipnet.util.SubMeta>> = preferencesDataStore.subscriptionMeta
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
 

@@ -102,6 +102,10 @@ class PreferencesDataStore @Inject constructor(
         val PREVENT_DNS_FALLBACK = booleanPreferencesKey("prevent_dns_fallback")
         // Notification Traffic Counter
         val SHOW_NOTIFICATION_TRAFFIC = booleanPreferencesKey("show_notification_traffic")
+        val UI_DELETE_CONFIRM = booleanPreferencesKey("ui_delete_confirm")
+        val UI_TWO_COLUMN = booleanPreferencesKey("ui_two_column")
+        val UI_SHOW_ALL_TAB = booleanPreferencesKey("ui_show_all_tab")
+        val UI_DYNAMIC_COLOR = booleanPreferencesKey("ui_dynamic_color")
         // DNS Worker Mode
         val DNS_WORKER_MODE = stringPreferencesKey("dns_worker_mode")
         // Remote DNS Keys
@@ -673,6 +677,16 @@ class PreferencesDataStore @Inject constructor(
     }
 
     // Notification Traffic Counter
+    // UI preferences (PattNG "UI settings")
+    val uiDeleteConfirm: Flow<Boolean> = dataStore.data.map { it[Keys.UI_DELETE_CONFIRM] ?: true }
+    val uiTwoColumn: Flow<Boolean> = dataStore.data.map { it[Keys.UI_TWO_COLUMN] ?: false }
+    val uiShowAllTab: Flow<Boolean> = dataStore.data.map { it[Keys.UI_SHOW_ALL_TAB] ?: true }
+    val uiDynamicColor: Flow<Boolean> = dataStore.data.map { it[Keys.UI_DYNAMIC_COLOR] ?: false }
+    suspend fun setUiDeleteConfirm(v: Boolean) { dataStore.edit { it[Keys.UI_DELETE_CONFIRM] = v } }
+    suspend fun setUiTwoColumn(v: Boolean) { dataStore.edit { it[Keys.UI_TWO_COLUMN] = v } }
+    suspend fun setUiShowAllTab(v: Boolean) { dataStore.edit { it[Keys.UI_SHOW_ALL_TAB] = v } }
+    suspend fun setUiDynamicColor(v: Boolean) { dataStore.edit { it[Keys.UI_DYNAMIC_COLOR] = v } }
+
     val showNotificationTraffic: Flow<Boolean> = dataStore.data.map { prefs ->
         prefs[Keys.SHOW_NOTIFICATION_TRAFFIC] ?: true
     }

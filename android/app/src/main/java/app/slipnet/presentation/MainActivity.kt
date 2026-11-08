@@ -75,7 +75,9 @@ class MainActivity : ComponentActivity() {
         setContent {
             val darkMode by preferencesDataStore.darkMode.collectAsState(initial = DarkMode.SYSTEM)
 
-            SlipstreamTheme(darkMode = darkMode) {
+            val dynamicColor by preferencesDataStore.uiDynamicColor.collectAsState(initial = false)
+
+            SlipstreamTheme(darkMode = darkMode, dynamicColor = dynamicColor) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background

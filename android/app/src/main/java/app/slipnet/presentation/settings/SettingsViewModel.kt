@@ -19,6 +19,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -320,6 +321,17 @@ class SettingsViewModel @Inject constructor(
             preferencesDataStore.setAutoReconnect(enabled)
         }
     }
+
+    val uiPrefs: kotlinx.coroutines.flow.StateFlow<app.slipnet.util.UiPrefs> = combine(
+        preferencesDataStore.uiDeleteConfirm, preferencesDataStore.uiTwoColumn,
+        preferencesDataStore.uiShowAllTab, preferencesDataStore.uiDynamicColor
+    ) { d, t, a, c -> app.slipnet.util.UiPrefs(d, t, a, c) }
+        .stateIn(viewModelScope, kotlinx.coroutines.flow.SharingStarted.Eagerly, app.slipnet.util.UiPrefs())
+
+    fun setUiDeleteConfirm(v: Boolean) { viewModelScope.launch { preferencesDataStore.setUiDeleteConfirm(v) } }
+    fun setUiTwoColumn(v: Boolean) { viewModelScope.launch { preferencesDataStore.setUiTwoColumn(v) } }
+    fun setUiShowAllTab(v: Boolean) { viewModelScope.launch { preferencesDataStore.setUiShowAllTab(v) } }
+    fun setUiDynamicColor(v: Boolean) { viewModelScope.launch { preferencesDataStore.setUiDynamicColor(v) } }
 
     // Notification Traffic Counter
     fun setShowNotificationTraffic(enabled: Boolean) {

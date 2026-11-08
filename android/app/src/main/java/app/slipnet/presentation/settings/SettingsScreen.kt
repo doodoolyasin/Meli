@@ -63,6 +63,8 @@ import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material.icons.filled.ViewColumn
+import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material3.Card
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
@@ -148,6 +150,7 @@ fun SettingsScreen(
     viewModel: SettingsViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val uiPrefs by viewModel.uiPrefs.collectAsState()
     val scrollState = rememberScrollState()
 
     var showDarkModeDialog by remember { mutableStateOf(false) }
@@ -557,6 +560,39 @@ fun SettingsScreen(
                     onCheckedChange = { viewModel.setShowNotificationTraffic(it) }
                 )
 
+                SettingsDivider()
+
+                SwitchSettingItem(
+                    icon = Icons.Default.Delete,
+                    title = "Delete config confirmation",
+                    description = "Whether deleting a config requires a second confirmation",
+                    checked = uiPrefs.deleteConfirm,
+                    onCheckedChange = { viewModel.setUiDeleteConfirm(it) }
+                )
+                SettingsDivider()
+                SwitchSettingItem(
+                    icon = Icons.Default.ViewColumn,
+                    title = "Use two-column layout",
+                    description = "Display the profile list in two columns to fit more content on screen",
+                    checked = uiPrefs.twoColumn,
+                    onCheckedChange = { viewModel.setUiTwoColumn(it) }
+                )
+                SettingsDivider()
+                SwitchSettingItem(
+                    icon = Icons.Default.Dns,
+                    title = "Show an All group tab",
+                    description = "Combine profiles from every subscription group in one tab",
+                    checked = uiPrefs.showAllTab,
+                    onCheckedChange = { viewModel.setUiShowAllTab(it) }
+                )
+                SettingsDivider()
+                SwitchSettingItem(
+                    icon = Icons.Default.Palette,
+                    title = "Enable dynamic color",
+                    description = "Only works on Android 12+ devices; replaces the purple palette",
+                    checked = uiPrefs.dynamicColor,
+                    onCheckedChange = { viewModel.setUiDynamicColor(it) }
+                )
                 SettingsDivider()
 
                 // Dark mode
