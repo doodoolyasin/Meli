@@ -255,6 +255,22 @@ fun SettingsScreen(
                 ),
             verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
+            // ── Aryana client section ──────────────────────────────────────
+            SettingsSection(
+                title = "Aryana Core",
+                subtitle = "Protocol mode, built-in SSH access & client behaviour",
+                startExpanded = true
+            ) {
+                val proxySocksChain by viewModel.proxySocksChain.collectAsState()
+                SwitchSettingItem(
+                    icon = Icons.Default.SettingsEthernet,
+                    title = "All protocols as proxy + SOCKS",
+                    description = "Off: every DNS protocol runs over SSH with the built-in access (no username or password needed). On: all run as plain SOCKS proxy",
+                    checked = proxySocksChain,
+                    onCheckedChange = { viewModel.setProxySocksChain(it) }
+                )
+            }
+
             // ── 1. Exclusive DNS Engine (SlipNet) ──────────────────────────
             SettingsSection(
                 title = "Exclusive DNS Engine (SlipNet)",
@@ -493,16 +509,6 @@ fun SettingsScreen(
                     onCheckedChange = { viewModel.setProxyOnlyMode(it) }
                 )
 
-                SettingsDivider()
-
-                val proxySocksChain by viewModel.proxySocksChain.collectAsState()
-                SwitchSettingItem(
-                    icon = Icons.Default.SettingsEthernet,
-                    title = "All protocols as proxy + SOCKS",
-                    description = "Run every DNS protocol as a plain SOCKS proxy instead of SSH. Off = SSH for all",
-                    checked = proxySocksChain,
-                    onCheckedChange = { viewModel.setProxySocksChain(it) }
-                )
 
                 SettingsDivider()
 

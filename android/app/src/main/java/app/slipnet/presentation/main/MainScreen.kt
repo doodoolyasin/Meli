@@ -37,6 +37,8 @@ import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.ui.draw.rotate
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateDpAsState
@@ -312,9 +314,9 @@ private fun OverflowParentRow(
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = Icons.Default.Apps,
+                        imageVector = Icons.Default.KeyboardArrowLeft,
                         contentDescription = "Open $title options",
-                        modifier = Modifier.size(16.dp),
+                        modifier = Modifier.size(20.dp).rotate(animateFloatAsState(if (isOpen) 180f else 0f, tween(180), label = "chev").value),
                         tint = if (isOpen) MaterialTheme.colorScheme.primary
                         else MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -437,9 +439,9 @@ fun MainScreen(
     var selectedCategoryIndex by remember { mutableIntStateOf(0) }
 
     var isSubGroupsExpandedInDrawer by remember { mutableStateOf(true) }
-    val subGroups = remember(uiState.profiles) {
-        uiState.profiles
-            .map { it.subscriptionGroup.trim() }
+    val savedSubUrls by viewModel.subscriptionUrls.collectAsState()
+    val subGroups = remember(uiState.profiles, savedSubUrls) {
+        (uiState.profiles.map { it.subscriptionGroup.trim() } + savedSubUrls.keys.map { it.trim() })
             .filter { it.isNotBlank() }
             .distinct()
     }
