@@ -298,25 +298,9 @@ private fun OverflowParentRow(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        title,
-                        fontSize = 13.sp,
-                        fontWeight = if (isOpen) FontWeight.SemiBold else FontWeight.Normal,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Text(
-                        hint,
-                        fontSize = 10.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
                 Box(
                     modifier = Modifier
-                        .padding(start = 6.dp)
+                        .padding(end = 8.dp)
                         .size(30.dp)
                         .clip(RoundedCornerShape(6.dp))
                         .background(
@@ -332,6 +316,22 @@ private fun OverflowParentRow(
                         modifier = Modifier.size(16.dp),
                         tint = if (isOpen) MaterialTheme.colorScheme.primary
                         else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        title,
+                        fontSize = 13.sp,
+                        fontWeight = if (isOpen) FontWeight.SemiBold else FontWeight.Normal,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        hint,
+                        fontSize = 10.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
             }
@@ -3345,222 +3345,128 @@ fun MainScreen(
         )
     }
 
-    // 2. Routing Settings Dialog
+    // 2. Routing Settings Dialog (backed by DomainRouter prefs)
     if (showRoutingSettingsDialog) {
-        var routingMode by remember { mutableStateOf("Rule") }
-        var bypassLan by remember { mutableStateOf(true) }
-        var bypassIran by remember { mutableStateOf(true) }
-        var blockAds by remember { mutableStateOf(true) }
-        var domainStrategy by remember { mutableStateOf("IPIfNonMatch") }
-
+        var loaded by remember { mutableStateOf(false) }
+        var routingEnabled by remember { mutableStateOf(false) }
+        var onlyVpn by remember { mutableStateOf(false) }
+        var geoEnabled by remember { mutableStateOf(false) }
+        var geoCountry by remember { mutableStateOf("ir") }
+        var domainsText by remember { mutableStateOf("") }
+        LaunchedEffect(Unit) {
+            val st = viewModel.loadRoutingState()
+            routingEnabled = st.enabled; onlyVpn = st.onlyVpn
+            geoEnabled = st.geoEnabled; geoCountry = st.geoCountry
+            domainsText = st.domains.sorted().joinToString("\n")
+            loaded = true
+        }
         AlertDialog(
             onDismissRequest = { showRoutingSettingsDialog = false },
-            title = {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Icon(Icons.Default.Share, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                    Text("Routing Settings", style = MaterialTheme.typography.titleLarge)
-                }
-            },
+            title = { Text("Routing settings", style = MaterialTheme.typography.titleLarge) },
             text = {
                 Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                    modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text("Routing Mode", fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleSmall)
-                    listOf("Rule (Bypass LAN and Iran)", "Global (Proxy All)", "Direct (Bypass All)").forEach { mode ->
-                        val isSelected = routingMode == mode.split(" ").first()
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { routingMode = mode.split(" ").first() }
-                                .padding(vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            RadioButton(
-                                selected = isSelected,
-                                onClick = { routingMode = mode.split(" ").first() }
-                            )
-                            Spacer(Modifier.width(8.dp))
-                            Text(mode, style = MaterialTheme.typography.bodyMedium)
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text("Domain routing", fontWeight = FontWeight.Medium)
+                            Text("Apply the rules below to VPN traffic", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        Switch(checked = routingEnabled, onCheckedChange = { routingEnabled = it }, enabled = loaded)
+                    }
+                    Text("Mode", fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleSmall)
+                    listOf(false to "Bypass listed (listed go direct)", true to "Only listed through VPN").forEach { (v, label) ->
+                        Row(Modifier.fillMaxWidth().clickable { onlyVpn = v }, verticalAlignment = Alignment.CenterVertically) {
+                            RadioButton(selected = onlyVpn == v, onClick = { onlyVpn = v })
+                            Text(label, style = MaterialTheme.typography.bodyMedium)
                         }
                     }
-
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-
-                    Text("Preset Rules", fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleSmall)
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text("Bypass LAN", fontWeight = FontWeight.Medium)
-                            Text("Directly connect private IP ranges", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    HorizontalDivider()
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text("Country bypass", fontWeight = FontWeight.Medium)
+                            Text("Send that country's IPs and domains direct", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
-                        Switch(checked = bypassLan, onCheckedChange = { bypassLan = it })
+                        Switch(checked = geoEnabled, onCheckedChange = { geoEnabled = it }, enabled = loaded)
                     }
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text("Bypass Iran Sites & IPs", fontWeight = FontWeight.Medium)
-                            Text("Direct connect .ir domains & national CIDRs", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                        Switch(checked = bypassIran, onCheckedChange = { bypassIran = it })
-                    }
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text("Block Ads & Malware", fontWeight = FontWeight.Medium)
-                            Text("Drop connections to ad/tracker domains", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                        Switch(checked = blockAds, onCheckedChange = { blockAds = it })
-                    }
-
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-
-                    Text("Domain Resolution Strategy", fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleSmall)
-                    listOf("IPIfNonMatch", "IPOnDemand", "AsIs").forEach { strat ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { domainStrategy = strat }
-                                .padding(vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            RadioButton(
-                                selected = domainStrategy == strat,
-                                onClick = { domainStrategy = strat }
-                            )
-                            Spacer(Modifier.width(8.dp))
-                            Text(strat, style = MaterialTheme.typography.bodyMedium)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf("ir", "cn", "ru").forEach { cc ->
+                            FilterChip(selected = geoCountry == cc, onClick = { geoCountry = cc }, label = { Text(cc.uppercase()) })
                         }
                     }
+                    HorizontalDivider()
+                    OutlinedTextField(
+                        value = domainsText,
+                        onValueChange = { domainsText = it },
+                        label = { Text("Custom domains (one per line)") },
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 120.dp)
+                    )
                 }
             },
             confirmButton = {
-                Button(onClick = {
-                    viewModel.applyRoutingSettings(routingMode, bypassLan, bypassIran, blockAds)
+                Button(enabled = loaded, onClick = {
+                    val ds = domainsText.lines().map { it.trim().lowercase() }.filter { it.isNotEmpty() }.toSet()
+                    viewModel.saveRoutingState(routingEnabled, onlyVpn, geoEnabled, geoCountry, ds)
                     showRoutingSettingsDialog = false
-                    scope.launch { snackbarHostState.showSnackbar("Routing settings applied") }
-                }) {
-                    Text("Apply & Save")
-                }
+                    scope.launch { snackbarHostState.showSnackbar("Routing settings saved. Reconnect to apply.") }
+                }) { Text("Save") }
             },
-            dismissButton = {
-                TextButton(onClick = { showRoutingSettingsDialog = false }) {
-                    Text("Cancel")
-                }
-            }
+            dismissButton = { TextButton(onClick = { showRoutingSettingsDialog = false }) { Text("Cancel") } }
         )
     }
 
-    // 3. Asset Files Dialog
+    // 3. Asset Files Dialog (custom <cc>.cidr / <cc>.domains read by DomainRouter)
     if (showAssetFilesDialog) {
-        var isUpdatingAssets by remember { mutableStateOf(false) }
-        var assetUpdateMsg by remember { mutableStateOf<String?>(null) }
-
+        var refresh by remember { mutableStateOf(0) }
+        var msg by remember { mutableStateOf<String?>(null) }
+        var busy by remember { mutableStateOf(false) }
+        var urlText by remember { mutableStateOf("") }
+        var nameText by remember { mutableStateOf("") }
+        val files = remember(refresh) {
+            (context.filesDir.listFiles() ?: emptyArray())
+                .filter { it.isFile && (it.name.endsWith(".cidr") || it.name.endsWith(".domains")) }
+                .sortedBy { it.name }
+        }
+        val fmt = remember { java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.US) }
         AlertDialog(
             onDismissRequest = { showAssetFilesDialog = false },
-            title = {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Icon(Icons.Default.FileDownload, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                    Text("Asset Files", style = MaterialTheme.typography.titleLarge)
-                }
-            },
+            title = { Text("Asset files", style = MaterialTheme.typography.titleLarge) },
             text = {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(14.dp)
-                ) {
+                Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
-                        "Routing rule database files for GeoIP and GeoSite domain/IP resolution.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        "Custom rule files override the built-in ir/cn/ru lists. Names: <country>.cidr or <country>.domains.",
+                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-                    ) {
-                        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text("geoip.dat", fontWeight = FontWeight.Bold)
-                                Text("4.32 MB", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
+                    if (files.isEmpty()) Text("No custom files (built-in lists in use)", style = MaterialTheme.typography.bodyMedium)
+                    files.forEach { f ->
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f)) {
+                                Text(f.name, fontWeight = FontWeight.Medium)
+                                Text("${f.length() / 1024} KB · ${fmt.format(java.util.Date(f.lastModified()))}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
-                            Text("IP geographical database • 8,420 Iran & Global CIDRs", style = MaterialTheme.typography.bodySmall)
-                            Text("Status: Up to date", color = ConnectedGreen, style = MaterialTheme.typography.labelSmall)
+                            IconButton(onClick = { f.delete(); refresh++ }) { Icon(Icons.Default.Delete, contentDescription = "Delete") }
                         }
                     }
-
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-                    ) {
-                        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text("geosite.dat", fontWeight = FontWeight.Bold)
-                                Text("8.15 MB", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
-                            }
-                            Text("Domain routing categories • 12,850 sites & ad lists", style = MaterialTheme.typography.bodySmall)
-                            Text("Status: Up to date", color = ConnectedGreen, style = MaterialTheme.typography.labelSmall)
-                        }
-                    }
-
-                    if (assetUpdateMsg != null) {
-                        Text(assetUpdateMsg!!, color = if (assetUpdateMsg!!.startsWith("Successfully")) ConnectedGreen else MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
-                    }
-
+                    HorizontalDivider()
+                    OutlinedTextField(value = nameText, onValueChange = { nameText = it }, singleLine = true,
+                        label = { Text("File name (e.g. ir.cidr)") }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = urlText, onValueChange = { urlText = it }, singleLine = true,
+                        label = { Text("Source URL") }, modifier = Modifier.fillMaxWidth())
                     Button(
+                        enabled = !busy && urlText.isNotBlank() && nameText.isNotBlank(),
                         onClick = {
-                            isUpdatingAssets = true
-                            assetUpdateMsg = null
-                            viewModel.downloadGeoAssetFiles(context.filesDir) { success, msg ->
-                                isUpdatingAssets = false
-                                assetUpdateMsg = msg
+                            busy = true; msg = null
+                            viewModel.downloadRuleFile(context.filesDir, nameText.trim(), urlText.trim()) { ok, m ->
+                                busy = false; msg = m; if (ok) { refresh++; nameText = ""; urlText = "" }
                             }
                         },
-                        enabled = !isUpdatingAssets,
                         modifier = Modifier.fillMaxWidth()
-                    ) {
-                        if (isUpdatingAssets) {
-                            CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
-                            Spacer(Modifier.width(8.dp))
-                            Text("Downloading Latest Assets...")
-                        } else {
-                            Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Spacer(Modifier.width(8.dp))
-                            Text("Update Asset Files")
-                        }
-                    }
+                    ) { Text(if (busy) "Downloading..." else "Download") }
+                    msg?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary) }
                 }
             },
-            confirmButton = {
-                TextButton(onClick = { showAssetFilesDialog = false }) {
-                    Text("Close")
-                }
-            }
+            confirmButton = { TextButton(onClick = { showAssetFilesDialog = false }) { Text("Close") } }
         )
     }
 

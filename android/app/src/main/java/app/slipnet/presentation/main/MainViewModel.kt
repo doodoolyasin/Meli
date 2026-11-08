@@ -716,6 +716,29 @@ class MainViewModel @Inject constructor(
         }
     }
 
+    /** HttpURLConnection never follows http<->https redirects; resolve them by hand (max 5 hops). */
+    private fun resolveRedirects(start: String): String {
+        var current = start
+        repeat(5) {
+            val c = java.net.URL(current).openConnection() as java.net.HttpURLConnection
+            try {
+                c.connectTimeout = 15000
+                c.readTimeout = 15000
+                c.instanceFollowRedirects = false
+                c.setRequestProperty("User-Agent", "v2rayNG/1.8.5")
+                val code = c.responseCode
+                if (code !in 300..399) return current
+                val loc = c.getHeaderField("Location") ?: return current
+                current = java.net.URL(java.net.URL(current), loc).toString()
+            } catch (_: Exception) {
+                return current
+            } finally {
+                c.disconnect()
+            }
+        }
+        return current
+    }
+
     private fun decodeSubscriptionPayload(raw: String): String {
         val trimmed = raw.trim()
         val clean = trimmed.replace("\n", "").replace("\r", "").replace(" ", "")
@@ -735,7 +758,7 @@ class MainViewModel @Inject constructor(
     fun updateSubscriptionGroup(groupName: String, url: String, onDone: (Int, String?) -> Unit) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val conn = java.net.URL(url.trim()).openConnection() as java.net.HttpURLConnection
+                val conn = java.net.URL(resolveRedirects(url.trim())).openConnection() as java.net.HttpURLConnection
                 conn.connectTimeout = 15000
                 conn.readTimeout = 15000
                 conn.setRequestProperty("User-Agent", "v2rayNG/1.8.5")
@@ -830,7 +853,7 @@ class MainViewModel @Inject constructor(
             for ((group, url) in map) {
                 if (url.isNotBlank()) {
                     try {
-                        val conn = java.net.URL(url.trim()).openConnection() as java.net.HttpURLConnection
+                        val conn = java.net.URL(resolveRedirects(url.trim())).openConnection() as java.net.HttpURLConnection
                         conn.connectTimeout = 15000
                         conn.readTimeout = 15000
                         conn.setRequestProperty("User-Agent", "v2rayNG/1.8.5")
@@ -876,7 +899,7 @@ class MainViewModel @Inject constructor(
             for ((group, url) in dnsEntries) {
                 if (url.isNotBlank()) {
                     try {
-                        val conn = java.net.URL(url.trim()).openConnection() as java.net.HttpURLConnection
+                        val conn = java.net.URL(resolveRedirects(url.trim())).openConnection() as java.net.HttpURLConnection
                         conn.connectTimeout = 15000
                         conn.readTimeout = 15000
                         conn.setRequestProperty("User-Agent", "v2rayNG/1.8.5")
@@ -954,21 +977,56 @@ class MainViewModel @Inject constructor(
         }
     }
 
-    fun applyRoutingSettings(
-        routingMode: String,
-        bypassLan: Boolean,
-        bypassIran: Boolean,
-        blockAds: Boolean
-    ) {
+    data class RoutingState(
+        val enabled: Boolean, val onlyVpn: Boolean, val geoEnabled: Boolean,
+        val geoCountry: String, val domains: Set<String>
+    )
+
+    suspend fun loadRoutingState(): RoutingState = RoutingState(
+        enabled = preferencesDataStore.domainRoutingEnabled.first(),
+        onlyVpn = preferencesDataStore.domainRoutingMode.first() == app.slipnet.data.local.datastore.DomainRoutingMode.ONLY_VPN,
+        geoEnabled = preferencesDataStore.geoBypassEnabled.first(),
+        geoCountry = preferencesDataStore.geoBypassCountry.first(),
+        domains = preferencesDataStore.domainRoutingDomains.first()
+    )
+
+    fun saveRoutingState(enabled: Boolean, onlyVpn: Boolean, geoEnabled: Boolean, geoCountry: String, domains: Set<String>) {
         viewModelScope.launch {
-            preferencesDataStore.setDomainRoutingEnabled(true)
-            preferencesDataStore.setGeoBypassEnabled(bypassIran)
-            preferencesDataStore.setGeoBypassCountry("IR")
-            when (routingMode) {
-                "Global" -> preferencesDataStore.setDomainRoutingMode(app.slipnet.data.local.datastore.DomainRoutingMode.BYPASS)
-                "Direct" -> preferencesDataStore.setDomainRoutingMode(app.slipnet.data.local.datastore.DomainRoutingMode.ONLY_VPN)
-                else -> preferencesDataStore.setDomainRoutingMode(app.slipnet.data.local.datastore.DomainRoutingMode.BYPASS)
+            preferencesDataStore.setDomainRoutingEnabled(enabled)
+            preferencesDataStore.setDomainRoutingMode(
+                if (onlyVpn) app.slipnet.data.local.datastore.DomainRoutingMode.ONLY_VPN
+                else app.slipnet.data.local.datastore.DomainRoutingMode.BYPASS
+            )
+            preferencesDataStore.setGeoBypassEnabled(geoEnabled)
+            preferencesDataStore.setGeoBypassCountry(geoCountry)
+            preferencesDataStore.setDomainRoutingDomains(domains)
+        }
+    }
+
+    fun downloadRuleFile(filesDir: java.io.File, name: String, url: String, onDone: (Boolean, String) -> Unit) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val valid = Regex("^[a-z]{2}(_[a-z0-9_]+)?\\.(cidr|domains)$").matches(name)
+            var ok = false
+            var message = "Invalid name. Use <country>.cidr or <country>.domains"
+            if (valid) {
+                val tmp = java.io.File(filesDir, "$name.tmp")
+                try {
+                    val conn = java.net.URL(url).openConnection() as java.net.HttpURLConnection
+                    conn.connectTimeout = 15000
+                    conn.readTimeout = 30000
+                    conn.instanceFollowRedirects = true
+                    conn.setRequestProperty("User-Agent", "Mozilla/5.0 AryanaNG")
+                    if (conn.responseCode in 200..299) {
+                        conn.inputStream.use { i -> tmp.outputStream().use { o -> i.copyTo(o) } }
+                        if (tmp.length() > 0 && tmp.renameTo(java.io.File(filesDir, name))) {
+                            ok = true; message = "Saved $name"
+                        } else message = "Empty file"
+                    } else message = "HTTP ${conn.responseCode}"
+                } catch (e: Exception) {
+                    message = e.message?.take(60) ?: "Download failed"
+                } finally { tmp.delete() }
             }
+            withContext(Dispatchers.Main) { onDone(ok, message) }
         }
     }
 

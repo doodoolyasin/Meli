@@ -2062,7 +2062,7 @@ fun EditProfileScreen(
                 }
 
                 // SSH Credentials (SSH-only, or when SSH selected for DNSTT/Slipstream)
-                if (uiState.useSsh) {
+                if (uiState.useSsh && !uiState.isCredentialFreeTransport) {
                     Text(
                         text = "SSH Credentials",
                         style = MaterialTheme.typography.titleMedium,
