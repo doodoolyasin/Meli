@@ -4,6 +4,6 @@ package app.slipnet.util
 data class UiPrefs(
     val deleteConfirm: Boolean = true,
     val twoColumn: Boolean = false,
-    val showAllTab: Boolean = true,
+    val showAllTab: Boolean = false,
     val dynamicColor: Boolean = false
 )

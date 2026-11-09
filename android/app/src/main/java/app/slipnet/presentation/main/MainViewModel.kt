@@ -787,6 +787,11 @@ class MainViewModel @Inject constructor(
             conn.instanceFollowRedirects = true
             val code = conn.responseCode
             if (code !in 200..299) return@withContext 0 to "HTTP $code from subscription server"
+            val userInfo = conn.getHeaderField("subscription-userinfo").orEmpty()
+            fun ui(k: String): Long? = Regex("(?:^|;)\\s*$k\\s*=\\s*(\\d+)").find(userInfo)?.groupValues?.get(1)?.toLongOrNull()
+            val usedB = if (userInfo.isBlank()) -1L else (ui("upload") ?: 0L) + (ui("download") ?: 0L)
+            val totalB = ui("total") ?: -1L
+            val expireS = ui("expire") ?: 0L
             val raw = conn.inputStream.bufferedReader().use { it.readText() }.trim()
             val decoded = decodeSubscriptionPayload(raw)
             val result = configImporter.parseAndImport(decoded, connectionManager.getDeviceId())
@@ -796,7 +801,7 @@ class MainViewModel @Inject constructor(
                     if (kept.isEmpty()) return@withContext 0 to "Remarks filter matched no configs"
                     profileRepository.deleteProfilesByGroup(group)
                     for (p in kept) saveProfileUseCase(p.copy(subscriptionId = group))
-                    preferencesDataStore.saveSubscriptionMeta(group, meta.copy(lastUpdated = System.currentTimeMillis(), lastCount = kept.size))
+                    preferencesDataStore.saveSubscriptionMeta(group, meta.copy(lastUpdated = System.currentTimeMillis(), lastCount = kept.size, usedBytes = usedB, totalBytes = totalB, expireEpochSec = expireS))
                     kept.size to null
                 }
                 result is ImportResult.Error -> 0 to result.message

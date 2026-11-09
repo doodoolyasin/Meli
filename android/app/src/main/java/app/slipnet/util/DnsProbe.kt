@@ -134,7 +134,7 @@ object DnsProbe {
         return out.toByteArray()
     }
 
-    internal data class Reply(val id: Int, val rcode: Int, val truncated: Boolean, val hasSoa: Boolean)
+    internal data class Reply(val id: Int, val rcode: Int, val truncated: Boolean, val hasSoa: Boolean, val soaOwnerLabels: Int = -1)
 
     internal fun parseReply(buf: ByteArray, len: Int): Reply? {
         if (len < 12) return null
@@ -164,20 +164,39 @@ object DnsProbe {
             off += 4
         }
         var soa = false
+        var soaLabels = -1
+        fun countLabels(start: Int): Int {
+            var o = start; var n = 0; var hops = 0
+            while (o < len && hops < 16) {
+                val b = buf[o].toInt() and 0xFF
+                when {
+                    b == 0 -> return n
+                    b and 0xC0 == 0xC0 -> { if (o + 1 >= len) return n; o = ((b and 0x3F) shl 8) or (buf[o + 1].toInt() and 0xFF); hops++ }
+                    else -> { n++; o += 1 + b }
+                }
+            }
+            return n
+        }
         for (i in 0 until (an + ns)) {
+            val nameStart = off
             if (!skipName()) return null
             if (off + 10 > len) return null
             val type = u16(off)
             val rdlen = u16(off + 8)
-            if (i >= an && type == 6) soa = true
+            if (i >= an && type == 6) { soa = true; soaLabels = countLabels(nameStart) }
             off += 10 + rdlen
             if (off > len) return null
         }
-        return Reply(u16(0), flags and 0x000F, flags and 0x0200 != 0, soa)
+        return Reply(u16(0), flags and 0x000F, flags and 0x0200 != 0, soa, soaLabels)
     }
 
-    internal fun classify(r: Reply): Verdict = when (r.rcode) {
-        0, 3 -> if (r.hasSoa) Verdict.NOT_DELEGATED else Verdict.REACHED
+    /**
+     * [zoneLabels]: label count of the tunnel zone. A tunnel server answers junk names with
+     * its own SOA (owner = the zone), which proves delegation works. Only an SOA owned by
+     * a strict ancestor of the zone (the parent's authority) means "not delegated".
+     */
+    internal fun classify(r: Reply, zoneLabels: Int = 0): Verdict = when (r.rcode) {
+        0, 3 -> if (r.hasSoa && (zoneLabels <= 0 || r.soaOwnerLabels < 0 || r.soaOwnerLabels < zoneLabels)) Verdict.NOT_DELEGATED else Verdict.REACHED
         2 -> Verdict.SERVFAIL
         5 -> Verdict.REFUSED
         else -> Verdict.REJECTED
@@ -287,7 +306,8 @@ object DnsProbe {
         qname: String,
         qtype: Int,
         timeoutMs: Int = DEFAULT_TIMEOUT_MS,
-        liveness: Boolean = false
+        liveness: Boolean = false,
+        zoneLabels: Int = 0
     ): Outcome {
         val id = rng.nextInt(0x10000)
         val q = buildQuery(id, qname, qtype)
@@ -300,7 +320,7 @@ object DnsProbe {
                 Transport.DOH -> exchangeDoh(dohUrl.ifBlank { "https://dns.google/dns-query" }, id, q, timeoutMs)
             } ?: return Outcome(Verdict.TIMEOUT, (System.nanoTime() - t0) / 1_000_000L)
             val reply = parseReply(raw.data, raw.len) ?: return Outcome(Verdict.REJECTED, raw.rttMs)
-            Outcome(if (liveness) classifyLiveness(reply) else classify(reply), raw.rttMs)
+            Outcome(if (liveness) classifyLiveness(reply) else classify(reply, zoneLabels), raw.rttMs)
         } catch (_: SocketTimeoutException) {
             Outcome(Verdict.TIMEOUT, (System.nanoTime() - t0) / 1_000_000L)
         } catch (_: ConnectException) {
@@ -375,7 +395,7 @@ object DnsProbe {
         }
         suspend fun ask(name: String): Outcome =
             withTimeoutOrNull(timeoutMs + 1500L) {
-                withContext(Dispatchers.IO) { queryOnce(addr, port, transport, dohUrl, name, QTYPE_TXT, timeoutMs) }
+                withContext(Dispatchers.IO) { queryOnce(addr, port, transport, dohUrl, name, QTYPE_TXT, timeoutMs, zoneLabels = zone.trim('.').split('.').size) }
             } ?: Outcome(Verdict.TIMEOUT, timeoutMs.toLong())
 
         val (apex, rand1) = coroutineScope {

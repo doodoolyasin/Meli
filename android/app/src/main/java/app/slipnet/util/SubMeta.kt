@@ -12,12 +12,15 @@ data class SubMeta(
     val intervalMinutes: Int = 1440,
     val allowInsecureHttp: Boolean = false,
     val lastUpdated: Long = 0L,
-    val lastCount: Int = 0
+    val lastCount: Int = 0,
+    val usedBytes: Long = -1L,
+    val totalBytes: Long = -1L,
+    val expireEpochSec: Long = 0L
 ) {
     fun toJson(): String = JSONObject().apply {
         put("ua", userAgent); put("hdr", headersJson); put("flt", remarksFilter)
         put("en", enabled); put("au", autoUpdate); put("iv", intervalMinutes)
-        put("http", allowInsecureHttp); put("lu", lastUpdated); put("lc", lastCount)
+        put("http", allowInsecureHttp); put("lu", lastUpdated); put("lc", lastCount); put("ub", usedBytes); put("tb", totalBytes); put("ex", expireEpochSec)
     }.toString()
 
     /** Parsed header map; null when [headersJson] is non-blank but not a JSON object. */
@@ -39,7 +42,8 @@ data class SubMeta(
                     o.optString("ua"), o.optString("hdr"), o.optString("flt"),
                     o.optBoolean("en", true), o.optBoolean("au", false),
                     o.optInt("iv", 1440).coerceAtLeast(MIN_INTERVAL),
-                    o.optBoolean("http", false), o.optLong("lu", 0L), o.optInt("lc", 0)
+                    o.optBoolean("http", false), o.optLong("lu", 0L), o.optInt("lc", 0),
+                    o.optLong("ub", -1L), o.optLong("tb", -1L), o.optLong("ex", 0L)
                 )
             } catch (_: Exception) { SubMeta() }
         }

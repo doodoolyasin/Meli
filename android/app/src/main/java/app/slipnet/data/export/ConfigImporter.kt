@@ -3376,13 +3376,11 @@ class ConfigImporter @Inject constructor() {
                 }
                 if (hasXrayProxy) {
                     val real = app.slipnet.tunnel.XrayConfigFactory.protocolOf(jsonStr)
-                    val clean = org.json.JSONObject(jsonStr)
-                    clean.remove("remarks")
                     return ImportResult.Success(listOf(ServerProfile(
                         name = rootRemarks.ifBlank { "Custom ($real)" },
                         domain = "xray",
                         tunnelType = TunnelType.XRAY,
-                        xrayConfigJson = clean.toString()
+                        xrayConfigJson = jsonStr.trim()
                     )), emptyList())
                 }
             }

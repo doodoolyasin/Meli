@@ -245,7 +245,8 @@ private enum class OverflowMenuPage {
     DELETE,
     EXPORT,
     PING,
-    SORT
+    SORT,
+    UPDATE
 }
 
 /** One row inside a drawer card: icon, title, hint and a chevron (PattNG style). */
@@ -287,57 +288,60 @@ private fun OverflowParentRow(
     onDefault: () -> Unit,
     onToggleSubmenu: () -> Unit
 ) {
-    DropdownMenuItem(
-        modifier = Modifier.heightIn(min = 44.dp),
-        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
-        text = {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Box(
-                    modifier = Modifier
-                        .padding(end = 8.dp)
-                        .size(30.dp)
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(
-                            if (isOpen) MaterialTheme.colorScheme.primaryContainer
-                            else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
-                        )
-                        .clickable(enabled = enabled, onClick = onToggleSubmenu),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.KeyboardArrowLeft,
-                        contentDescription = "Open $title options",
-                        modifier = Modifier.size(20.dp).rotate(animateFloatAsState(if (isOpen) 180f else 0f, tween(180), label = "chev").value),
-                        tint = if (isOpen) MaterialTheme.colorScheme.primary
-                        else MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        title,
-                        fontSize = 13.sp,
-                        fontWeight = if (isOpen) FontWeight.SemiBold else FontWeight.Normal,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Text(
-                        hint,
-                        fontSize = 10.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
+    val rot by animateFloatAsState(if (isOpen) 180f else 0f, tween(180), label = "chev")
+    Row(
+        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // Separate section on the left: only the submenu arrow lives here.
+        Box(
+            modifier = Modifier
+                .width(40.dp)
+                .heightIn(min = 48.dp)
+                .background(
+                    if (isOpen) MaterialTheme.colorScheme.primaryContainer
+                    else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                )
+                .clickable(enabled = enabled, onClick = onToggleSubmenu),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Default.KeyboardArrowLeft,
+                contentDescription = "Open $title options",
+                modifier = Modifier.size(22.dp).rotate(rot),
+                tint = if (isOpen) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Row(
+            modifier = Modifier
+                .weight(1f)
+                .heightIn(min = 48.dp)
+                .clickable(enabled = enabled, onClick = onDefault)
+                .padding(start = 14.dp, end = 14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    title,
+                    fontSize = 14.sp,
+                    fontWeight = if (isOpen) FontWeight.SemiBold else FontWeight.Normal,
+                    color = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    hint,
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
-        },
-        leadingIcon = { Icon(icon, contentDescription = null, modifier = Modifier.size(18.dp)) },
-        onClick = onDefault,
-        enabled = enabled
-    )
+            Spacer(Modifier.width(10.dp))
+            Icon(icon, contentDescription = null, modifier = Modifier.size(20.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
 }
 
 private fun Context.findActivity(): Activity? {
@@ -969,6 +973,10 @@ fun MainScreen(
                     )
                     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
                         Column {
+                            DrawerCardRow(Icons.Default.Terminal, "Terminal", "Built-in shell and tools") {
+                                scope.launch { drawerState.close() }
+                                onNavigateToTerminal()
+                            }
                             DrawerCardRow(Icons.Default.NetworkPing, "Resolver scanner", "Find working DNS resolvers and fill your pools") {
                                 scope.launch { drawerState.close() }
                                 onNavigateToDnsScanner()
@@ -1181,12 +1189,6 @@ fun MainScreen(
                                 Icon(Icons.Default.Delete, contentDescription = "Delete selected")
                             }
                         } else if (!isSearchActive) {
-                            IconButton(onClick = { onNavigateToTerminal() }) {
-                                Icon(Icons.Default.Terminal, contentDescription = "Terminal", tint = ColorSelectionAccent)
-                            }
-                            IconButton(onClick = { isSearchActive = true }) {
-                                Icon(Icons.Default.Search, contentDescription = "Search")
-                            }
                             Box {
                                 IconButton(onClick = {
                                     showAddDropdown = true
@@ -1276,7 +1278,7 @@ fun MainScreen(
                                                 modifier = Modifier.heightIn(min = 36.dp),
                                                 contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
                                                 text = { Text("Import from QR code", fontSize = 13.sp) },
-                                                leadingIcon = { Icon(Icons.Default.QrCode2, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                                                trailingIcon = { Icon(Icons.Default.QrCode2, contentDescription = null, modifier = Modifier.size(18.dp)) },
                                                 onClick = {
                                                     showAddDropdown = false
                                                     activeAddSubmenu = null
@@ -1294,7 +1296,7 @@ fun MainScreen(
                                                 modifier = Modifier.heightIn(min = 36.dp),
                                                 contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
                                                 text = { Text("Import from clipboard", fontSize = 13.sp) },
-                                                leadingIcon = { Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                                                trailingIcon = { Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(18.dp)) },
                                                 onClick = {
                                                     showAddDropdown = false
                                                     activeAddSubmenu = null
@@ -1316,7 +1318,7 @@ fun MainScreen(
                                                 modifier = Modifier.heightIn(min = 36.dp),
                                                 contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
                                                 text = { Text("Import from local file", fontSize = 13.sp) },
-                                                leadingIcon = { Icon(Icons.Default.FileDownload, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                                                trailingIcon = { Icon(Icons.Default.FileDownload, contentDescription = null, modifier = Modifier.size(18.dp)) },
                                                 onClick = {
                                                     showAddDropdown = false
                                                     activeAddSubmenu = null
@@ -1361,7 +1363,7 @@ fun MainScreen(
                                                         }
                                                     }
                                                 },
-                                                leadingIcon = { Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                                                trailingIcon = { Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp)) },
                                                 onClick = {
                                                     activeAddSubmenu = if (activeAddSubmenu == AddSubmenuType.PROTOCOLS) null else AddSubmenuType.PROTOCOLS
                                                 }
@@ -1543,6 +1545,35 @@ fun MainScreen(
                                                                 }
                                                             )
                                                         }
+                                                        OverflowMenuPage.UPDATE -> {
+                                                            val g = groupTabs.getOrNull(selectedCategoryIndex)?.first
+                                                            val real = g != null && g != "All" && g != "Default" && g != "Chains"
+                                                            DropdownMenuItem(
+                                                                modifier = Modifier.heightIn(min = 34.dp),
+                                                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 2.dp),
+                                                                text = { Text(if (real) "This sub: $g" else "This sub (open one)", fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                                                                enabled = real,
+                                                                onClick = {
+                                                                    showOverflowMenu = false
+                                                                    activeOverflowSubmenu = null
+                                                                    viewModel.updateSubscriptionGroup(g!!) { count, err ->
+                                                                        scope.launch { snackbarHostState.showSnackbar(if (err != null) "Update failed: $err" else "Updated $count configs for $g") }
+                                                                    }
+                                                                }
+                                                            )
+                                                            DropdownMenuItem(
+                                                                modifier = Modifier.heightIn(min = 34.dp),
+                                                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 2.dp),
+                                                                text = { Text("All subs", fontSize = 12.sp) },
+                                                                onClick = {
+                                                                    showOverflowMenu = false
+                                                                    activeOverflowSubmenu = null
+                                                                    viewModel.updateAllSubscriptions { count, err ->
+                                                                        scope.launch { snackbarHostState.showSnackbar(if (err != null) "Update failed: $err" else "Updated $count configs across all subscriptions") }
+                                                                    }
+                                                                }
+                                                            )
+                                                        }
                                                         OverflowMenuPage.PING -> {
                                                             DropdownMenuItem(
                                                                 modifier = Modifier.heightIn(min = 34.dp),
@@ -1606,10 +1637,21 @@ fun MainScreen(
                                         // Right Parent Menu Column (PattNG style)
                                         Column(modifier = Modifier.width(214.dp)) {
                                             DropdownMenuItem(
+                                                modifier = Modifier.heightIn(min = 40.dp),
+                                                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 2.dp),
+                                                text = { Text("Search", fontSize = 14.sp) },
+                                                trailingIcon = { Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(20.dp)) },
+                                                onClick = {
+                                                    showOverflowMenu = false
+                                                    activeOverflowSubmenu = null
+                                                    isSearchActive = true
+                                                }
+                                            )
+                                            DropdownMenuItem(
                                                 modifier = Modifier.heightIn(min = 36.dp),
                                                 contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
                                                 text = { Text("Restart service", fontSize = 13.sp) },
-                                                leadingIcon = { Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                                                trailingIcon = { Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp)) },
                                                 onClick = {
                                                     showOverflowMenu = false
                                                     activeOverflowSubmenu = null
@@ -1704,27 +1746,35 @@ fun MainScreen(
                                                 }
                                             )
                                             HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-                                            DropdownMenuItem(
-                                                modifier = Modifier.heightIn(min = 36.dp),
-                                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
-                                                text = { Text("Update All", fontSize = 13.sp) },
-                                                leadingIcon = { Icon(Icons.Default.Sync, contentDescription = null, modifier = Modifier.size(18.dp)) },
-                                                onClick = {
+                                            OverflowParentRow(
+                                                title = "Update subscription",
+                                                hint = "This sub or all subs",
+                                                icon = Icons.Default.Sync,
+                                                isOpen = activeOverflowSubmenu == OverflowMenuPage.UPDATE,
+                                                enabled = true,
+                                                onDefault = {
                                                     showOverflowMenu = false
                                                     activeOverflowSubmenu = null
-                                                    viewModel.updateAllSubscriptions { count, err ->
-                                                        scope.launch {
-                                                            if (err != null) snackbarHostState.showSnackbar("Update failed: $err")
-                                                            else snackbarHostState.showSnackbar("Updated $count configs across all subscriptions")
+                                                    val g = groupTabs.getOrNull(selectedCategoryIndex)?.first
+                                                    if (g != null && g != "All" && g != "Default" && g != "Chains") {
+                                                        viewModel.updateSubscriptionGroup(g) { count, err ->
+                                                            scope.launch { snackbarHostState.showSnackbar(if (err != null) "Update failed: $err" else "Updated $count configs for $g") }
+                                                        }
+                                                    } else {
+                                                        viewModel.updateAllSubscriptions { count, err ->
+                                                            scope.launch { snackbarHostState.showSnackbar(if (err != null) "Update failed: $err" else "Updated $count configs across all subscriptions") }
                                                         }
                                                     }
+                                                },
+                                                onToggleSubmenu = {
+                                                    activeOverflowSubmenu = if (activeOverflowSubmenu == OverflowMenuPage.UPDATE) null else OverflowMenuPage.UPDATE
                                                 }
                                             )
                                             DropdownMenuItem(
                                                 modifier = Modifier.heightIn(min = 36.dp),
                                                 contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
                                                 text = { Text("Update DNS", fontSize = 13.sp) },
-                                                leadingIcon = { Icon(Icons.Default.Dns, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                                                trailingIcon = { Icon(Icons.Default.Dns, contentDescription = null, modifier = Modifier.size(18.dp)) },
                                                 onClick = {
                                                     showOverflowMenu = false
                                                     activeOverflowSubmenu = null
@@ -1835,6 +1885,33 @@ fun MainScreen(
                                     fontWeight = FontWeight.Medium,
                                     color = MaterialTheme.colorScheme.primary
                                 )
+                            }
+                            val usageMeta = viewModel.subscriptionMeta.collectAsState().value[currentGroupName]
+                            if (usageMeta != null && (usageMeta.totalBytes > 0 || usageMeta.expireEpochSec > 0)) {
+                                if (usageMeta.totalBytes > 0 && usageMeta.usedBytes >= 0) {
+                                    val fr = (usageMeta.usedBytes.toFloat() / usageMeta.totalBytes).coerceIn(0f, 1f)
+                                    LinearProgressIndicator(
+                                        progress = { fr },
+                                        modifier = Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(2.dp)),
+                                        color = if (fr > 0.9f) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                                        trackColor = MaterialTheme.colorScheme.surfaceVariant
+                                    )
+                                }
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                    fun gb(b: Long) = String.format(java.util.Locale.US, "%.1f GB", b / 1073741824.0)
+                                    Text(
+                                        text = if (usageMeta.totalBytes > 0) "${gb(maxOf(usageMeta.totalBytes - maxOf(usageMeta.usedBytes, 0L), 0L))} left of ${gb(usageMeta.totalBytes)}" else "",
+                                        fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    if (usageMeta.expireEpochSec > 0) {
+                                        val days = ((usageMeta.expireEpochSec * 1000 - System.currentTimeMillis()) / 86_400_000L)
+                                        Text(
+                                            text = if (days < 0) "Expired" else "$days days left",
+                                            fontSize = 11.sp,
+                                            color = if (days < 3) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
                             }
                         }
                     }

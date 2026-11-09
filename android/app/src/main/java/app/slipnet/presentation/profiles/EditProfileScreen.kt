@@ -364,7 +364,8 @@ fun EditProfileScreen(
 
                 // Xray Full-Access Config Selector
                 val isXrayProto = uiState.isVless || uiState.isVmess || uiState.isTrojan ||
-                        uiState.isVlessReality || uiState.isHysteria2 || uiState.isTuic || uiState.isShadowsocks
+                        uiState.isVlessReality || uiState.isHysteria2 || uiState.isTuic || uiState.isShadowsocks ||
+                        uiState.xrayJsonMode
                 if (isXrayProto) {
                     Card(
                         modifier = Modifier.fillMaxWidth(),
@@ -410,7 +411,8 @@ fun EditProfileScreen(
                                     placeholder = { Text("{\n  \"outbounds\": [\n    {\n      \"protocol\": \"vless\", ...\n    }\n  ]\n}") },
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .height(240.dp),
+                                        .height(420.dp),
+                                    textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace),
                                     isError = uiState.xrayJsonError != null,
                                     supportingText = {
                                         if (uiState.xrayJsonError != null) {

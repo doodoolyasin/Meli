@@ -690,7 +690,7 @@ class PreferencesDataStore @Inject constructor(
     // UI preferences (PattNG "UI settings")
     val uiDeleteConfirm: Flow<Boolean> = dataStore.data.map { it[Keys.UI_DELETE_CONFIRM] ?: true }
     val uiTwoColumn: Flow<Boolean> = dataStore.data.map { it[Keys.UI_TWO_COLUMN] ?: false }
-    val uiShowAllTab: Flow<Boolean> = dataStore.data.map { it[Keys.UI_SHOW_ALL_TAB] ?: true }
+    val uiShowAllTab: Flow<Boolean> = dataStore.data.map { it[Keys.UI_SHOW_ALL_TAB] ?: false }
     val uiDynamicColor: Flow<Boolean> = dataStore.data.map { it[Keys.UI_DYNAMIC_COLOR] ?: false }
     suspend fun setUiDeleteConfirm(v: Boolean) { dataStore.edit { it[Keys.UI_DELETE_CONFIRM] = v } }
     suspend fun setUiTwoColumn(v: Boolean) { dataStore.edit { it[Keys.UI_TWO_COLUMN] = v } }
