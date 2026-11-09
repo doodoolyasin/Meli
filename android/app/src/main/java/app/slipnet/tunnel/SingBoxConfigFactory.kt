@@ -17,6 +17,8 @@ object SingBoxConfigFactory {
         .put("route", JSONObject().put("final", "proxy").put("default_domain_resolver", "local"))
         .toString()
 
+    fun wrapPublic(ob: JSONObject): String = wrapOutbound(ob)
+
     private fun tls(sni: String, p: Map<String, String>): JSONObject {
         val t = JSONObject().put("enabled", true).put("server_name", sni)
         p["alpn"]?.takeIf { it.isNotBlank() }?.let { t.put("alpn", JSONArray(it.split(',').map { a -> a.trim() })) }

@@ -178,6 +178,36 @@ class ConfigImporter @Inject constructor() {
             trimmedInput
         }
 
+        // AmneziaWG: a WireGuard config that carries obfuscation parameters
+        if (trimmedInput.contains("[Interface]", ignoreCase = true) &&
+            Regex("(?im)^\\s*(Jc|Jmin|Jmax|S1|S2|S3|S4|H1|H2|H3|H4|I1)\\s*=").containsMatchIn(trimmedInput)) {
+            val ep = Regex("(?im)^\\s*Endpoint\\s*=\\s*(\\S+)").find(trimmedInput)?.groupValues?.get(1).orEmpty()
+            return ImportResult.Success(listOf(ServerProfile(
+                name = "Custom (amneziawg) ${ep.substringBeforeLast(':')}".trim(),
+                domain = ep.substringBeforeLast(':').ifBlank { "amneziawg" },
+                tunnelType = TunnelType.XRAY,
+                xrayConfigJson = app.slipnet.tunnel.NativeCore.wrapAwg(trimmedInput)
+            )), emptyList())
+        }
+
+        // OpenVPN profile (.ovpn text)
+        if (Regex("(?m)^\\s*remote\\s+\\S+").containsMatchIn(trimmedInput) &&
+            (trimmedInput.contains("<ca>") || Regex("(?m)^\\s*(client|dev\\s+tun|proto\\s+(udp|tcp))").containsMatchIn(trimmedInput)) &&
+            !trimmedInput.trimStart().startsWith("{")) {
+            return try {
+                val cfg = app.slipnet.tunnel.SingBoxConfigFactory.fromOvpn(trimmedInput)
+                val host = Regex("(?m)^\\s*remote\\s+(\\S+)").find(trimmedInput)?.groupValues?.get(1).orEmpty()
+                ImportResult.Success(listOf(ServerProfile(
+                    name = "Custom (openvpn) $host".trim(),
+                    domain = "singbox",
+                    tunnelType = TunnelType.XRAY,
+                    xrayConfigJson = cfg
+                )), emptyList())
+            } catch (e: Exception) {
+                ImportResult.Error("OpenVPN: ${e.message}")
+            }
+        }
+
         // Handle WireGuard .conf file content
         if (trimmedInput.contains("[Interface]", ignoreCase = true)) {
             val wgRes = parseWireGuardConf(trimmedInput, 1)
@@ -214,24 +244,6 @@ class ConfigImporter @Inject constructor() {
             if (firstNl != -1) jsonCandidate = jsonCandidate.substring(firstNl + 1)
             if (jsonCandidate.endsWith("```")) {
                 jsonCandidate = jsonCandidate.removeSuffix("```").trim()
-            }
-        }
-
-        // OpenVPN profile (.ovpn text)
-        if (Regex("(?m)^\\s*remote\\s+\\S+").containsMatchIn(jsonCandidate) &&
-            (jsonCandidate.contains("<ca>") || Regex("(?m)^\\s*(client|dev\\s+tun|proto\\s+(udp|tcp))").containsMatchIn(jsonCandidate)) &&
-            !jsonCandidate.trimStart().startsWith("{")) {
-            return try {
-                val cfg = app.slipnet.tunnel.SingBoxConfigFactory.fromOvpn(jsonCandidate)
-                val host = Regex("(?m)^\\s*remote\\s+(\\S+)").find(jsonCandidate)?.groupValues?.get(1).orEmpty()
-                ImportResult.Success(listOf(ServerProfile(
-                    name = "Custom (openvpn) $host".trim(),
-                    domain = "singbox",
-                    tunnelType = TunnelType.XRAY,
-                    xrayConfigJson = cfg
-                )), emptyList())
-            } catch (e: Exception) {
-                ImportResult.Error("OpenVPN: ${e.message}")
             }
         }
 
@@ -301,6 +313,27 @@ class ConfigImporter @Inject constructor() {
                     is ProfileParseResult.Success -> profiles.add(result.profile)
                     is ProfileParseResult.Warning -> warnings.add(result.message)
                     is ProfileParseResult.Error -> warnings.add(result.message)
+                }
+                continue
+            }
+
+            // Hysteria 1: hysteria://host:port?auth=..&upmbps=..&downmbps=..&peer=..&obfsParam=..#name
+            if (trimmedLine.startsWith("hysteria://", true) || trimmedLine.startsWith("hy://", true)) {
+                try {
+                    val u = java.net.URI(trimmedLine.replaceFirst(Regex("^(?i)hy://"), "hysteria://"))
+                    val q = parseQueryParams(u.rawQuery ?: "")
+                    val ob = org.json.JSONObject().put("type", "hysteria").put("server", u.host)
+                        .put("server_port", if (u.port > 0) u.port else 443)
+                        .put("up_mbps", q["upmbps"]?.toIntOrNull() ?: 50).put("down_mbps", q["downmbps"]?.toIntOrNull() ?: 100)
+                        .put("tls", org.json.JSONObject().put("enabled", true).put("server_name", q["peer"] ?: q["sni"] ?: u.host)
+                            .put("insecure", q["insecure"] == "1"))
+                    q["auth"]?.let { ob.put("auth_str", java.net.URLDecoder.decode(it, "UTF-8")) }
+                    q["obfsParam"]?.let { ob.put("obfs", java.net.URLDecoder.decode(it, "UTF-8")) }
+                    val cfg = app.slipnet.tunnel.SingBoxConfigFactory.wrapPublic(ob)
+                    val remark = java.net.URLDecoder.decode(u.rawFragment ?: "", "UTF-8").ifBlank { "Custom (hysteria)" }
+                    profiles.add(ServerProfile(name = remark, domain = u.host, tunnelType = TunnelType.XRAY, xrayConfigJson = cfg))
+                } catch (e: Exception) {
+                    warnings.add("Line ${index + 1}: invalid hysteria link (${e.message})")
                 }
                 continue
             }
@@ -3404,6 +3437,20 @@ class ConfigImporter @Inject constructor() {
 
             // A complete Xray-core config (outbounds use "protocol") runs as-is on the
             // embedded core. The remark is kept exactly as the user wrote it.
+            if (root.has("PropagationChannelId") && root.has("SponsorId")) {
+                return ImportResult.Success(listOf(ServerProfile(
+                    name = rootRemarks.ifBlank { "Custom (psiphon)" },
+                    domain = "psiphon",
+                    tunnelType = TunnelType.XRAY,
+                    xrayConfigJson = app.slipnet.tunnel.NativeCore.wrapPsiphon(root)
+                )), emptyList())
+            }
+            if (root.optString("aryana_engine").isNotBlank()) {
+                return ImportResult.Success(listOf(ServerProfile(
+                    name = rootRemarks.ifBlank { "Custom (${app.slipnet.tunnel.XrayConfigFactory.protocolOf(jsonStr)})" },
+                    domain = "core", tunnelType = TunnelType.XRAY, xrayConfigJson = jsonStr.trim()
+                )), emptyList())
+            }
             if (app.slipnet.tunnel.XrayBridge.isSingBoxJson(jsonStr)) {
                 val real = app.slipnet.tunnel.SingBoxConfigFactory.protocolOf(jsonStr)
                 return ImportResult.Success(listOf(ServerProfile(

@@ -52,9 +52,9 @@ object XrayBridge {
     } catch (_: Exception) { false }
 
     fun isRunning(): Boolean =
-        SingBoxBridge.isRunning() || (running.get() && controller?.getIsRunning() == true)
-    fun getTxBytes(): Long { if (SingBoxBridge.isRunning()) return 0L; pollStats(); return txTotal.get() }
-    fun getRxBytes(): Long { if (SingBoxBridge.isRunning()) return 0L; pollStats(); return rxTotal.get() }
+        SingBoxBridge.isRunning() || NativeCore.isRunning() || (running.get() && controller?.getIsRunning() == true)
+    fun getTxBytes(): Long { if (SingBoxBridge.isRunning() || NativeCore.isRunning()) return 0L; pollStats(); return txTotal.get() }
+    fun getRxBytes(): Long { if (SingBoxBridge.isRunning() || NativeCore.isRunning()) return 0L; pollStats(); return rxTotal.get() }
 
     private fun pollStats() {
         val c = controller ?: return
@@ -129,6 +129,7 @@ object XrayBridge {
     }
 
     fun start(context: Context, userJson: String, listenPort: Int, listenHost: String = "127.0.0.1"): Result<Unit> {
+        if (NativeCore.engineOf(userJson) != null) return NativeCore.start(context, userJson, listenPort, listenHost)
         if (isSingBoxJson(userJson)) return SingBoxBridge.start(context, userJson, listenPort, listenHost)
         return try {
             stop()
@@ -150,6 +151,7 @@ object XrayBridge {
 
     fun stop() {
         SingBoxBridge.stop()
+        NativeCore.stop()
         val c = controller
         controller = null
         running.set(false)
