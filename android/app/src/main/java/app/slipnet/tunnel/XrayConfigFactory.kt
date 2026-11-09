@@ -100,6 +100,7 @@ object XrayConfigFactory {
 
     /** Short label of the real protocol inside a full Xray config, e.g. "shadowsocks". */
     fun protocolOf(json: String): String {
+        if (XrayBridge.isSingBoxJson(json)) return SingBoxConfigFactory.protocolOf(json)
         return try {
             val obs = JSONObject(json).optJSONArray("outbounds") ?: return "xray"
             for (i in 0 until obs.length()) {

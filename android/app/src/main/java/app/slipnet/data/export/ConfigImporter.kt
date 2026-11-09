@@ -217,6 +217,24 @@ class ConfigImporter @Inject constructor() {
             }
         }
 
+        // OpenVPN profile (.ovpn text)
+        if (Regex("(?m)^\\s*remote\\s+\\S+").containsMatchIn(jsonCandidate) &&
+            (jsonCandidate.contains("<ca>") || Regex("(?m)^\\s*(client|dev\\s+tun|proto\\s+(udp|tcp))").containsMatchIn(jsonCandidate)) &&
+            !jsonCandidate.trimStart().startsWith("{")) {
+            return try {
+                val cfg = app.slipnet.tunnel.SingBoxConfigFactory.fromOvpn(jsonCandidate)
+                val host = Regex("(?m)^\\s*remote\\s+(\\S+)").find(jsonCandidate)?.groupValues?.get(1).orEmpty()
+                ImportResult.Success(listOf(ServerProfile(
+                    name = "Custom (openvpn) $host".trim(),
+                    domain = "singbox",
+                    tunnelType = TunnelType.XRAY,
+                    xrayConfigJson = cfg
+                )), emptyList())
+            } catch (e: Exception) {
+                ImportResult.Error("OpenVPN: ${e.message}")
+            }
+        }
+
         if ((jsonCandidate.startsWith("{") && jsonCandidate.endsWith("}")) ||
             (jsonCandidate.startsWith("[") && jsonCandidate.endsWith("]")) ||
             jsonCandidate.contains("\"outbounds\"")) {
@@ -283,6 +301,26 @@ class ConfigImporter @Inject constructor() {
                     is ProfileParseResult.Success -> profiles.add(result.profile)
                     is ProfileParseResult.Warning -> warnings.add(result.message)
                     is ProfileParseResult.Error -> warnings.add(result.message)
+                }
+                continue
+            }
+
+            // sing-box protocols: tuic:// anytls://
+            if (trimmedLine.startsWith("tuic://", true) || trimmedLine.startsWith("anytls://", true)) {
+                try {
+                    val u = java.net.URI(trimmedLine.replaceFirst(Regex("^(?i)(tuic|anytls)://"), "$1://"))
+                    val scheme = u.scheme.lowercase()
+                    val ui = (u.rawUserInfo ?: "").split(":", limit = 2).map { java.net.URLDecoder.decode(it, "UTF-8") }
+                    val q = parseQueryParams(u.rawQuery ?: "")
+                    val port = if (u.port > 0) u.port else 443
+                    val cfg = if (scheme == "tuic")
+                        app.slipnet.tunnel.SingBoxConfigFactory.tuic(ui.getOrElse(0) { "" }, ui.getOrElse(1) { "" }, u.host, port, q)
+                    else
+                        app.slipnet.tunnel.SingBoxConfigFactory.anytls(ui.getOrElse(0) { "" }, u.host, port, q)
+                    val remark = java.net.URLDecoder.decode(u.rawFragment ?: "", "UTF-8").ifBlank { "Custom ($scheme)" }
+                    profiles.add(ServerProfile(name = remark, domain = u.host, tunnelType = TunnelType.XRAY, xrayConfigJson = cfg))
+                } catch (e: Exception) {
+                    warnings.add("Line ${index + 1}: invalid ${trimmedLine.substringBefore("://")} link (${e.message})")
                 }
                 continue
             }
@@ -3366,6 +3404,15 @@ class ConfigImporter @Inject constructor() {
 
             // A complete Xray-core config (outbounds use "protocol") runs as-is on the
             // embedded core. The remark is kept exactly as the user wrote it.
+            if (app.slipnet.tunnel.XrayBridge.isSingBoxJson(jsonStr)) {
+                val real = app.slipnet.tunnel.SingBoxConfigFactory.protocolOf(jsonStr)
+                return ImportResult.Success(listOf(ServerProfile(
+                    name = rootRemarks.ifBlank { "Custom ($real)" },
+                    domain = "singbox",
+                    tunnelType = TunnelType.XRAY,
+                    xrayConfigJson = jsonStr.trim()
+                )), emptyList())
+            }
             val xrayObs = root.optJSONArray("outbounds")
             if (xrayObs != null) {
                 var hasXrayProxy = false

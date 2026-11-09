@@ -37,9 +37,24 @@ object XrayBridge {
         override fun startup(): Long = 0
     }
 
-    fun isRunning(): Boolean = running.get() && controller?.getIsRunning() == true
-    fun getTxBytes(): Long { pollStats(); return txTotal.get() }
-    fun getRxBytes(): Long { pollStats(); return rxTotal.get() }
+    /** sing-box configs use "type"/"endpoints"; Xray configs use "protocol". */
+    fun isSingBoxJson(json: String): Boolean = try {
+        val r = JSONObject(json)
+        if (r.has("endpoints")) true else {
+            val ob = r.optJSONArray("outbounds")
+            var sb = false
+            if (ob != null) for (i in 0 until ob.length()) {
+                val o = ob.optJSONObject(i) ?: continue
+                if (o.has("type") && !o.has("protocol")) { sb = true; break }
+            }
+            sb
+        }
+    } catch (_: Exception) { false }
+
+    fun isRunning(): Boolean =
+        SingBoxBridge.isRunning() || (running.get() && controller?.getIsRunning() == true)
+    fun getTxBytes(): Long { if (SingBoxBridge.isRunning()) return 0L; pollStats(); return txTotal.get() }
+    fun getRxBytes(): Long { if (SingBoxBridge.isRunning()) return 0L; pollStats(); return rxTotal.get() }
 
     private fun pollStats() {
         val c = controller ?: return
@@ -114,6 +129,7 @@ object XrayBridge {
     }
 
     fun start(context: Context, userJson: String, listenPort: Int, listenHost: String = "127.0.0.1"): Result<Unit> {
+        if (isSingBoxJson(userJson)) return SingBoxBridge.start(context, userJson, listenPort, listenHost)
         return try {
             stop()
             prepareEnv(context)
@@ -133,6 +149,7 @@ object XrayBridge {
     }
 
     fun stop() {
+        SingBoxBridge.stop()
         val c = controller
         controller = null
         running.set(false)
