@@ -3642,7 +3642,7 @@ class SlipNetVpnService : VpnService() {
             return
         }
         val start = withContext(Dispatchers.IO) {
-            XrayBridge.start(applicationContext, json, proxyPort, if (isProxyOnly) proxyHost else "127.0.0.1")
+            XrayBridge.start(applicationContext, json, proxyPort, if (isProxyOnly) proxyHost else "127.0.0.1", preferencesDataStore.xrayMux.first())
         }
         if (start.isFailure) {
             connectionManager.onVpnError(start.exceptionOrNull()?.message ?: "Xray failed to start")

@@ -326,6 +326,13 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    val xrayMux: kotlinx.coroutines.flow.StateFlow<Boolean> = preferencesDataStore.xrayMux
+        .stateIn(viewModelScope, kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(5000), false)
+
+    fun setXrayMux(enabled: Boolean) {
+        viewModelScope.launch { preferencesDataStore.setXrayMux(enabled) }
+    }
+
     // Auto-Reconnect
     fun setAutoReconnect(enabled: Boolean) {
         viewModelScope.launch {

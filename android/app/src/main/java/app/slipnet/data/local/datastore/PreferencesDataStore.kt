@@ -103,6 +103,7 @@ class PreferencesDataStore @Inject constructor(
         val PREVENT_DNS_FALLBACK = booleanPreferencesKey("prevent_dns_fallback")
         // Notification Traffic Counter
         val SHOW_NOTIFICATION_TRAFFIC = booleanPreferencesKey("show_notification_traffic")
+        val XRAY_MUX = booleanPreferencesKey("xray_mux")
         val UI_DELETE_CONFIRM = booleanPreferencesKey("ui_delete_confirm")
         val UI_TWO_COLUMN = booleanPreferencesKey("ui_two_column")
         val UI_SHOW_ALL_TAB = booleanPreferencesKey("ui_show_all_tab")
@@ -705,6 +706,13 @@ class PreferencesDataStore @Inject constructor(
         dataStore.edit { prefs ->
             prefs[Keys.SHOW_NOTIFICATION_TRAFFIC] = enabled
         }
+    }
+
+    // Xray multiplexing (applied to proxy outbounds of Custom profiles)
+    val xrayMux: Flow<Boolean> = dataStore.data.map { prefs -> prefs[Keys.XRAY_MUX] ?: false }
+
+    suspend fun setXrayMux(enabled: Boolean) {
+        dataStore.edit { prefs -> prefs[Keys.XRAY_MUX] = enabled }
     }
 
     // Sleep Timer

@@ -96,7 +96,7 @@ object XrayBridge {
      * listener, leaving outbounds, routing and dns exactly as the user wrote them.
      * Returns the final JSON.
      */
-    fun buildConfig(userJson: String, listenPort: Int, listenHost: String): String {
+    fun buildConfig(userJson: String, listenPort: Int, listenHost: String, mux: Boolean = false): String {
         val root = JSONObject(userJson)
         val inbounds = JSONArray()
         inbounds.put(JSONObject().apply {
@@ -125,16 +125,29 @@ object XrayBridge {
             if (o.optString("protocol") == "freedom") hasDirect = true
         }
         if (!hasDirect) ob.put(JSONObject().put("protocol", "freedom").put("tag", "direct"))
+        if (mux) {
+            // Only proxy-type outbounds that support mux and don't already define it.
+            val muxable = setOf("vless", "vmess", "trojan", "shadowsocks")
+            for (i in 0 until ob.length()) {
+                val o = ob.optJSONObject(i) ?: continue
+                if (o.optString("protocol") in muxable && !o.has("mux")) {
+                    val isXudp = o.optString("protocol") == "vless"
+                    o.put("mux", JSONObject().put("enabled", true).put("concurrency", 8).apply {
+                        if (isXudp) put("xudpConcurrency", 8)
+                    })
+                }
+            }
+        }
         return root.toString()
     }
 
-    fun start(context: Context, userJson: String, listenPort: Int, listenHost: String = "127.0.0.1"): Result<Unit> {
+    fun start(context: Context, userJson: String, listenPort: Int, listenHost: String = "127.0.0.1", mux: Boolean = false): Result<Unit> {
         if (NativeCore.engineOf(userJson) != null) return NativeCore.start(context, userJson, listenPort, listenHost)
         if (isSingBoxJson(userJson)) return SingBoxBridge.start(context, userJson, listenPort, listenHost)
         return try {
             stop()
             prepareEnv(context)
-            val cfg = buildConfig(userJson, listenPort, listenHost)
+            val cfg = buildConfig(userJson, listenPort, listenHost, mux)
             txTotal.set(0); rxTotal.set(0)
             val c = Libv2ray.newCoreController(callback)
             c.startLoop(cfg, 0)

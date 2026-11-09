@@ -500,6 +500,18 @@ fun SettingsScreen(
                 title = "Mode & Connection",
                 subtitle = "App lifecycle and network behavior"
             ) {
+                // Xray core: multiplexing
+                val xrayMux by viewModel.xrayMux.collectAsState()
+                SwitchSettingItem(
+                    icon = Icons.Default.Sync,
+                    title = "Xray Mux",
+                    description = "Multiplex connections over one stream for VLESS, VMess, Trojan and Shadowsocks Custom profiles. Applies on next connect",
+                    checked = xrayMux,
+                    onCheckedChange = { viewModel.setXrayMux(it) }
+                )
+
+                SettingsDivider()
+
                 // Proxy-only mode vs VPN Service
                 SwitchSettingItem(
                     icon = Icons.Default.SettingsEthernet,
