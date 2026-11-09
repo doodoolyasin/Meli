@@ -289,18 +289,20 @@ private fun OverflowParentRow(
     onToggleSubmenu: () -> Unit
 ) {
     val rot by animateFloatAsState(if (isOpen) 180f else 0f, tween(180), label = "chev")
+    // Left: separate toggle section for entries that have a submenu. Right: the entry icon.
     Row(
-        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 48.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Separate section on the left: only the submenu arrow lives here.
         Box(
             modifier = Modifier
                 .width(40.dp)
                 .heightIn(min = 48.dp)
                 .background(
-                    if (isOpen) MaterialTheme.colorScheme.primaryContainer
-                    else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                    if (isOpen) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
+                    else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
                 )
                 .clickable(enabled = enabled, onClick = onToggleSubmenu),
             contentAlignment = Alignment.Center
@@ -308,7 +310,7 @@ private fun OverflowParentRow(
             Icon(
                 imageVector = Icons.Default.KeyboardArrowLeft,
                 contentDescription = "Open $title options",
-                modifier = Modifier.size(22.dp).rotate(rot),
+                modifier = Modifier.size(20.dp).rotate(rot),
                 tint = if (isOpen) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
@@ -317,7 +319,7 @@ private fun OverflowParentRow(
                 .weight(1f)
                 .heightIn(min = 48.dp)
                 .clickable(enabled = enabled, onClick = onDefault)
-                .padding(start = 14.dp, end = 14.dp),
+                .padding(horizontal = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f)) {
@@ -325,7 +327,7 @@ private fun OverflowParentRow(
                     title,
                     fontSize = 14.sp,
                     fontWeight = if (isOpen) FontWeight.SemiBold else FontWeight.Normal,
-                    color = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
+                    color = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -337,9 +339,8 @@ private fun OverflowParentRow(
                     overflow = TextOverflow.Ellipsis
                 )
             }
-            Spacer(Modifier.width(10.dp))
-            Icon(icon, contentDescription = null, modifier = Modifier.size(20.dp),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.width(8.dp))
+            Icon(icon, contentDescription = null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
@@ -423,6 +424,7 @@ fun MainScreen(
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     var searchQuery by remember { mutableStateOf("") }
     var isSearchActive by remember { mutableStateOf(false) }
+    var showResolverSheet by remember { mutableStateOf(false) }
     val searchFocusRequester = remember { FocusRequester() }
     var isSelectionMode by remember { mutableStateOf(false) }
     var selectedProfileIds by remember { mutableStateOf(setOf<Long>()) }
@@ -2202,11 +2204,60 @@ ProfileListItem(
                 onPingConnected = {
                     currentPingTarget?.let { viewModel.pingSingleProfile(it) }
                 },
+                onShowResolvers = {
+                    currentPingTarget?.let { viewModel.refreshResolverDetails(it) }
+                    showResolverSheet = true
+                },
                 onToggleConnection = { requestConnectOrToggle() },
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .padding(bottom = 12.dp + navBarPadding.calculateBottomPadding())
             )
+
+            // Live resolver details for DNS-tunnel profiles (other protocols never see this).
+            if (showResolverSheet) {
+                val rows by viewModel.resolverRows.collectAsState()
+                val busy by viewModel.resolverRowsBusy.collectAsState()
+                val target = currentPingTarget
+                ModalBottomSheet(onDismissRequest = { showResolverSheet = false }) {
+                    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 32.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("Resolvers", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                                Text(
+                                    target?.let { "${it.name} · ${rows.count { r -> r.ok }}/${rows.size} reach the tunnel" } ?: "",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            if (busy) CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                            else IconButton(onClick = { target?.let { viewModel.refreshResolverDetails(it) } }) {
+                                Icon(Icons.Default.Refresh, contentDescription = "Re-test")
+                            }
+                        }
+                        Spacer(Modifier.height(8.dp))
+                        if (rows.isEmpty() && !busy) {
+                            Text("No resolver data yet.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        rows.forEach { r ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 7.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(Modifier.size(8.dp).clip(CircleShape).background(if (r.ok) ColorPingGreen else ColorPingRed))
+                                Spacer(Modifier.width(12.dp))
+                                Text("${r.host}:${r.port}", modifier = Modifier.weight(1f), fontSize = 14.sp)
+                                Text(
+                                    if (r.ok) "${r.rttMs} ms" else r.label,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = if (r.ok) ColorPingGreen else ColorPingRed
+                                )
+                            }
+                        }
+                    }
+                }
+            }
 
             // Bottom sheet for adding profiles
             if (showAddMenu) {
@@ -4224,6 +4275,7 @@ private fun ConnectionStatusStrip(
     dnsPoolScan: app.slipnet.tunnel.DnsPoolScanState = app.slipnet.tunnel.DnsPoolScanState(),
     pingResult: PingResult? = null,
     onPingConnected: () -> Unit = {},
+    onShowResolvers: () -> Unit = {},
     onToggleConnection: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -4350,12 +4402,16 @@ private fun ConnectionStatusStrip(
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f)
                                 )
-                                if (isDnsProtocol && resolverCount > 0) {
+                                if (isDnsProtocol) {
                                     Text(
-                                        text = " · $resolverCount DNS",
+                                        text = (if (resolverCount > 0) " · $resolverCount DNS" else " · DNS") + " ›",
                                         style = MaterialTheme.typography.labelSmall,
                                         fontWeight = FontWeight.Medium,
-                                        color = if (isConnected) ConnectedGreen else MaterialTheme.colorScheme.primary
+                                        color = if (isConnected) ConnectedGreen else MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(6.dp))
+                                            .clickable { onShowResolvers() }
+                                            .padding(horizontal = 4.dp, vertical = 2.dp)
                                     )
                                 }
                             }

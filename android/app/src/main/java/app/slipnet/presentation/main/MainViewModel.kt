@@ -1366,14 +1366,55 @@ class MainViewModel @Inject constructor(
         else -> e.message?.take(20) ?: "Failed"
     }
 
+    private val singlePingJobs = java.util.concurrent.ConcurrentHashMap<Long, Job>()
+
     fun pingSingleProfile(profile: ServerProfile) {
         if (profile.tunnelType == TunnelType.SNOWFLAKE) return
+        // A second tap while a probe is in flight must not start a competing probe.
+        if (singlePingJobs[profile.id]?.isActive == true) return
 
         publishPing(profile.id, PingResult.Pending)
 
-        viewModelScope.launch {
+        singlePingJobs[profile.id] = viewModelScope.launch {
             _uiState.update { it.copy(pingingViaGlobalDns = preferencesDataStore.parsedGlobalResolvers()) }
-            publishPing(profile.id, pingOne(profile, PingMode.DELAY))
+            var result: PingResult = PingResult.Error("Timeout")
+            repeat(2) { attempt ->
+                if (result is PingResult.Success) return@repeat
+                result = kotlinx.coroutines.withTimeoutOrNull(9_000L) { pingOne(profile, PingMode.DELAY) }
+                    ?: PingResult.Error("Timeout")
+            }
+            publishPing(profile.id, result)
+        }
+    }
+
+    // ── Live resolver details (DNS-tunnel profiles) ──────────────────
+    data class ResolverRow(val host: String, val port: Int, val label: String, val rttMs: Long, val ok: Boolean)
+
+    private val _resolverRows = MutableStateFlow<List<ResolverRow>>(emptyList())
+    val resolverRows: StateFlow<List<ResolverRow>> = _resolverRows
+    private val _resolverRowsBusy = MutableStateFlow(false)
+    val resolverRowsBusy: StateFlow<Boolean> = _resolverRowsBusy
+
+    /** Probes every resolver of [profile] against its tunnel domain and publishes one row per resolver. */
+    fun refreshResolverDetails(profile: ServerProfile) {
+        if (_resolverRowsBusy.value) return
+        val plan = PingPlanner.plan(profile) as? PingPlan.Dns ?: run { _resolverRows.value = emptyList(); return }
+        _resolverRowsBusy.value = true
+        viewModelScope.launch {
+            try {
+                val targets = pingTargets(profile)
+                val rows = coroutineScope {
+                    targets.map { t ->
+                        async {
+                            val o = DnsProbe.probeResolver(t, plan.transport, plan.dohUrl, plan.domain)
+                            ResolverRow(t.host, t.port, o.label, o.rttMs, o.reached)
+                        }
+                    }.awaitAll()
+                }
+                _resolverRows.value = rows.sortedWith(compareBy({ !it.ok }, { it.rttMs }))
+            } finally {
+                _resolverRowsBusy.value = false
+            }
         }
     }
 
