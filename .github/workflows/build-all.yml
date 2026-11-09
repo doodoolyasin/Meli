@@ -181,6 +181,15 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x ./android/gradlew
 
+      - name: Warm up Gradle wrapper (retry on download errors)
+        working-directory: android
+        run: |
+          for i in 1 2 3 4 5 6; do
+            ./gradlew --version && exit 0
+            echo "gradle download failed, retry $i"; sleep $((i*20))
+          done
+          exit 1
+
       - name: Build Full Release APK
         working-directory: android
         env:
