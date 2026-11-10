@@ -98,7 +98,8 @@ class ConfigImporter @Inject constructor() {
         private const val SCHEME = "slipnet://"
         private const val SCHEME_ARYANA = "aryana://"
         private const val ENCRYPTED_SCHEME = "slipnet-enc://"
-        private const val BUNDLE_ENCRYPTED_SCHEME = "slipnet-bundle-enc://"
+        private const val BUNDLE_ENCRYPTED_SCHEME = "aryana-bundle-enc://"
+        private const val LEGACY_BUNDLE_ENCRYPTED_SCHEME = "slipnet-bundle-enc://"
         private const val MODE_SLIPSTREAM = "ss"
         private const val MODE_SLIPSTREAM_SSH = "slipstream_ssh"
         private const val MODE_DNSTT = "dnstt"
@@ -161,9 +162,14 @@ class ConfigImporter @Inject constructor() {
         // Password-encrypted bundle: the whole input is one base64 blob.
         // We unwrap it here and let the normal line-loop parse the decrypted
         // multi-line bundle below.
-        val expanded = if (trimmedInput.startsWith(BUNDLE_ENCRYPTED_SCHEME, ignoreCase = true)) {
+        val bundlePrefix = when {
+            trimmedInput.startsWith(BUNDLE_ENCRYPTED_SCHEME, ignoreCase = true) -> BUNDLE_ENCRYPTED_SCHEME
+            trimmedInput.startsWith(LEGACY_BUNDLE_ENCRYPTED_SCHEME, ignoreCase = true) -> LEGACY_BUNDLE_ENCRYPTED_SCHEME
+            else -> null
+        }
+        val expanded = if (bundlePrefix != null) {
             if (bundlePassword.isNullOrEmpty()) return ImportResult.NeedsPassword
-            val encoded = trimmedInput.substring(BUNDLE_ENCRYPTED_SCHEME.length)
+            val encoded = trimmedInput.substring(bundlePrefix.length)
             val encryptedBytes = try {
                 Base64.decode(encoded, Base64.NO_WRAP)
             } catch (e: Exception) {
@@ -322,16 +328,18 @@ class ConfigImporter @Inject constructor() {
                 try {
                     val u = java.net.URI(trimmedLine.replaceFirst(Regex("^(?i)hy://"), "hysteria://"))
                     val q = parseQueryParams(u.rawQuery ?: "")
-                    val ob = org.json.JSONObject().put("type", "hysteria").put("server", u.host)
-                        .put("server_port", if (u.port > 0) u.port else 443)
+                    val hHost = uriHost(u)
+                    require(hHost.isNotBlank()) { "missing host" }
+                    val ob = org.json.JSONObject().put("type", "hysteria").put("server", hHost)
+                        .put("server_port", uriPort(u, 443))
                         .put("up_mbps", q["upmbps"]?.toIntOrNull() ?: 50).put("down_mbps", q["downmbps"]?.toIntOrNull() ?: 100)
-                        .put("tls", org.json.JSONObject().put("enabled", true).put("server_name", q["peer"] ?: q["sni"] ?: u.host)
-                            .put("insecure", q["insecure"] == "1"))
-                    q["auth"]?.let { ob.put("auth_str", java.net.URLDecoder.decode(it, "UTF-8")) }
-                    q["obfsParam"]?.let { ob.put("obfs", java.net.URLDecoder.decode(it, "UTF-8")) }
+                        .put("tls", org.json.JSONObject().put("enabled", true).put("server_name", q["peer"] ?: q["sni"] ?: hHost)
+                            .put("insecure", q["insecure"] == "1" || q["allowinsecure"] == "1"))
+                    q["auth"]?.let { ob.put("auth_str", it) }
+                    (q["obfsparam"] ?: q["obfs-password"])?.let { ob.put("obfs", it) }
                     val cfg = app.slipnet.tunnel.SingBoxConfigFactory.wrapPublic(ob)
-                    val remark = java.net.URLDecoder.decode(u.rawFragment ?: "", "UTF-8").ifBlank { "Custom (hysteria)" }
-                    profiles.add(ServerProfile(name = remark, domain = u.host, tunnelType = TunnelType.XRAY, xrayConfigJson = cfg))
+                    val remark = pctDecode(u.rawFragment ?: "").ifBlank { "Custom (hysteria)" }
+                    profiles.add(ServerProfile(name = remark, domain = hHost, tunnelType = TunnelType.XRAY, xrayConfigJson = cfg))
                 } catch (e: Exception) {
                     warnings.add("Line ${index + 1}: invalid hysteria link (${e.message})")
                 }
@@ -343,15 +351,17 @@ class ConfigImporter @Inject constructor() {
                 try {
                     val u = java.net.URI(trimmedLine.replaceFirst(Regex("^(?i)(tuic|anytls)://"), "$1://"))
                     val scheme = u.scheme.lowercase()
-                    val ui = (u.rawUserInfo ?: "").split(":", limit = 2).map { java.net.URLDecoder.decode(it, "UTF-8") }
+                    val ui = (u.rawUserInfo ?: "").split(":", limit = 2).map { pctDecode(it) }
                     val q = parseQueryParams(u.rawQuery ?: "")
-                    val port = if (u.port > 0) u.port else 443
+                    val port = uriPort(u, 443)
+                    val tHost = uriHost(u)
+                    require(tHost.isNotBlank()) { "missing host" }
                     val cfg = if (scheme == "tuic")
-                        app.slipnet.tunnel.SingBoxConfigFactory.tuic(ui.getOrElse(0) { "" }, ui.getOrElse(1) { "" }, u.host, port, q)
+                        app.slipnet.tunnel.SingBoxConfigFactory.tuic(ui.getOrElse(0) { "" }, ui.getOrElse(1) { "" }, tHost, port, q)
                     else
-                        app.slipnet.tunnel.SingBoxConfigFactory.anytls(ui.getOrElse(0) { "" }, u.host, port, q)
-                    val remark = java.net.URLDecoder.decode(u.rawFragment ?: "", "UTF-8").ifBlank { "Custom ($scheme)" }
-                    profiles.add(ServerProfile(name = remark, domain = u.host, tunnelType = TunnelType.XRAY, xrayConfigJson = cfg))
+                        app.slipnet.tunnel.SingBoxConfigFactory.anytls(ui.getOrElse(0) { "" }, tHost, port, q)
+                    val remark = pctDecode(u.rawFragment ?: "").ifBlank { "Custom ($scheme)" }
+                    profiles.add(ServerProfile(name = remark, domain = tHost, tunnelType = TunnelType.XRAY, xrayConfigJson = cfg))
                 } catch (e: Exception) {
                     warnings.add("Line ${index + 1}: invalid ${trimmedLine.substringBefore("://")} link (${e.message})")
                 }
@@ -2792,7 +2802,7 @@ class ConfigImporter @Inject constructor() {
             val scheme = uri.scheme?.lowercase() ?: "warp"
             val tunnelType = if (scheme == "masque" || scheme == "aether") TunnelType.AETHER else TunnelType.WARP
             val name = uri.fragment?.takeIf { it.isNotBlank() }?.let {
-                try { java.net.URLDecoder.decode(it, "UTF-8") } catch (_: Exception) { it }
+                pctDecode(it)
             } ?: if (tunnelType == TunnelType.AETHER) "Aether MASQUE" else "WARP Cloudflare"
 
             val host = uri.host ?: "162.159.192.1"
@@ -2822,12 +2832,12 @@ class ConfigImporter @Inject constructor() {
     private fun parseVlessUri(uri: String, lineNum: Int): ProfileParseResult {
         try {
             // Strip scheme
-            val withoutScheme = uri.removePrefix("vless://").removePrefix("VLESS://")
+            val withoutScheme = uri.replaceFirst(Regex("^(?i)vless://"), "")
 
             // Split fragment (profile name)
             val (mainPart, profileName) = if ('#' in withoutScheme) {
                 val idx = withoutScheme.indexOf('#')
-                withoutScheme.substring(0, idx) to java.net.URLDecoder.decode(withoutScheme.substring(idx + 1), "UTF-8")
+                withoutScheme.substring(0, idx) to pctDecode(withoutScheme.substring(idx + 1))
             } else {
                 withoutScheme to "VLESS"
             }
@@ -2864,18 +2874,8 @@ class ConfigImporter @Inject constructor() {
                 }
             }
 
-            // Parse query params
-            val params = mutableMapOf<String, String>()
-            if (queryString.isNotBlank()) {
-                queryString.split('&').forEach { param ->
-                    val eqIdx = param.indexOf('=')
-                    if (eqIdx > 0) {
-                        val key = param.substring(0, eqIdx)
-                        val value = java.net.URLDecoder.decode(param.substring(eqIdx + 1), "UTF-8")
-                        params[key] = value
-                    }
-                }
-            }
+            // Parse query params (pctDecode preserves '+' unlike URLDecoder)
+            val params = parseQueryParams(queryString)
 
             val transport = params["type"] ?: "tcp"
             val security = params["security"] ?: "tls"
@@ -3078,20 +3078,35 @@ class ConfigImporter @Inject constructor() {
 
     private fun parseTrojanUri(uri: String, lineNum: Int): ProfileParseResult {
         return try {
-            val without = uri.removePrefix("trojan://").removePrefix("TROJAN://")
+            val without = uri.replaceFirst(Regex("^(?i)trojan://"), "")
             val (mainPart, name) = if ('#' in without) {
-                without.substringBefore('#') to java.net.URLDecoder.decode(without.substringAfter('#'), "UTF-8")
+                without.substringBefore('#') to pctDecode(without.substringAfter('#'))
             } else without to "Trojan"
-            val password = mainPart.substringBefore('@')
+            val password = pctDecode(mainPart.substringBefore('@'))
             val rest = mainPart.substringAfter('@')
             val hostPort = rest.substringBefore('?')
             val query = if ('?' in rest) rest.substringAfter('?') else ""
-            val host = hostPort.substringBefore(':')
-            val port = hostPort.substringAfter(':').toIntOrNull() ?: 443
+            // Handle IPv6 brackets
+            val host: String
+            val port: Int
+            if (hostPort.startsWith('[')) {
+                val cb = hostPort.indexOf(']')
+                host = if (cb > 0) hostPort.substring(1, cb) else hostPort.removePrefix("[")
+                port = if (cb > 0 && cb + 1 < hostPort.length && hostPort[cb + 1] == ':')
+                    hostPort.substring(cb + 2).toIntOrNull() ?: 443 else 443
+            } else {
+                val ci = hostPort.lastIndexOf(':')
+                if (ci > 0 && hostPort.indexOf(':') == ci) {
+                    host = hostPort.substring(0, ci)
+                    port = hostPort.substring(ci + 1).toIntOrNull() ?: 443
+                } else {
+                    host = hostPort; port = 443
+                }
+            }
             val params = parseQueryParams(query)
             val sni = params["sni"] ?: params["peer"] ?: host
             val transport = params["type"] ?: "tcp"
-            val path = params["path"]?.let { java.net.URLDecoder.decode(it, "UTF-8") } ?: "/"
+            val path = params["path"] ?: "/"
             val hostHeader = params["host"] ?: host
 
             ProfileParseResult.Success(
@@ -3116,9 +3131,9 @@ class ConfigImporter @Inject constructor() {
 
     private fun parseShadowsocksUri(uri: String, lineNum: Int): ProfileParseResult {
         return try {
-            val without = uri.removePrefix("ss://").removePrefix("SS://")
+            val without = uri.replaceFirst(Regex("^(?i)ss://"), "")
             val (mainPart, name) = if ('#' in without) {
-                without.substringBefore('#') to java.net.URLDecoder.decode(without.substringAfter('#'), "UTF-8")
+                without.substringBefore('#') to pctDecode(without.substringAfter('#'))
             } else without to "Shadowsocks"
 
             var userInfo = ""
@@ -3144,9 +3159,27 @@ class ConfigImporter @Inject constructor() {
             }
 
             val method = if (':' in userInfo) userInfo.substringBefore(':') else "2022-blake3-aes-128-gcm"
-            val password = if (':' in userInfo) userInfo.substringAfter(':') else userInfo
-            val host = hostPort.substringBefore(':')
-            val port = hostPort.substringAfter(':').toIntOrNull() ?: 8388
+            val password = pctDecode(if (':' in userInfo) userInfo.substringAfter(':') else userInfo)
+            // Strip query/fragment from hostPort (e.g. /?plugin=...)
+            val cleanHostPort = hostPort.substringBefore('?').substringBefore('/')
+            // Handle IPv6 brackets
+            val host: String
+            val port: Int
+            if (cleanHostPort.startsWith('[')) {
+                val cb = cleanHostPort.indexOf(']')
+                host = if (cb > 0) cleanHostPort.substring(1, cb) else cleanHostPort.removePrefix("[")
+                port = if (cb > 0 && cb + 1 < cleanHostPort.length && cleanHostPort[cb + 1] == ':')
+                    cleanHostPort.substring(cb + 2).toIntOrNull() ?: 8388 else 8388
+            } else {
+                val ci = cleanHostPort.lastIndexOf(':')
+                if (ci > 0 && cleanHostPort.indexOf(':') == ci) {
+                    host = cleanHostPort.substring(0, ci)
+                    port = cleanHostPort.substring(ci + 1).toIntOrNull() ?: 8388
+                } else {
+                    host = cleanHostPort
+                    port = 8388
+                }
+            }
 
             ProfileParseResult.Success(
                 ServerProfile(
@@ -3167,14 +3200,29 @@ class ConfigImporter @Inject constructor() {
         return try {
             val without = uri.removePrefix("hysteria2://").removePrefix("hy2://")
             val (mainPart, name) = if ('#' in without) {
-                without.substringBefore('#') to java.net.URLDecoder.decode(without.substringAfter('#'), "UTF-8")
+                without.substringBefore('#') to pctDecode(without.substringAfter('#'))
             } else without to "Hysteria 2"
-            val password = mainPart.substringBefore('@')
+            val password = pctDecode(mainPart.substringBefore('@'))
             val rest = mainPart.substringAfter('@')
             val hostPort = rest.substringBefore('?')
             val query = if ('?' in rest) rest.substringAfter('?') else ""
-            val host = hostPort.substringBefore(':')
-            val port = hostPort.substringAfter(':').toIntOrNull() ?: 443
+            // Handle IPv6 brackets
+            val host: String
+            val port: Int
+            if (hostPort.startsWith('[')) {
+                val cb = hostPort.indexOf(']')
+                host = if (cb > 0) hostPort.substring(1, cb) else hostPort.removePrefix("[")
+                port = if (cb > 0 && cb + 1 < hostPort.length && hostPort[cb + 1] == ':')
+                    hostPort.substring(cb + 2).toIntOrNull() ?: 443 else 443
+            } else {
+                val ci = hostPort.lastIndexOf(':')
+                if (ci > 0 && hostPort.indexOf(':') == ci) {
+                    host = hostPort.substring(0, ci)
+                    port = hostPort.substring(ci + 1).toIntOrNull() ?: 443
+                } else {
+                    host = hostPort; port = 443
+                }
+            }
             val params = parseQueryParams(query)
             val sni = params["sni"] ?: host
 
@@ -3195,18 +3243,33 @@ class ConfigImporter @Inject constructor() {
 
     private fun parseTuicUri(uri: String, lineNum: Int): ProfileParseResult {
         return try {
-            val without = uri.removePrefix("tuic://").removePrefix("TUIC://")
+            val without = uri.replaceFirst(Regex("^(?i)tuic://"), "")
             val (mainPart, name) = if ('#' in without) {
-                without.substringBefore('#') to java.net.URLDecoder.decode(without.substringAfter('#'), "UTF-8")
+                without.substringBefore('#') to pctDecode(without.substringAfter('#'))
             } else without to "TUIC"
             val creds = mainPart.substringBefore('@')
             val uuid = creds.substringBefore(':')
-            val password = creds.substringAfter(':')
+            val password = pctDecode(creds.substringAfter(':'))
             val rest = mainPart.substringAfter('@')
             val hostPort = rest.substringBefore('?')
             val query = if ('?' in rest) rest.substringAfter('?') else ""
-            val host = hostPort.substringBefore(':')
-            val port = hostPort.substringAfter(':').toIntOrNull() ?: 8443
+            // Handle IPv6 brackets
+            val host: String
+            val port: Int
+            if (hostPort.startsWith('[')) {
+                val cb = hostPort.indexOf(']')
+                host = if (cb > 0) hostPort.substring(1, cb) else hostPort.removePrefix("[")
+                port = if (cb > 0 && cb + 1 < hostPort.length && hostPort[cb + 1] == ':')
+                    hostPort.substring(cb + 2).toIntOrNull() ?: 8443 else 8443
+            } else {
+                val ci = hostPort.lastIndexOf(':')
+                if (ci > 0 && hostPort.indexOf(':') == ci) {
+                    host = hostPort.substring(0, ci)
+                    port = hostPort.substring(ci + 1).toIntOrNull() ?: 8443
+                } else {
+                    host = hostPort; port = 8443
+                }
+            }
             val params = parseQueryParams(query)
             val sni = params["sni"] ?: host
 
@@ -3230,14 +3293,29 @@ class ConfigImporter @Inject constructor() {
         return try {
             val without = uri.removePrefix("wireguard://").removePrefix("wg://")
             val (mainPart, name) = if ('#' in without) {
-                without.substringBefore('#') to java.net.URLDecoder.decode(without.substringAfter('#'), "UTF-8")
+                without.substringBefore('#') to pctDecode(without.substringAfter('#'))
             } else without to "WireGuard"
             val privKey = mainPart.substringBefore('@')
             val rest = mainPart.substringAfter('@')
             val hostPort = rest.substringBefore('?')
             val query = if ('?' in rest) rest.substringAfter('?') else ""
-            val host = hostPort.substringBefore(':')
-            val port = hostPort.substringAfter(':').toIntOrNull() ?: 51820
+            // Handle IPv6 brackets
+            val host: String
+            val port: Int
+            if (hostPort.startsWith('[')) {
+                val cb = hostPort.indexOf(']')
+                host = if (cb > 0) hostPort.substring(1, cb) else hostPort.removePrefix("[")
+                port = if (cb > 0 && cb + 1 < hostPort.length && hostPort[cb + 1] == ':')
+                    hostPort.substring(cb + 2).toIntOrNull() ?: 51820 else 51820
+            } else {
+                val ci = hostPort.lastIndexOf(':')
+                if (ci > 0 && hostPort.indexOf(':') == ci) {
+                    host = hostPort.substring(0, ci)
+                    port = hostPort.substring(ci + 1).toIntOrNull() ?: 51820
+                } else {
+                    host = hostPort; port = 51820
+                }
+            }
             val params = parseQueryParams(query)
             val pubKey = params["publickey"] ?: params["pubkey"] ?: ""
 
@@ -3279,8 +3357,21 @@ class ConfigImporter @Inject constructor() {
                         "privatekey" -> privKey = value
                         "publickey" -> pubKey = value
                         "endpoint" -> {
-                            endpoint = value.substringBefore(':')
-                            port = value.substringAfter(':').toIntOrNull() ?: 51820
+                            // Handle IPv6 brackets like [::1]:51820
+                            if (value.startsWith("[")) {
+                                val cb = value.indexOf(']')
+                                endpoint = if (cb > 0) value.substring(1, cb) else value.removePrefix("[")
+                                port = if (cb > 0 && cb + 1 < value.length && value[cb + 1] == ':')
+                                    value.substring(cb + 2).toIntOrNull() ?: 51820 else 51820
+                            } else {
+                                val ci = value.lastIndexOf(':')
+                                if (ci > 0 && value.indexOf(':') == ci) {
+                                    endpoint = value.substring(0, ci)
+                                    port = value.substring(ci + 1).toIntOrNull() ?: 51820
+                                } else {
+                                    endpoint = value; port = 51820
+                                }
+                            }
                         }
                     }
                 }
@@ -3350,7 +3441,7 @@ class ConfigImporter @Inject constructor() {
         return try {
             val without = uri.removePrefix("openvpn://").removePrefix("ovpn://")
             val (mainPart, name) = if ('#' in without) {
-                without.substringBefore('#') to java.net.URLDecoder.decode(without.substringAfter('#'), "UTF-8")
+                without.substringBefore('#') to pctDecode(without.substringAfter('#'))
             } else without to "OpenVPN"
             val host = mainPart.substringBefore(':')
             val port = mainPart.substringAfter(':').toIntOrNull() ?: 1194
@@ -3372,7 +3463,7 @@ class ConfigImporter @Inject constructor() {
         return try {
             val without = uri.removePrefix("l2tp://").removePrefix("ipsec://")
             val (mainPart, name) = if ('#' in without) {
-                without.substringBefore('#') to java.net.URLDecoder.decode(without.substringAfter('#'), "UTF-8")
+                without.substringBefore('#') to pctDecode(without.substringAfter('#'))
             } else without to "L2TP / IPsec"
             val queryStr = if ('?' in mainPart) mainPart.substringAfter('?') else ""
             val hostPortUser = if ('?' in mainPart) mainPart.substringBefore('?') else mainPart
@@ -3383,10 +3474,10 @@ class ConfigImporter @Inject constructor() {
             val hostPort = if ('@' in hostPortUser) {
                 val userPass = hostPortUser.substringBefore('@')
                 if (':' in userPass) {
-                    username = java.net.URLDecoder.decode(userPass.substringBefore(':'), "UTF-8")
-                    password = java.net.URLDecoder.decode(userPass.substringAfter(':'), "UTF-8")
+                    username = pctDecode(userPass.substringBefore(':'))
+                    password = pctDecode(userPass.substringAfter(':'))
                 } else {
-                    username = java.net.URLDecoder.decode(userPass, "UTF-8")
+                    username = pctDecode(userPass)
                 }
                 hostPortUser.substringAfter('@')
             } else hostPortUser
@@ -3411,6 +3502,31 @@ class ConfigImporter @Inject constructor() {
         }
     }
 
+    /** Percent-decoding that leaves '+' alone (URLDecoder is form decoding and turns '+' into a space). */
+    private fun pctDecode(raw: String): String = try {
+        java.net.URLDecoder.decode(raw.replace("+", "%2B"), "UTF-8")
+    } catch (_: Exception) { raw }
+
+    /** Host of a URI without IPv6 brackets; falls back to the authority when java.net.URI cannot parse it. */
+    private fun uriHost(u: java.net.URI): String {
+        val h = u.host ?: u.rawAuthority?.substringAfterLast('@')?.let {
+            if (it.startsWith("[")) it.substringBefore(']') else it.substringBeforeLast(':')
+        }.orEmpty()
+        return h.trim().removePrefix("[").removeSuffix("]")
+    }
+
+    private fun uriPort(u: java.net.URI, default: Int): Int {
+        val p = if (u.port > 0) u.port else u.rawAuthority?.substringAfterLast(':', "")?.toIntOrNull() ?: default
+        return if (p in 1..65535) p else default
+    }
+
+    /** Base64 that accepts both standard and URL-safe alphabets, with or without padding. */
+    private fun lenientB64(input: String): ByteArray {
+        var t = input.trim().replace('-', '+').replace('_', '/').replace("\n", "").replace("\r", "")
+        while (t.length % 4 != 0) t += "="
+        return Base64.decode(t, Base64.DEFAULT)
+    }
+
     private fun parseQueryParams(queryString: String): Map<String, String> {
         val params = mutableMapOf<String, String>()
         if (queryString.isBlank()) return params
@@ -3418,12 +3534,7 @@ class ConfigImporter @Inject constructor() {
             val eqIdx = param.indexOf('=')
             if (eqIdx > 0) {
                 val key = param.substring(0, eqIdx).lowercase()
-                val value = try {
-                    java.net.URLDecoder.decode(param.substring(eqIdx + 1), "UTF-8")
-                } catch (_: Exception) {
-                    param.substring(eqIdx + 1)
-                }
-                params[key] = value
+                params[key] = pctDecode(param.substring(eqIdx + 1))
             }
         }
         return params
@@ -3710,7 +3821,7 @@ class ConfigImporter @Inject constructor() {
     private fun parseVmessUri(uri: String, lineNum: Int): ProfileParseResult {
         return try {
             val b64 = uri.removePrefix("vmess://").removePrefix("VMESS://").trim()
-            val decoded = String(Base64.decode(b64, Base64.DEFAULT or Base64.URL_SAFE), Charsets.UTF_8)
+            val decoded = String(lenientB64(b64), Charsets.UTF_8)
             val json = org.json.JSONObject(decoded)
 
             val name = json.optString("ps", "VMess")
@@ -3750,7 +3861,7 @@ class ConfigImporter @Inject constructor() {
             val without = uri.removePrefix("snell://").removePrefix("SNELL://")
             val (mainPart, profileName) = if ('#' in without) {
                 val idx = without.indexOf('#')
-                without.substring(0, idx) to java.net.URLDecoder.decode(without.substring(idx + 1), "UTF-8")
+                without.substring(0, idx) to pctDecode(without.substring(idx + 1))
             } else {
                 without to "Snell"
             }
@@ -3779,7 +3890,7 @@ class ConfigImporter @Inject constructor() {
     private fun parseShadowsocksRUri(uri: String, lineNum: Int): ProfileParseResult {
         return try {
             val b64 = uri.removePrefix("ssr://").removePrefix("SSR://").trim()
-            val decoded = String(Base64.decode(b64, Base64.DEFAULT or Base64.URL_SAFE), Charsets.UTF_8)
+            val decoded = String(lenientB64(b64), Charsets.UTF_8)
             val parts = decoded.split(':')
             val host = parts.getOrElse(0) { "" }
             val port = parts.getOrNull(1)?.toIntOrNull() ?: 8388

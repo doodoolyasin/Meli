@@ -572,7 +572,9 @@ class MainViewModel @Inject constructor(
         resolvers.map { "${it.host}:${it.port}" }.sorted().joinToString(","),
         naivePort, naiveUsername, naivePassword,
         socksUsername.orEmpty(), socksPassword.orEmpty(),
-        torBridgeLines
+        torBridgeLines,
+        // Imported Custom/VLESS/etc. profiles share constant domains; these fields tell them apart.
+        xrayConfigJson, vlessUuid, cdnIp, cdnPort, vlessSni, vlessTransport, vlessWsPath, socks5ServerPort
     ).joinToString("|")
 
     fun deleteAllProfiles() {
@@ -779,6 +781,10 @@ class MainViewModel @Inject constructor(
         }
         try {
             val final = resolveRedirects(u)
+            // Block HTTPS→HTTP downgrade via redirect
+            if (final.startsWith("http://", ignoreCase = true) && !meta.allowInsecureHttp) {
+                return@withContext 0 to "Redirect to plain HTTP blocked (enable \"Allow insecure HTTP\")"
+            }
             val conn = java.net.URL(final).openConnection() as java.net.HttpURLConnection
             conn.connectTimeout = 15000
             conn.readTimeout = 15000
@@ -792,17 +798,28 @@ class MainViewModel @Inject constructor(
             val usedB = if (userInfo.isBlank()) -1L else (ui("upload") ?: 0L) + (ui("download") ?: 0L)
             val totalB = ui("total") ?: -1L
             val expireS = ui("expire") ?: 0L
-            val raw = conn.inputStream.bufferedReader().use { it.readText() }.trim()
+            val raw = conn.inputStream.bufferedReader().use { reader ->
+                val sb = StringBuilder()
+                val buf = CharArray(8192)
+                var total = 0
+                val limit = 4 * 1024 * 1024  // 4 MB cap
+                var n: Int
+                while (reader.read(buf).also { n = it } >= 0) {
+                    total += n
+                    if (total > limit) return@withContext 0 to "Subscription too large (>4 MB)"
+                    sb.append(buf, 0, n)
+                }
+                sb.toString()
+            }.trim()
             val decoded = decodeSubscriptionPayload(raw)
             val result = configImporter.parseAndImport(decoded, connectionManager.getDeviceId())
             when {
                 result is ImportResult.Success && result.profiles.isNotEmpty() -> {
                     val kept = if (filter == null) result.profiles else result.profiles.filter { filter.containsMatchIn(it.name) }
                     if (kept.isEmpty()) return@withContext 0 to "Remarks filter matched no configs"
-                    profileRepository.deleteProfilesByGroup(group)
-                    for (p in kept) saveProfileUseCase(p.copy(subscriptionId = group))
-                    preferencesDataStore.saveSubscriptionMeta(group, meta.copy(lastUpdated = System.currentTimeMillis(), lastCount = kept.size, usedBytes = usedB, totalBytes = totalB, expireEpochSec = expireS))
-                    kept.size to null
+                    val total = mergeSubscriptionProfiles(group, kept)
+                    preferencesDataStore.saveSubscriptionMeta(group, meta.copy(lastUpdated = System.currentTimeMillis(), lastCount = total, usedBytes = usedB, totalBytes = totalB, expireEpochSec = expireS))
+                    total to null
                 }
                 result is ImportResult.Error -> 0 to result.message
                 else -> 0 to "No profiles found in subscription"
@@ -810,6 +827,33 @@ class MainViewModel @Inject constructor(
         } catch (e: Exception) {
             0 to (e.message ?: "Failed to fetch subscription")
         }
+    }
+
+    /**
+     * Merge a fetched subscription into the existing group instead of wiping it:
+     * unchanged profiles keep their id, pin/lock state, edits and ordering; profiles the
+     * server dropped are deleted (never the connected one); new ones are added in file order.
+     * Returns the number of profiles now belonging to the group.
+     */
+    private suspend fun mergeSubscriptionProfiles(group: String, incoming: List<ServerProfile>): Int {
+        val existing = profileRepository.getAllProfiles().first().filter { it.subscriptionGroup == group }
+        val connectedId = (_uiState.value.connectionState as? ConnectionState.Connected)?.profile?.id
+        val existingByKey = LinkedHashMap<String, ServerProfile>()
+        for (p in existing) existingByKey.putIfAbsent(p.duplicateKey(), p)
+        val incomingKeys = HashSet<String>()
+        val fresh = ArrayList<ServerProfile>()
+        for (p in incoming) {
+            val k = p.duplicateKey()
+            if (!incomingKeys.add(k)) continue          // duplicate inside the feed itself
+            if (!existingByKey.containsKey(k)) fresh.add(p)
+        }
+        for (p in existing) {
+            val keep = p.duplicateKey() in incomingKeys && existingByKey[p.duplicateKey()]?.id == p.id
+            if (!keep && p.id != connectedId) deleteProfileUseCase(p.id)
+        }
+        // New profiles are inserted at the top one by one, so go in reverse to keep file order.
+        for (p in fresh.reversed()) saveProfileUseCase(p.copy(subscriptionId = group))
+        return incomingKeys.size
     }
 
     private suspend fun runPostUpdate(groups: Collection<String>, flags: app.slipnet.util.UpdateFlags) {
@@ -969,20 +1013,30 @@ class MainViewModel @Inject constructor(
                         conn.readTimeout = 15000
                         conn.setRequestProperty("User-Agent", "v2rayNG/1.8.5")
                         conn.instanceFollowRedirects = true
+                        try {
                         if (conn.responseCode in 200..299) {
-                            val raw = conn.inputStream.bufferedReader().use { it.readText() }.trim()
+                            val raw = conn.inputStream.bufferedReader().use { reader ->
+                                val sb = StringBuilder()
+                                val buf = CharArray(8192)
+                                var total = 0
+                                val limit = 4 * 1024 * 1024
+                                var n: Int
+                                while (reader.read(buf).also { n = it } >= 0) {
+                                    total += n
+                                    if (total > limit) break
+                                    sb.append(buf, 0, n)
+                                }
+                                sb.toString()
+                            }.trim()
                             val decoded = decodeSubscriptionPayload(raw)
                             val result = configImporter.parseAndImport(decoded, connectionManager.getDeviceId())
                             if (result is ImportResult.Success && result.profiles.isNotEmpty()) {
-                                profileRepository.deleteProfilesByGroup(group)
-                                for (p in result.profiles) {
-                                    saveProfileUseCase(p.copy(subscriptionId = group))
-                                }
-                                totalCount += result.profiles.size
+                                totalCount += mergeSubscriptionProfiles(group, result.profiles)
                             }
                         } else {
                             errorMsg = "HTTP ${conn.responseCode} on $group"
                         }
+                        } finally { conn.disconnect() }
                     } catch (e: Exception) {
                         errorMsg = e.message
                     }

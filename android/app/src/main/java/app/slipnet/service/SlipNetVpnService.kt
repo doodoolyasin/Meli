@@ -149,6 +149,10 @@ class SlipNetVpnService : VpnService() {
     private var networkLostJob: Job? = null
     private var connectJob: Job? = null
     private var disconnectJob: Job? = null
+    /** Bumped by every connect(); lets a pending disconnect know a newer connect superseded it. */
+    @Volatile private var connectEpoch = 0
+    /** True once finishConnection() ran for the current connect() attempt. */
+    @Volatile private var connectFinished = false
     private var stateObserverJob: Job? = null
     @Volatile
     private var isReconnecting = false
@@ -333,6 +337,8 @@ class SlipNetVpnService : VpnService() {
     }
 
     private fun connect(profileId: Long) {
+        connectEpoch++
+        connectFinished = false
         // Cancel stale state observer from a previous connection to prevent it
         // from calling stopSelf() while the new connection is starting.
         stateObserverJob?.cancel()
@@ -725,6 +731,24 @@ class SlipNetVpnService : VpnService() {
                             Log.e(TAG, msg)
                             connectionManager.onVpnError(msg)
                         }
+                    }
+                }
+
+                // Many connectX() functions report a failure via onVpnError() and simply return.
+                // Without this, the foreground service, wake/wifi locks, bridges and TUN stay alive.
+                val handedOff = isKillSwitchActive || isAutoReconnecting || bootRetryJob?.isActive == true
+                if (!connectFinished && !isUserInitiatedDisconnect && !handedOff) {
+                    Log.w(TAG, "Connect attempt ended without success - releasing resources")
+                    val autoReconnectOn = try { preferencesDataStore.autoReconnect.first() } catch (_: Exception) { false }
+                    if (isBootTriggered) {
+                        enterBootRetryMode(currentProfileId, "boot connect failed")
+                    } else if (autoReconnectOn && connectionWasSuccessful
+                        && autoReconnectAttempt < AUTO_RECONNECT_MAX_RETRIES) {
+                        handleTunnelFailure("reconnect failed")
+                    } else {
+                        cleanupConnection()
+                        stopForeground(STOP_FOREGROUND_REMOVE)
+                        stopSelf()
                     }
                 }
 
@@ -2981,7 +3005,16 @@ class SlipNetVpnService : VpnService() {
                 return
             }
             delay(200)
-            vpnRepository.startTun2Socks(profile, vpnInterface!!, socksPortOverride = port)
+            val t2s = vpnRepository.startTun2Socks(profile, vpnInterface!!, socksPortOverride = port)
+            if (t2s.isFailure) {
+                connectionManager.onVpnError(t2s.exceptionOrNull()?.message ?: "Failed to start tunnel")
+                app.slipnet.tunnel.BaleTunnelBridge.stopClient()
+                vpnInterface?.close()
+                vpnInterface = null
+                stopForeground(STOP_FOREGROUND_REMOVE)
+                stopSelf()
+                return
+            }
         }
         vpnRepository.setProxyConnected(profile)
         finishConnection()
@@ -3149,6 +3182,48 @@ class SlipNetVpnService : VpnService() {
         delay(500)
         Log.d(TAG, "MasterDNS tunnel started successfully")
         finishConnection()
+    }
+
+    /**
+     * Restarts only the Meli Rust client (used after a network change).
+     * Mirrors connectMeli: same domain, key, resolver selection and readiness wait.
+     * Returns the listening port, or -1 on failure.
+     */
+    private suspend fun restartMeliClient(
+        profile: app.slipnet.domain.model.ServerProfile,
+        meliPort: Int,
+        globalResolverOverride: List<app.slipnet.domain.model.DnsResolver>?
+    ): Int {
+        if (profile.domain.isBlank() || profile.resolvers.isEmpty()) {
+            Log.e(TAG, "Meli restart aborted: missing domain or resolver")
+            return -1
+        }
+        val defaultMeliKey = "1937e96db977fb13ebc205e43ac5d5dad7ef61c8434cd7f08b8e166135595972"
+        val key = profile.dnsttPublicKey.trim().ifEmpty { defaultMeliKey }
+        val active = (globalResolverOverride ?: profile.resolvers).filter { it.host.isNotBlank() }
+        val pool = withContext(Dispatchers.IO) { findFastestTripleMeliResolvers(active, profile.domain) }
+        val resolver = pool.firstOrNull()
+            ?: active.firstOrNull()?.let { "${it.host}:${it.port}" }
+            ?: "${profile.resolvers.first().host}:${profile.resolvers.first().port}"
+        withContext(Dispatchers.IO) { MeliBridge.stopClient() }
+        MeliBridge.proxyOnlyMode = isProxyOnly
+        MeliBridge.setVpnService(this@SlipNetVpnService)
+        val res = withContext(Dispatchers.IO) {
+            MeliBridge.startClient(
+                domain = profile.domain, resolver = resolver, listenPort = meliPort,
+                listenHost = "127.0.0.1", encryptionKey = key
+            )
+        }
+        if (res.isFailure) {
+            Log.e(TAG, "Meli restart failed: ${res.exceptionOrNull()?.message}")
+            return -1
+        }
+        val port = MeliBridge.getClientPort()
+        if (!waitForProxyReady(port, maxAttempts = 60, delayMs = 100)) {
+            Log.e(TAG, "Meli restart: port $port not listening")
+            return -1
+        }
+        return port
     }
 
     private suspend fun connectMeli(
@@ -4086,6 +4161,7 @@ class SlipNetVpnService : VpnService() {
      * Finish connection setup - common to all tunnel types.
      */
     private fun finishConnection() {
+        connectFinished = true
         // Mark connection as successful for auto-reconnect eligibility
         connectionWasSuccessful = true
         autoReconnectAttempt = 0
@@ -5408,10 +5484,51 @@ class SlipNetVpnService : VpnService() {
                         handleTunnelFailure("failed to reconnect NaiveProxy after network change")
                         return@launch
                     }
+                } else if (currentTunnelType == TunnelType.MELI || currentTunnelType == TunnelType.MELI_SSH) {
+                    // Meli has its own Rust client on proxyPort + 1; MasterDNS must not be used here.
+                    val meliPort = proxyPort + 1
+                    val actualPort = restartMeliClient(reconnectProfile, meliPort, globalResolverOverride)
+                    if (actualPort <= 0) {
+                        handleTunnelFailure("failed to reconnect Meli after network change")
+                        return@launch
+                    }
+                    if (currentTunnelType == TunnelType.MELI_SSH) {
+                        configureSshBridge()
+                        val targetHost = if (reconnectProfile.sshHost.isNotBlank() && reconnectProfile.sshHost != "127.0.0.1") reconnectProfile.sshHost else reconnectProfile.domain.ifBlank { "127.0.0.1" }
+                        val sshResult = withContext(Dispatchers.IO) {
+                            SshTunnelBridge.startOverSocks5Proxy(
+                                sshHost = targetHost,
+                                sshPort = reconnectProfile.sshPort,
+                                sshUsername = reconnectProfile.sshUsername,
+                                sshPassword = reconnectProfile.sshPassword,
+                                proxyHost = "127.0.0.1",
+                                proxyPort = actualPort,
+                                socksUsername = null,
+                                socksPassword = null,
+                                listenPort = proxyPort,
+                                listenHost = proxyHost,
+                                blockDirectDns = true,
+                                sshAuthType = reconnectProfile.sshAuthType,
+                                sshPrivateKey = reconnectProfile.sshPrivateKey,
+                                sshKeyPassphrase = reconnectProfile.sshKeyPassphrase,
+                                remoteDnsHost = remoteDns,
+                                remoteDnsFallback = remoteDnsFallback
+                            )
+                        }
+                        if (sshResult.isFailure) {
+                            Log.e(TAG, "Failed to restart SSH over Meli after network change", sshResult.exceptionOrNull())
+                            handleTunnelFailure("failed to reconnect Meli+SSH after network change")
+                            return@launch
+                        }
+                        if (!waitForProxyReady(proxyPort, maxAttempts = 30, delayMs = 50)) {
+                            Log.e(TAG, "SSH SOCKS5 proxy failed to restart on port $proxyPort")
+                            handleTunnelFailure("failed to reconnect Meli+SSH after network change")
+                            return@launch
+                        }
+                    }
                 } else if (currentTunnelType in listOf(
                     TunnelType.MASTERDNS, TunnelType.STORMDNS,
-                    TunnelType.COTTENDNS, TunnelType.SOAR,
-                    TunnelType.MELI
+                    TunnelType.COTTENDNS, TunnelType.SOAR
                 )) {
                     // Pure DNS tunnel: restart MasterDNS directly on proxyPort
                     MasterDnsBridge.setVpnService(this@SlipNetVpnService, isProxyOnly = isProxyOnly)
@@ -5434,8 +5551,7 @@ class SlipNetVpnService : VpnService() {
                     }
                 } else if (currentTunnelType in listOf(
                     TunnelType.MASTERDNS_SSH, TunnelType.STORMDNS_SSH,
-                    TunnelType.COTTENDNS_SSH, TunnelType.SOAR_SSH,
-                    TunnelType.MELI_SSH
+                    TunnelType.COTTENDNS_SSH, TunnelType.SOAR_SSH
                 )) {
                     // DNS Tunnel + SSH: restart MasterDNS on internal port (proxyPort + 1), then SSH on proxyPort
                     val masterDnsPort = proxyPort + 1
@@ -6271,6 +6387,7 @@ class SlipNetVpnService : VpnService() {
         NaiveSocksBridge.resetTrafficStats()
         DohBridge.resetTrafficStats()
 
+        val epochAtDisconnect = connectEpoch
         disconnectJob = serviceScope.launch {
             Log.i(TAG, "Disconnecting VPN")
             // Notify UI and connection state immediately so disconnect is instant (HTTP Injector style)
@@ -6278,6 +6395,12 @@ class SlipNetVpnService : VpnService() {
             // Clear saved state so we don't auto-reconnect on restart
             clearConnectionState()
             cleanupConnection()
+            if (connectEpoch != epochAtDisconnect) {
+                // The user tapped Connect while we were tearing down; stopping the service now
+                // would kill that new connection mid-setup.
+                Log.i(TAG, "Newer connect request pending - keeping service alive")
+                return@launch
+            }
             stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf()
         }

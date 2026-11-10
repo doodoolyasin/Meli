@@ -38,6 +38,15 @@ class MainActivity : ComponentActivity() {
     @Inject
     lateinit var connectionManager: VpnConnectionManager
 
+    private companion object {
+        /** Schemes the manifest routes to this activity; checked case-insensitively. */
+        val DEEP_LINK_PREFIXES = listOf(
+            "aryana://", "aryana-enc://", "aryana-bundle-enc://",
+            "slipnet://", "slipnet-enc://", "slipnet-bundle-enc://",
+            "vless://"
+        )
+    }
+
     private val _deepLinkUri = MutableStateFlow<String?>(null)
     val deepLinkUri: StateFlow<String?> = _deepLinkUri.asStateFlow()
 
@@ -96,7 +105,7 @@ class MainActivity : ComponentActivity() {
 
     private fun handleDeepLink(intent: Intent?) {
         val uri = intent?.data?.toString()
-        if (uri != null && (uri.startsWith("slipnet://") || uri.startsWith("slipnet-enc://") || uri.startsWith("vless://"))) {
+        if (uri != null && DEEP_LINK_PREFIXES.any { uri.startsWith(it, ignoreCase = true) }) {
             _deepLinkUri.value = uri
         }
     }

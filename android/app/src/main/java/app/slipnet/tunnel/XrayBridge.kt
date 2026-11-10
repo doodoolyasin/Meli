@@ -130,7 +130,7 @@ object XrayBridge {
             val muxable = setOf("vless", "vmess", "trojan", "shadowsocks")
             for (i in 0 until ob.length()) {
                 val o = ob.optJSONObject(i) ?: continue
-                if (o.optString("protocol") in muxable && !o.has("mux")) {
+                if (o.optString("protocol") in muxable && !o.has("mux") && muxSafe(o)) {
                     val isXudp = o.optString("protocol") == "vless"
                     o.put("mux", JSONObject().put("enabled", true).put("concurrency", 8).apply {
                         if (isXudp) put("xudpConcurrency", 8)
@@ -139,6 +139,21 @@ object XrayBridge {
             }
         }
         return root.toString()
+    }
+
+    /** Mux breaks XTLS Vision flows, multiplexing transports and chained (dialerProxy) outbounds. */
+    private fun muxSafe(o: JSONObject): Boolean {
+        val st = o.optJSONObject("streamSettings")
+        val net = st?.optString("network").orEmpty().lowercase()
+        if (net in setOf("grpc", "xhttp", "splithttp", "hysteria", "quic", "h2", "http")) return false
+        if (st?.optJSONObject("sockopt")?.has("dialerProxy") == true || o.has("proxySettings")) return false
+        val users = o.optJSONObject("settings")?.optJSONArray("vnext")
+        if (users != null) for (i in 0 until users.length()) {
+            val us = users.optJSONObject(i)?.optJSONArray("users") ?: continue
+            for (j in 0 until us.length()) if (us.optJSONObject(j)?.optString("flow").orEmpty().isNotEmpty()) return false
+        }
+        if (o.optJSONObject("settings")?.optString("flow").orEmpty().isNotEmpty()) return false
+        return true
     }
 
     fun start(context: Context, userJson: String, listenPort: Int, listenHost: String = "127.0.0.1", mux: Boolean = false): Result<Unit> {
@@ -191,14 +206,14 @@ object XrayBridge {
                     s.connect(InetSocketAddress("127.0.0.1", listenPort), 2000)
                     val o = s.getOutputStream(); val i = s.getInputStream()
                     o.write(byteArrayOf(5, 1, 0)); o.flush()
-                    val r = ByteArray(2); if (i.readNBytes(r, 0, 2) != 2 || r[1].toInt() != 0) error("socks greeting rejected")
+                    val r = ByteArray(2); if (readExact(i, r) != 2 || r[1].toInt() != 0) error("socks greeting rejected")
                     val hb = host.toByteArray()
                     val req = ByteArray(7 + hb.size)
                     req[0] = 5; req[1] = 1; req[2] = 0; req[3] = 3; req[4] = hb.size.toByte()
                     System.arraycopy(hb, 0, req, 5, hb.size)
                     req[5 + hb.size] = 0; req[6 + hb.size] = 80
                     o.write(req); o.flush()
-                    val h = ByteArray(4); if (i.readNBytes(h, 0, 4) != 4 || h[1].toInt() != 0) error("socks connect failed (${h.getOrNull(1)})")
+                    val h = ByteArray(4); if (readExact(i, h) != 4 || h[1].toInt() != 0) error("socks connect failed (${h.getOrNull(1)})")
                     when (h[3].toInt()) { 1 -> i.skip(6); 4 -> i.skip(18); 3 -> { val l = i.read(); i.skip((l + 2).toLong()) } }
                     o.write("GET $path HTTP/1.1\r\nHost: $host\r\nConnection: close\r\n\r\n".toByteArray()); o.flush()
                     val buf = ByteArray(32); val n = i.read(buf)
@@ -209,5 +224,16 @@ object XrayBridge {
             } catch (t: Throwable) { last = t }
         }
         return Result.failure(last ?: Exception("probe failed"))
+    }
+
+    /** Read exactly [buf].size bytes; works on all API levels (no readNBytes). */
+    private fun readExact(inp: java.io.InputStream, buf: ByteArray): Int {
+        var off = 0
+        while (off < buf.size) {
+            val n = inp.read(buf, off, buf.size - off)
+            if (n < 0) break
+            off += n
+        }
+        return off
     }
 }

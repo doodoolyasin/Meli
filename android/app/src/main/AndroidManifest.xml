@@ -67,8 +67,12 @@
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="aryana" />
+                <data android:scheme="aryana-enc" />
+                <data android:scheme="aryana-bundle-enc" />
                 <data android:scheme="slipnet" />
                 <data android:scheme="slipnet-enc" />
+                <data android:scheme="slipnet-bundle-enc" />
                 <data android:scheme="vless" />
             </intent-filter>
             <!-- Opens app when user long-presses the Quick Settings tile -->

@@ -32,6 +32,7 @@ object NativeCore {
         stop()
         val root = try { JSONObject(json) } catch (e: Exception) { return Result.failure(Exception("invalid config")) }
         val dir = File(context.filesDir, "core").apply { mkdirs() }
+        cfgDir = dir
         val libDir = context.applicationInfo.nativeLibraryDir
         val cmd: List<String>
         var needTunnel = false
@@ -87,7 +88,25 @@ object NativeCore {
 
     fun stop() {
         ready.set(false)
-        val p = process; process = null
-        try { p?.destroy(); Thread.sleep(80); if (p?.isAlive == true) p.destroyForcibly() } catch (_: Throwable) {}
+        val p = process
+        process = null
+        try {
+            p?.destroy()
+            // waitFor(timeout) and destroyForcibly() are API 26+; minSdk is 24
+            if (p != null) {
+                if (android.os.Build.VERSION.SDK_INT >= 26) {
+                    if (!p.waitFor(1500, java.util.concurrent.TimeUnit.MILLISECONDS)) {
+                        p.destroyForcibly(); p.waitFor(1000, java.util.concurrent.TimeUnit.MILLISECONDS)
+                    }
+                } else {
+                    Thread.sleep(1500)
+                    try { p.exitValue() } catch (_: IllegalThreadStateException) { p.destroy(); Thread.sleep(500) }
+                }
+            }
+        } catch (_: Throwable) {}
+        // Configs hold keys/passwords; do not leave them on disk once the core is stopped.
+        try { val d = cfgDir ?: return; File(d, "awg.conf").delete(); File(d, "psiphon.config").delete() } catch (_: Throwable) {}
     }
+
+    @Volatile private var cfgDir: File? = null
 }

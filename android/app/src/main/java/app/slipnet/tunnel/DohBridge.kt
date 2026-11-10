@@ -15,9 +15,11 @@ import java.net.ServerSocket
 import java.net.Socket
 import java.net.URL
 import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.Semaphore
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
+import okhttp3.ConnectionPool
 import okhttp3.Dns
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -243,6 +245,11 @@ object DohBridge {
     private const val BIND_RETRY_DELAY_MS = 200L
     private const val BUFFER_SIZE = 32768
     private const val TCP_CONNECT_TIMEOUT_MS = 10000
+    private const val MAX_CONCURRENT_DOH_STREAMS = 16
+    private const val MAX_HEADER_COUNT = 32
+    private const val MAX_TOTAL_HEADER_BYTES = 4096
+    private const val MAX_DNS_RESPONSE_BYTES = 65535
+    private val dohSemaphore = Semaphore(MAX_CONCURRENT_DOH_STREAMS)
 
     /** Hostname → IPs lookup built from [DOH_SERVERS] for the custom OkHttp DNS resolver. */
     private val serverIpMap: Map<String, List<String>> by lazy {
@@ -296,6 +303,9 @@ object DohBridge {
             .connectTimeout(5, TimeUnit.SECONDS)
             .readTimeout(5, TimeUnit.SECONDS)
             .writeTimeout(5, TimeUnit.SECONDS)
+            .pingInterval(15, TimeUnit.SECONDS)
+            .retryOnConnectionFailure(true)
+            .connectionPool(ConnectionPool(8, 20, TimeUnit.SECONDS))
 
         val upstream = upstreamSocksAddr
         if (upstream != null) {
@@ -848,29 +858,96 @@ object DohBridge {
     /**
      * Forward DNS query via DoH (HTTPS POST, RFC 8484).
      * Uses OkHttp with HTTP/2 and pre-resolved server IPs.
+     * Hardened with:
+     * - Concurrency bounding to prevent HTTP/2 flow control stalls.
+     * - Automatic Broken Pipe / connection reset retry with connection pool eviction.
+     * - HPACK decompression bomb protection & Content-Type validation.
      */
     private fun forwardDnsViaDoH(payload: ByteArray): ByteArray? {
         val client = httpClient ?: return null
-        return try {
-            val body = payload.toRequestBody("application/dns-message".toMediaType())
-            val request = Request.Builder()
-                .url(dohUrl)
-                .post(body)
-                .header("Accept", "application/dns-message")
-                .build()
 
-            client.newCall(request).execute().use { response ->
-                if (response.isSuccessful) {
-                    response.body?.bytes()
-                } else {
-                    Log.w(TAG, "DoH: HTTP ${response.code}")
-                    null
+        if (!dohSemaphore.tryAcquire(5, TimeUnit.SECONDS)) {
+            Log.w(TAG, "DoH stream concurrency limit ($MAX_CONCURRENT_DOH_STREAMS) reached, dropping query")
+            return null
+        }
+
+        return try {
+            executeDoHWithRetry(client, payload)
+        } finally {
+            dohSemaphore.release()
+        }
+    }
+
+    private fun executeDoHWithRetry(client: OkHttpClient, payload: ByteArray): ByteArray? {
+        var lastException: Exception? = null
+
+        for (attempt in 1..2) {
+            try {
+                val body = payload.toRequestBody("application/dns-message".toMediaType())
+                val request = Request.Builder()
+                    .url(dohUrl)
+                    .post(body)
+                    .header("Accept", "application/dns-message")
+                    .build()
+
+                client.newCall(request).execute().use { response ->
+                    if (!response.isSuccessful) {
+                        Log.w(TAG, "DoH: HTTP ${response.code} (attempt $attempt)")
+                        return null
+                    }
+
+                    // HPACK Bomb & Header Validation
+                    val headers = response.headers
+                    if (headers.size > MAX_HEADER_COUNT) {
+                        Log.w(TAG, "DoH: rejected response with ${headers.size} headers (limit $MAX_HEADER_COUNT)")
+                        return null
+                    }
+                    var headerBytes = 0
+                    for (i in 0 until headers.size) {
+                        headerBytes += headers.name(i).length + headers.value(i).length + 4
+                    }
+                    if (headerBytes > MAX_TOTAL_HEADER_BYTES) {
+                        Log.w(TAG, "DoH: rejected response: header bytes $headerBytes > $MAX_TOTAL_HEADER_BYTES")
+                        return null
+                    }
+
+                    // Content-Type validation (RFC 8484)
+                    val contentType = response.header("Content-Type")?.lowercase() ?: ""
+                    if (!contentType.contains("application/dns-message")) {
+                        Log.w(TAG, "DoH: rejected non-DNS response: Content-Type '$contentType'")
+                        return null
+                    }
+
+                    // Body size bound to avoid decompression/OOM bombs
+                    val contentLength = response.body?.contentLength() ?: -1L
+                    if (contentLength > MAX_DNS_RESPONSE_BYTES) {
+                        Log.w(TAG, "DoH: rejected response Content-Length $contentLength > $MAX_DNS_RESPONSE_BYTES")
+                        return null
+                    }
+
+                    val source = response.body?.source() ?: return null
+                    val bytes = source.readByteArray()
+                    if (bytes.size > MAX_DNS_RESPONSE_BYTES) {
+                        Log.w(TAG, "DoH: response body exceeds $MAX_DNS_RESPONSE_BYTES bytes")
+                        return null
+                    }
+                    return bytes
+                }
+            } catch (e: Exception) {
+                lastException = e
+                if (attempt == 1 && running.get()) {
+                    logd("DoH: attempt 1 failed (${e.javaClass.simpleName}: ${e.message}), evicting connection pool and retrying...")
+                    try {
+                        client.connectionPool.evictAll()
+                    } catch (_: Exception) {}
                 }
             }
-        } catch (e: Exception) {
-            logd("DoH: failed: ${e.message}")
-            null
         }
+
+        if (running.get() && lastException != null) {
+            logd("DoH: failed after 2 attempts: ${lastException.message}")
+        }
+        return null
     }
 
     /**

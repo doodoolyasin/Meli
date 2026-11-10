@@ -22,16 +22,20 @@ object SingBoxConfigFactory {
     private fun tls(sni: String, p: Map<String, String>): JSONObject {
         val t = JSONObject().put("enabled", true).put("server_name", sni)
         p["alpn"]?.takeIf { it.isNotBlank() }?.let { t.put("alpn", JSONArray(it.split(',').map { a -> a.trim() })) }
-        if (p["allowInsecure"] == "1" || p["insecure"] == "1") t.put("insecure", true)
+        if (p["allowinsecure"] in listOf("1", "true") || p["insecure"] in listOf("1", "true")) t.put("insecure", true)
         return t
     }
 
-    fun tuic(uuid: String, password: String, host: String, port: Int, p: Map<String, String>): String =
-        wrapOutbound(JSONObject().put("type", "tuic").put("server", host).put("server_port", port)
+    fun tuic(uuid: String, password: String, host: String, port: Int, p: Map<String, String>): String {
+        val tlsObj = tls(p["sni"] ?: host, p)
+        // TUIC requires ALPN h3; default if not set by the user
+        if (!tlsObj.has("alpn")) tlsObj.put("alpn", JSONArray(listOf("h3")))
+        return wrapOutbound(JSONObject().put("type", "tuic").put("server", host).put("server_port", port)
             .put("uuid", uuid).put("password", password)
             .put("congestion_control", p["congestion_control"] ?: p["congestion"] ?: "bbr")
             .put("udp_relay_mode", p["udp_relay_mode"] ?: "native")
-            .put("tls", tls(p["sni"] ?: host, p)))
+            .put("tls", tlsObj))
+    }
 
     fun anytls(password: String, host: String, port: Int, p: Map<String, String>): String =
         wrapOutbound(JSONObject().put("type", "anytls").put("server", host).put("server_port", port)
@@ -74,9 +78,9 @@ object SingBoxConfigFactory {
         val dirs = noBlocks.lines().map { it.trim() }.filter { it.isNotEmpty() && !it.startsWith("#") && !it.startsWith(";") }
         fun arg(name: String): List<String>? = dirs.firstOrNull { it == name || it.startsWith("$name ") || it.startsWith("$name\t") }
             ?.split(Regex("\\s+"))?.drop(1)
-        fun has(name: String) = dirs.any { it == name || it.startsWith("$name ") }
+        fun has(name: String) = dirs.any { it == name || it.startsWith("$name ") || it.startsWith("$name\t") }
 
-        val remotes = dirs.filter { it.startsWith("remote ") }.map { it.split(Regex("\\s+")) }
+        val remotes = dirs.filter { it.startsWith("remote ") || it.startsWith("remote\t") }.map { it.split(Regex("\\s+")) }
         require(remotes.isNotEmpty()) { "No 'remote' line in the .ovpn file" }
         val proto = (arg("proto")?.firstOrNull() ?: "udp").lowercase()
         val network = if (proto.startsWith("tcp")) "tcp" else "udp"

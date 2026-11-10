@@ -51,7 +51,9 @@ object SingBoxBridge {
         return try {
             val dir = File(context.filesDir, "singbox").apply { mkdirs() }
             val cfg = File(dir, "config.json")
+            cfgDir = dir
             cfg.writeText(buildConfig(userJson, port, host))
+            try { cfg.setReadable(false, false); cfg.setReadable(true, true) } catch (_: Throwable) {}
             ready.set(false); lastError = ""
             val pb = ProcessBuilder(bin.absolutePath, "run", "-c", cfg.absolutePath, "-D", dir.absolutePath)
             pb.redirectErrorStream(true)
@@ -88,8 +90,26 @@ object SingBoxBridge {
         ready.set(false)
         val p = process
         process = null
-        try { p?.destroy(); Thread.sleep(80); if (p?.isAlive == true) p.destroyForcibly() } catch (_: Throwable) {}
+        try {
+            p?.destroy()
+            // waitFor(timeout) and destroyForcibly() are API 26+; minSdk is 24
+            if (p != null) {
+                if (android.os.Build.VERSION.SDK_INT >= 26) {
+                    if (!p.waitFor(1500, java.util.concurrent.TimeUnit.MILLISECONDS)) {
+                        p.destroyForcibly(); p.waitFor(1000, java.util.concurrent.TimeUnit.MILLISECONDS)
+                    }
+                } else {
+                    Thread.sleep(1500)
+                    try { p.exitValue() } catch (_: IllegalThreadStateException) { p.destroy(); Thread.sleep(500) }
+                }
+            }
+        } catch (_: Throwable) {}
+        wipeConfigs()
     }
+
+    @Volatile private var cfgDir: File? = null
+    /** The config holds keys/passwords; do not leave it on disk once the core is stopped. */
+    private fun wipeConfigs() { try { File(cfgDir ?: return, "config.json").delete() } catch (_: Throwable) {} }
 
     /** Real traffic probe through the local SOCKS5 inbound (shared with Xray). */
     fun probe(port: Int): Result<Long> = XrayBridge.probe(port)

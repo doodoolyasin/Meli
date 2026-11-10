@@ -146,10 +146,10 @@ func main() {
 		targetBackend := meliUAddr
 		var p dnsmessage.Parser
 		if _, err := p.Start(buf[:n]); err == nil {
-			_ = p.SkipAllQuestions()
 			if q, err := p.Question(); err == nil {
 				qname := strings.ToLower(q.Name.String())
-				if strings.Contains(qname, strings.ToLower(*dnsttDomain)) {
+				if strings.HasSuffix(qname, "."+strings.ToLower(*dnsttDomain)+".") ||
+					strings.EqualFold(qname, strings.ToLower(*dnsttDomain)+".") {
 					targetBackend = dnsttUAddr
 				}
 			}
