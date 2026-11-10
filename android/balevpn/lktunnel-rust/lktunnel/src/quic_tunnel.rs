@@ -304,12 +304,9 @@ impl quinn::UdpPoller for DrainPoller {
 /// Disable PMTU discovery — there's no real path to probe.
 fn transport_config() -> Arc<quinn::TransportConfig> {
     let mut tc = quinn::TransportConfig::default();
-    // Cap the initial MTU below Opus' 1275-byte ceiling and disable
-    // PMTU discovery — the virtual path has no ICMP, probes can't
-    // succeed. The hard cap actually lives on EndpointConfig
-    // (`max_udp_payload_size`); this just keeps the connection's
-    // initial-send choice consistent.
-    tc.initial_mtu(1100);
+    // Cap initial MTU to 1080 bytes to guarantee survival on all Iranian cellular carriers
+    // (MCI/Irancell) where Path MTU is clamped down to 1160 bytes during national blackouts.
+    tc.initial_mtu(1080);
     tc.mtu_discovery_config(None);
     // Keep the QUIC connection alive across idle stretches so that
     // toggling SOCKS5 on / making a fresh request after a quiet
@@ -615,10 +612,9 @@ pub fn build_endpoint(
 ) -> Result<quinn::Endpoint, QuicEndpointError> {
     let socket = TunnelUdpSocket::new(tunnel, rx);
     let mut endpoint_config = quinn::EndpointConfig::default();
-    // Mirror the per-connection MTU cap. EndpointConfig also enforces
-    // a payload-size ceiling that's checked separately from
-    // TransportConfig — both have to agree.
-    let _ = endpoint_config.max_udp_payload_size(1200);
+    // Hard ceiling for mobile networks under severe DPI MTU clamping (Tier 5: 1160 bytes).
+    // Datagram (1080) + 'Q' tag (1) + length prefix (2) + outer header <= 1160 bytes.
+    let _ = endpoint_config.max_udp_payload_size(1080);
     let runtime: Arc<dyn quinn::Runtime> = Arc::new(quinn::TokioRuntime);
     // `Endpoint::new_with_abstract_socket` spawns an internal driver
     // task via `tokio::spawn`, which requires a current tokio runtime.
