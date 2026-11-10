@@ -889,14 +889,15 @@ mod tests {
         let mut packet = vec![0x12, 0x34, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00];
         let client_addr: SocketAddr = "1.2.3.4:12345".parse().unwrap();
 
-        let new_txid = rewriter.rewrite_forward(&mut packet, client_addr, 0).unwrap();
+        let new_txid = rewriter.rewrite_forward(&mut packet, client_addr, 0, 0).unwrap();
         assert_eq!(packet[0], (new_txid >> 8) as u8);
         assert_eq!(packet[1], new_txid as u8);
 
         // Simulate response
         let mut resp = packet.clone();
-        let restored_addr = rewriter.rewrite_response(&mut resp, 0).unwrap();
+        let (restored_addr, socket_idx) = rewriter.rewrite_response(&mut resp, 0).unwrap();
         assert_eq!(restored_addr, client_addr);
+        assert_eq!(socket_idx, 0);
         assert_eq!(resp[0], 0x12);
         assert_eq!(resp[1], 0x34);
     }
