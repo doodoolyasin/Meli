@@ -3,11 +3,34 @@
 package spoof
 
 import (
+	"crypto/rand"
 	"encoding/binary"
 	"fmt"
 	"net/netip"
+	"sync/atomic"
 	"syscall"
 )
+
+var nextIPID atomic.Uint32
+
+func init() {
+	var seed [2]byte
+	_, _ = rand.Read(seed[:])
+	initialID := binary.BigEndian.Uint16(seed[:])
+	if initialID == 0 {
+		initialID = 1000
+	}
+	nextIPID.Store(uint32(initialID))
+}
+
+func generateIPID() uint16 {
+	val := nextIPID.Add(1)
+	id := uint16(val)
+	if id == 0 {
+		id = uint16(nextIPID.Add(1))
+	}
+	return id
+}
 
 type RawUDPSender struct {
 	fd int
@@ -75,6 +98,7 @@ func buildIPv4Packet(payload []byte, srcIP [4]byte, dstIP [4]byte, ttl int) []by
 	packet[8] = byte(ttl)
 	packet[9] = 17
 	binary.BigEndian.PutUint16(packet[2:4], uint16(len(packet)+len(payload)))
+	binary.BigEndian.PutUint16(packet[4:6], generateIPID())
 	binary.BigEndian.PutUint16(packet[6:8], 0x4000)
 	copy(packet[12:16], srcIP[:])
 	copy(packet[16:20], dstIP[:])

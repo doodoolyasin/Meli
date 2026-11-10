@@ -9,7 +9,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/blackestwhite/masterdns-qs-tunnel/internal/base32x"
 	"github.com/blackestwhite/masterdns-qs-tunnel/internal/config"
 	"github.com/blackestwhite/masterdns-qs-tunnel/internal/dnswire"
 	"github.com/blackestwhite/masterdns-qs-tunnel/internal/protocol"
@@ -161,20 +160,17 @@ func (s *Service) handleDNSPacket(ctx context.Context, packet []byte, addr *net.
 		return nil
 	}
 	if complete {
-		frame, err := base32x.DecodeLowerNoPadding(assembled)
+		kind, payload, err := protocol.ParseFrame(assembled)
 		if err == nil {
-			kind, payload, err := protocol.ParseFrame(frame)
-			if err == nil {
-				switch kind {
-				case protocol.FrameInfo:
-					info, err := protocol.ParseInfoFrame(payload, s.cfg.InfoSecret)
-					if err == nil {
-						sess.setInfo(info)
-					}
-				case protocol.FrameData:
-					if err := sess.sendUpstream(payload, s.upstream); err != nil {
-						return err
-					}
+			switch kind {
+			case protocol.FrameInfo:
+				info, err := protocol.ParseInfoFrame(payload, s.cfg.InfoSecret)
+				if err == nil {
+					sess.setInfo(info)
+				}
+			case protocol.FrameData:
+				if err := sess.sendUpstream(payload, s.upstream); err != nil {
+					return err
 				}
 			}
 		}
