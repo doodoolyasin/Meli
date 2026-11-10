@@ -14,7 +14,6 @@ use std::collections::HashMap;
 use std::net::{Ipv4Addr, SocketAddr};
 use std::sync::atomic::{AtomicBool, AtomicU16, Ordering};
 use std::sync::{Arc, Mutex};
-use std::time::Instant;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream, UdpSocket};
 use tokio::sync::mpsc;
@@ -185,13 +184,32 @@ pub fn b32hex_decode(input: &str) -> Option<Vec<u8>> {
 
 // ─── Fast Stream Encryption (Key + Nonce) ──────────────────────────────────────
 
+const FALLBACK_DEFAULT_KEY: &[u8; 32] = b"meli_secret_anti_dpi_key_2026_!!";
+static NONCE_COUNTER: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(1);
+
+pub fn generate_nonce() -> u32 {
+    let ctr = NONCE_COUNTER.fetch_add(1, Ordering::Relaxed);
+    let time_entropy = match std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) {
+        Ok(d) => (d.as_nanos() & 0xFFFFFFFF) as u32,
+        Err(_) => 0x5A5A5A5A,
+    };
+    let n = ctr ^ time_entropy;
+    if n == 0 { ctr | 0x80000000 } else { n }
+}
+
 pub fn meli_encrypt(data: &[u8], key: &[u8], nonce: u32) -> Vec<u8> {
+    let effective_key = if key.is_empty() {
+        FALLBACK_DEFAULT_KEY.as_slice()
+    } else {
+        key
+    };
+
     let mut out = Vec::with_capacity(data.len() + 4);
     out.extend_from_slice(&nonce.to_be_bytes());
 
     let nonce_bytes = nonce.to_le_bytes();
     for (i, &b) in data.iter().enumerate() {
-        let k = key[i % key.len()];
+        let k = effective_key[i % effective_key.len()];
         let n = nonce_bytes[i % 4];
         out.push(b ^ k ^ n);
     }
@@ -202,13 +220,19 @@ pub fn meli_decrypt(data: &[u8], key: &[u8]) -> Option<Vec<u8>> {
     if data.len() < 4 {
         return None;
     }
+    let effective_key = if key.is_empty() {
+        FALLBACK_DEFAULT_KEY.as_slice()
+    } else {
+        key
+    };
+
     let nonce = u32::from_be_bytes([data[0], data[1], data[2], data[3]]);
     let nonce_bytes = nonce.to_le_bytes();
     let ciphertext = &data[4..];
 
     let mut out = Vec::with_capacity(ciphertext.len());
     for (i, &b) in ciphertext.iter().enumerate() {
-        let k = key[i % key.len()];
+        let k = effective_key[i % effective_key.len()];
         let n = nonce_bytes[i % 4];
         out.push(b ^ k ^ n);
     }
@@ -570,10 +594,11 @@ async fn handle_socks5_client(
     mut downstream_rx: mpsc::Receiver<Vec<u8>>,
 ) {
     let mut buf = [0u8; 512];
+    let handshake_timeout = tokio::time::Duration::from_secs(5);
 
-    // 1. SOCKS5 Greeting Handshake
-    let _ = match stream.read(&mut buf).await {
-        Ok(n) if n > 0 => n,
+    // 1. SOCKS5 Greeting Handshake (with 5-second deadline to prevent leaked tasks)
+    let _n = match tokio::time::timeout(handshake_timeout, stream.read(&mut buf)).await {
+        Ok(Ok(n)) if n > 0 => n,
         _ => return,
     };
     if buf[0] != 0x05 {
@@ -585,9 +610,9 @@ async fn handle_socks5_client(
         return;
     }
 
-    // 2. SOCKS5 Connect Request
-    let n = match stream.read(&mut buf).await {
-        Ok(n) if n >= 4 => n,
+    // 2. SOCKS5 Connect Request (with 5-second deadline)
+    let n = match tokio::time::timeout(handshake_timeout, stream.read(&mut buf)).await {
+        Ok(Ok(n)) if n >= 4 => n,
         _ => return,
     };
     if buf[1] != 0x01 {
@@ -630,7 +655,7 @@ async fn handle_socks5_client(
     syn_packet.extend_from_slice(&0u32.to_be_bytes()); // Seq = 0
     syn_packet.extend_from_slice(syn_payload.as_bytes());
 
-    let nonce = (Instant::now().elapsed().as_nanos() & 0xFFFFFFFF) as u32;
+    let nonce = generate_nonce();
     let encrypted = meli_encrypt(&syn_packet, &key, nonce);
     let encoded = syllable_encode(&encrypted);
     let tx_id = tx_counter.fetch_add(1, Ordering::SeqCst);
@@ -642,7 +667,13 @@ async fn handle_socks5_client(
     // 4. Data Transfer Loop (Bidirectional)
     let (mut tcp_read, mut tcp_write) = stream.into_split();
     let mut seq = 1u32;
-    let mut read_buf = [0u8; 45];
+    // Calculate safe dynamic payload size so (encoded_syllables + domain + root) <= 253 bytes
+    let safe_payload_chunk = {
+        let dom_overhead = domain.len() + 2;
+        let avail_chars = 253usize.saturating_sub(dom_overhead);
+        (avail_chars / 4).saturating_sub(13).clamp(16, 45)
+    };
+    let mut read_buf = vec![0u8; safe_payload_chunk];
 
     loop {
         tokio::select! {
@@ -655,7 +686,7 @@ async fn handle_socks5_client(
                         fin_pkt.push(PKT_FIN);
                         fin_pkt.extend_from_slice(&stream_id.to_be_bytes());
                         fin_pkt.extend_from_slice(&seq.to_be_bytes());
-                        let nce = (Instant::now().elapsed().as_nanos() & 0xFFFFFFFF) as u32;
+                        let nce = generate_nonce();
                         let enc = meli_encrypt(&fin_pkt, &key, nce);
                         let encoded = syllable_encode(&enc);
                         let tid = tx_counter.fetch_add(1, Ordering::SeqCst);
@@ -674,7 +705,7 @@ async fn handle_socks5_client(
                         data_pkt.extend_from_slice(&read_buf[..n]);
                         seq += 1;
 
-                        let nce = (Instant::now().elapsed().as_nanos() & 0xFFFFFFFF) as u32;
+                        let nce = generate_nonce();
                         let enc = meli_encrypt(&data_pkt, &key, nce);
                         let encoded = syllable_encode(&enc);
                         let tid = tx_counter.fetch_add(1, Ordering::SeqCst);
@@ -728,68 +759,87 @@ pub extern "system" fn Java_app_slipnet_tunnel_MeliBridge_nativeStartClient(
     listen_host: jni::objects::JString,
     encryption_key: jni::objects::JString,
 ) -> jni::sys::jboolean {
-    #[cfg(target_os = "android")]
-    {
-        crate::android::init_bridge_class(&mut env, "app/slipnet/tunnel/MeliBridge");
-    }
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        #[cfg(target_os = "android")]
+        {
+            crate::android::init_bridge_class(&mut env, "app/slipnet/tunnel/MeliBridge");
+        }
 
-    let dom: String = match env.get_string(&domain) {
-        Ok(s) => s.into(),
-        Err(_) => return jni::sys::JNI_FALSE,
-    };
-    let res_str: String = match env.get_string(&resolver) {
-        Ok(s) => s.into(),
-        Err(_) => return jni::sys::JNI_FALSE,
-    };
-    let host: String = match env.get_string(&listen_host) {
-        Ok(s) => s.into(),
-        Err(_) => "127.0.0.1".into(),
-    };
-    let key_str: String = match env.get_string(&encryption_key) {
-        Ok(s) => s.into(),
-        Err(_) => "".into(),
-    };
+        let dom: String = match env.get_string(&domain) {
+            Ok(s) => s.into(),
+            Err(_) => return jni::sys::JNI_FALSE,
+        };
+        let res_str: String = match env.get_string(&resolver) {
+            Ok(s) => s.into(),
+            Err(_) => return jni::sys::JNI_FALSE,
+        };
+        let host: String = match env.get_string(&listen_host) {
+            Ok(s) => s.into(),
+            Err(_) => "127.0.0.1".into(),
+        };
+        let key_str: String = match env.get_string(&encryption_key) {
+            Ok(s) => s.into(),
+            Err(_) => "".into(),
+        };
 
-    let resolver_addr: SocketAddr = match res_str.parse() {
-        Ok(a) => a,
-        Err(_) => match format!("{}:53", res_str).parse() {
+        let resolver_addr: SocketAddr = match res_str.parse() {
             Ok(a) => a,
-            Err(_) => "8.8.8.8:53".parse().unwrap(),
-        },
-    };
+            Err(_) => match format!("{}:53", res_str).parse() {
+                Ok(a) => a,
+                Err(_) => SocketAddr::from(([8, 8, 8, 8], 53)),
+            },
+        };
 
-    let raw_key = if key_str.is_empty() {
-        decode_key("1937e96db977fb13ebc205e43ac5d5dad7ef61c8434cd7f08b8e166135595972")
-    } else {
-        decode_key(&key_str)
-    };
+        let raw_key = if key_str.is_empty() {
+            decode_key("1937e96db977fb13ebc205e43ac5d5dad7ef61c8434cd7f08b8e166135595972")
+        } else {
+            decode_key(&key_str)
+        };
 
-    CLIENT_PORT.store(listen_port as u16, Ordering::SeqCst);
-    let (shutdown_tx, shutdown_rx) = mpsc::channel(1);
-    let opts = MeliClientOptions {
-        domain: dom,
-        resolver: resolver_addr,
-        listen_host: host,
-        listen_port: listen_port as u16,
-        encryption_key: raw_key,
-    };
+        CLIENT_PORT.store(listen_port as u16, Ordering::SeqCst);
+        let (shutdown_tx, shutdown_rx) = mpsc::channel(1);
+        let opts = MeliClientOptions {
+            domain: dom,
+            resolver: resolver_addr,
+            listen_host: host,
+            listen_port: listen_port as u16,
+            encryption_key: raw_key,
+        };
 
-    {
-        if let Ok(mut guard) = SHUTDOWN_NOTIFY.lock() {
-            *guard = Some(shutdown_tx);
+        {
+            if let Ok(mut guard) = SHUTDOWN_NOTIFY.lock() {
+                *guard = Some(shutdown_tx);
+            }
+        }
+
+        std::thread::spawn(move || {
+            let rt = match tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+            {
+                Ok(r) => r,
+                Err(e) => {
+                    let err_msg = format!("Failed to build Tokio runtime for Meli: {}", e);
+                    error!("{}", err_msg);
+                    set_last_error(err_msg);
+                    IS_RUNNING.store(false, Ordering::SeqCst);
+                    return;
+                }
+            };
+
+            rt.block_on(run_meli_client(opts, shutdown_rx));
+        });
+
+        jni::sys::JNI_TRUE
+    }));
+
+    match result {
+        Ok(flag) => flag,
+        Err(_) => {
+            set_last_error("Native panic caught in nativeStartClient".to_string());
+            jni::sys::JNI_FALSE
         }
     }
-
-    std::thread::spawn(move || {
-        let rt = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .expect("Failed to build Tokio runtime for Meli");
-
-        rt.block_on(run_meli_client(opts, shutdown_rx));
-    });
-
-    jni::sys::JNI_TRUE
 }
 
 #[no_mangle]
@@ -797,13 +847,23 @@ pub extern "system" fn Java_app_slipnet_tunnel_MeliBridge_nativeStopClient(
     _: jni::JNIEnv,
     _: jni::objects::JClass,
 ) -> jni::sys::jboolean {
-    if let Ok(mut guard) = SHUTDOWN_NOTIFY.lock() {
-        if let Some(tx) = guard.take() {
-            let _ = tx.blocking_send(());
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        if let Ok(mut guard) = SHUTDOWN_NOTIFY.lock() {
+            if let Some(tx) = guard.take() {
+                let _ = tx.blocking_send(());
+            }
+        }
+        IS_RUNNING.store(false, Ordering::SeqCst);
+        jni::sys::JNI_TRUE
+    }));
+
+    match result {
+        Ok(flag) => flag,
+        Err(_) => {
+            set_last_error("Native panic caught in nativeStopClient".to_string());
+            jni::sys::JNI_FALSE
         }
     }
-    IS_RUNNING.store(false, Ordering::SeqCst);
-    jni::sys::JNI_TRUE
 }
 
 #[no_mangle]
@@ -873,6 +933,25 @@ mod tests {
         let labels: Vec<&str> = encoded.split('.').collect();
         let decoded = syllable_decode(&labels).expect("Decode must succeed");
         assert_eq!(&original[..], &decoded[..]);
+    }
+
+    #[test]
+    fn test_empty_key_does_not_panic() {
+        let empty_key = b"";
+        let data = b"Testing empty key edge case";
+        let encrypted = meli_encrypt(data, empty_key, 123);
+        assert!(!encrypted.is_empty());
+        let decrypted = meli_decrypt(&encrypted, empty_key).expect("Decryption with empty key fallback must succeed");
+        assert_eq!(data, &decrypted[..]);
+    }
+
+    #[test]
+    fn test_generate_nonce_uniqueness() {
+        let n1 = generate_nonce();
+        let n2 = generate_nonce();
+        assert_ne!(n1, 0);
+        assert_ne!(n2, 0);
+        assert_ne!(n1, n2);
     }
 
     #[test]
