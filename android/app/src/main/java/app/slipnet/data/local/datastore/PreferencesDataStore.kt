@@ -108,6 +108,8 @@ class PreferencesDataStore @Inject constructor(
         val UI_TWO_COLUMN = booleanPreferencesKey("ui_two_column")
         val UI_SHOW_ALL_TAB = booleanPreferencesKey("ui_show_all_tab")
         val UI_DYNAMIC_COLOR = booleanPreferencesKey("ui_dynamic_color")
+        val HOTSPOT_SHARE_ENABLED = booleanPreferencesKey("hotspot_share_enabled")
+        val TRAFFIC_AUDIT_DATA = stringPreferencesKey("traffic_audit_data")
         // DNS Worker Mode
         val DNS_WORKER_MODE = stringPreferencesKey("dns_worker_mode")
         // Remote DNS Keys
@@ -1146,6 +1148,57 @@ class PreferencesDataStore @Inject constructor(
 
     suspend fun setLastUpdateCheckTime(time: Long) {
         dataStore.edit { it[Keys.LAST_UPDATE_CHECK_TIME] = time }
+    }
+
+    // Hotspot Sharing Toggle
+    val hotspotShareEnabled: Flow<Boolean> = dataStore.data.map { prefs ->
+        prefs[Keys.HOTSPOT_SHARE_ENABLED] ?: false
+    }
+
+    suspend fun setHotspotShareEnabled(enabled: Boolean) {
+        dataStore.edit { prefs ->
+            prefs[Keys.HOTSPOT_SHARE_ENABLED] = enabled
+            if (enabled) {
+                prefs[Keys.PROXY_LISTEN_ADDRESS] = "0.0.0.0"
+                prefs[Keys.HTTP_PROXY_ENABLED] = true
+            } else {
+                prefs[Keys.PROXY_LISTEN_ADDRESS] = "127.0.0.1"
+            }
+        }
+    }
+
+    // Traffic Multiplier & Historical Audit Data
+    val trafficAuditStats: Flow<app.slipnet.util.TrafficAuditStats> = dataStore.data.map { prefs ->
+        app.slipnet.util.TrafficAuditStats.fromJson(prefs[Keys.TRAFFIC_AUDIT_DATA] ?: "")
+    }
+
+    suspend fun recordTrafficDelta(deltaBytes: Long) {
+        if (deltaBytes <= 0) return
+        dataStore.edit { prefs ->
+            val now = System.currentTimeMillis()
+            val current = app.slipnet.util.TrafficAuditStats.fromJson(prefs[Keys.TRAFFIC_AUDIT_DATA] ?: "")
+            val sdfDay = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
+            val isSameDay = sdfDay.format(java.util.Date(now)) == sdfDay.format(java.util.Date(current.lastUpdated))
+            val isSameWeek = (now - current.lastUpdated) < 7 * 86_400_000L
+            val isSameMonth = (now - current.lastUpdated) < 30 * 86_400_000L
+            val isSameHour = (now - current.lastUpdated) < 3_600_000L
+
+            val newHour = if (isSameHour) current.pastHourBytes + deltaBytes else deltaBytes
+            val newToday = if (isSameDay) current.todayBytes + deltaBytes else deltaBytes
+            val newWeek = if (isSameWeek) current.thisWeekBytes + deltaBytes else deltaBytes
+            val newMonth = if (isSameMonth) current.thisMonthBytes + deltaBytes else deltaBytes
+            val newAll = current.allTimeBytes + deltaBytes
+
+            val updated = app.slipnet.util.TrafficAuditStats(
+                pastHourBytes = newHour,
+                todayBytes = newToday,
+                thisWeekBytes = newWeek,
+                thisMonthBytes = newMonth,
+                allTimeBytes = newAll,
+                lastUpdated = now
+            )
+            prefs[Keys.TRAFFIC_AUDIT_DATA] = updated.toJson()
+        }
     }
 }
 

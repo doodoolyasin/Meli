@@ -1502,6 +1502,15 @@ class VpnRepositoryImpl @Inject constructor(
             upSpeed = ((sent - prevBytesSent).coerceAtLeast(0) * 1000 / elapsedMs)
             downSpeed = ((received - prevBytesReceived).coerceAtLeast(0) * 1000 / elapsedMs)
         }
+        val deltaBytes = (sent - prevBytesSent).coerceAtLeast(0) + (received - prevBytesReceived).coerceAtLeast(0)
+        if (deltaBytes > 0 && prevTimestamp > 0) {
+            scope.launch {
+                try {
+                    preferencesDataStore.recordTrafficDelta(deltaBytes)
+                } catch (_: Exception) {}
+            }
+        }
+
         prevBytesSent = sent
         prevBytesReceived = received
         prevTimestamp = now

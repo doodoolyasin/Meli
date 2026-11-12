@@ -744,6 +744,9 @@ class MainViewModel @Inject constructor(
 
     private fun decodeSubscriptionPayload(raw: String): String {
         val trimmed = raw.trim()
+        if (trimmed.startsWith("[") || trimmed.startsWith("{")) {
+            return trimmed
+        }
         val clean = trimmed.replace("\n", "").replace("\r", "").replace(" ", "")
         val padded = clean + "=".repeat((4 - clean.length % 4) % 4)
         for (flags in listOf(android.util.Base64.DEFAULT, android.util.Base64.URL_SAFE, android.util.Base64.NO_WRAP)) {
@@ -766,6 +769,35 @@ class MainViewModel @Inject constructor(
 
     val subscriptionMeta: StateFlow<Map<String, app.slipnet.util.SubMeta>> = preferencesDataStore.subscriptionMeta
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
+
+    val hotspotShareEnabled: StateFlow<Boolean> = preferencesDataStore.hotspotShareEnabled
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    val trafficAuditStats: StateFlow<app.slipnet.util.TrafficAuditStats> = preferencesDataStore.trafficAuditStats
+        .stateIn(viewModelScope, SharingStarted.Eagerly, app.slipnet.util.TrafficAuditStats())
+
+    fun toggleHotspotShare(onStatus: ((Boolean, String) -> Unit)? = null) {
+        viewModelScope.launch {
+            val current = hotspotShareEnabled.value
+            val target = !current
+            preferencesDataStore.setHotspotShareEnabled(target)
+            withContext(Dispatchers.IO) {
+                val port = preferencesDataStore.httpProxyPort.first()
+                if (target) {
+                    val rooted = app.slipnet.util.HotspotManager.enableRootTransparentTether(port)
+                    val ip = app.slipnet.util.HotspotManager.detectShareableIp()?.first ?: "192.168.43.1"
+                    withContext(Dispatchers.Main) {
+                        onStatus?.invoke(true, if (rooted) "اشتراک‌گذاری خودکار فعال شد (Root Transparent)" else "پروکسی هات‌اسپات روی $ip:$port فعال شد")
+                    }
+                } else {
+                    app.slipnet.util.HotspotManager.disableRootTransparentTether(port)
+                    withContext(Dispatchers.Main) {
+                        onStatus?.invoke(false, "اشتراک‌گذاری هات‌اسپات غیرفعال شد")
+                    }
+                }
+            }
+        }
+    }
 
     /** Download, decode, filter and import one subscription. Returns (count, error). */
     private suspend fun fetchSubscription(group: String, url: String): Pair<Int, String?> = withContext(Dispatchers.IO) {

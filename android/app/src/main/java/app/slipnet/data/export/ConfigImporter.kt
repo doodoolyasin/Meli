@@ -253,16 +253,22 @@ class ConfigImporter @Inject constructor() {
             }
         }
 
-        if ((jsonCandidate.startsWith("{") && jsonCandidate.endsWith("}")) ||
-            (jsonCandidate.startsWith("[") && jsonCandidate.endsWith("]")) ||
-            jsonCandidate.contains("\"outbounds\"")) {
-            val startIdx = jsonCandidate.indexOf('{').takeIf { it >= 0 } ?: jsonCandidate.indexOf('[')
-            val endIdx = jsonCandidate.lastIndexOf('}').takeIf { it >= 0 } ?: jsonCandidate.lastIndexOf(']')
-            val toParse = if (startIdx in 0..endIdx) jsonCandidate.substring(startIdx, endIdx + 1) else jsonCandidate
+        val trimmedCandidate = jsonCandidate.trim()
+        val isArray = trimmedCandidate.startsWith("[") && trimmedCandidate.endsWith("]")
+        val isObject = trimmedCandidate.startsWith("{") && trimmedCandidate.endsWith("}")
+
+        if (isArray || isObject || trimmedCandidate.contains("\"outbounds\"")) {
+            val toParse = if (isArray || isObject) {
+                trimmedCandidate
+            } else {
+                val startIdx = trimmedCandidate.indexOf('{').takeIf { it >= 0 } ?: trimmedCandidate.indexOf('[')
+                val endIdx = trimmedCandidate.lastIndexOf('}').takeIf { it >= 0 } ?: trimmedCandidate.lastIndexOf(']')
+                if (startIdx in 0..endIdx) trimmedCandidate.substring(startIdx, endIdx + 1) else trimmedCandidate
+            }
             val jsonResult = parseUniversalJson(toParse)
             if (jsonResult is ImportResult.Success && jsonResult.profiles.isNotEmpty()) {
                 return jsonResult
-            } else if (jsonResult is ImportResult.Error && (jsonCandidate.startsWith("{") || jsonCandidate.contains("\"outbounds\""))) {
+            } else if (jsonResult is ImportResult.Error && (isArray || isObject || trimmedCandidate.contains("\"outbounds\""))) {
                 return jsonResult
             }
         }
@@ -3541,6 +3547,43 @@ class ConfigImporter @Inject constructor() {
     }
 
     private fun parseUniversalJson(jsonStr: String): ImportResult {
+        val trimmed = jsonStr.trim()
+        if (trimmed.startsWith("[")) {
+            return try {
+                val array = org.json.JSONArray(trimmed)
+                val allProfiles = mutableListOf<ServerProfile>()
+                val warnings = mutableListOf<String>()
+                for (i in 0 until array.length()) {
+                    val elem = array.opt(i) ?: continue
+                    when (elem) {
+                        is org.json.JSONObject -> {
+                            val subRes = parseSingleUniversalJson(elem.toString())
+                            if (subRes is ImportResult.Success) {
+                                allProfiles.addAll(subRes.profiles)
+                                warnings.addAll(subRes.warnings)
+                            }
+                        }
+                        is String -> {
+                            val subRes = parseProfile(elem, i + 1)
+                            if (subRes is ProfileParseResult.Success) {
+                                allProfiles.add(subRes.profile)
+                            }
+                        }
+                    }
+                }
+                if (allProfiles.isNotEmpty()) {
+                    ImportResult.Success(allProfiles, warnings)
+                } else {
+                    ImportResult.Error("No valid profiles found in JSON array")
+                }
+            } catch (e: Exception) {
+                ImportResult.Error("JSON array parsing error: ${e.message}")
+            }
+        }
+        return parseSingleUniversalJson(trimmed)
+    }
+
+    private fun parseSingleUniversalJson(jsonStr: String): ImportResult {
         return try {
             val root = org.json.JSONObject(jsonStr)
             val rootRemarks = root.optString("remarks", root.optString("description", "")).trim()

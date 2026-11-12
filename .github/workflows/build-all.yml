@@ -132,8 +132,8 @@ jobs:
 
       - name: Build sing-box core (OpenVPN, TUIC, AnyTLS, ShadowTLS, Hysteria)
         run: |
-          git clone --no-checkout https://github.com/SagerNet/sing-box.git "$RUNNER_TEMP/sb"
-          cd "$RUNNER_TEMP/sb" && git fetch --depth 1 origin 8295e4910f14d3041c948d2ad74bf3af384a064d && git checkout FETCH_HEAD
+          git clone --depth 1 https://github.com/SagerNet/sing-box.git "$RUNNER_TEMP/sb"
+          cd "$RUNNER_TEMP/sb"
           TC="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin"
           GOOS=android GOARCH=arm64 CGO_ENABLED=1 CC="$TC/aarch64-linux-android21-clang" GOFLAGS=-mod=mod \
             go build -trimpath -tags "with_quic,with_utls,with_openvpn,badlinkname,tfogo_checklinkname0" \

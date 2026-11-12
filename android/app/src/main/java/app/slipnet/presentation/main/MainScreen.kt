@@ -154,6 +154,7 @@ import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.AltRoute
 import androidx.compose.material.icons.filled.Folder
@@ -398,6 +399,10 @@ fun MainScreen(
 
     // Dialog/sheet state
     var showShareDialog by remember { mutableStateOf(false) }
+    var showHotspotDialog by remember { mutableStateOf(false) }
+    var showTrafficAuditDialog by remember { mutableStateOf(false) }
+    val hotspotShareEnabled by viewModel.hotspotShareEnabled.collectAsState()
+    val trafficAuditStats by viewModel.trafficAuditStats.collectAsState()
     var showLogSheet by remember { mutableStateOf(false) }
     var showOverflowMenu by remember { mutableStateOf(false) }
     var showSubscriptionGroupsDialog by remember { mutableStateOf(false) }
@@ -1191,6 +1196,22 @@ fun MainScreen(
                                 Icon(Icons.Default.Delete, contentDescription = "Delete selected")
                             }
                         } else if (!isSearchActive) {
+                            IconButton(onClick = {
+                                if (!hotspotShareEnabled) {
+                                    viewModel.toggleHotspotShare { _, msg ->
+                                        scope.launch { snackbarHostState.showSnackbar(msg) }
+                                    }
+                                    showHotspotDialog = true
+                                } else {
+                                    showHotspotDialog = true
+                                }
+                            }) {
+                                Icon(
+                                    Icons.Default.Wifi,
+                                    contentDescription = "Hotspot Share",
+                                    tint = if (hotspotShareEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                             Box {
                                 IconButton(onClick = {
                                     showAddDropdown = true
@@ -1786,6 +1807,29 @@ fun MainScreen(
                                                             else snackbarHostState.showSnackbar("Updated $count DNS configs and resolvers")
                                                         }
                                                     }
+                                                }
+                                            )
+                                            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                                            DropdownMenuItem(
+                                                modifier = Modifier.heightIn(min = 36.dp),
+                                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
+                                                text = { Text("اشتراک‌گذاری هات‌اسپات", fontSize = 13.sp) },
+                                                trailingIcon = { Icon(Icons.Default.Wifi, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                                                onClick = {
+                                                    showOverflowMenu = false
+                                                    activeOverflowSubmenu = null
+                                                    showHotspotDialog = true
+                                                }
+                                            )
+                                            DropdownMenuItem(
+                                                modifier = Modifier.heightIn(min = 36.dp),
+                                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
+                                                text = { Text("شفافیت مصرف و ضریب", fontSize = 13.sp) },
+                                                trailingIcon = { Icon(Icons.Default.Speed, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                                                onClick = {
+                                                    showOverflowMenu = false
+                                                    activeOverflowSubmenu = null
+                                                    showTrafficAuditDialog = true
                                                 }
                                             )
                                         }
@@ -3150,6 +3194,28 @@ ProfileListItem(
         )
     }
 
+    if (showHotspotDialog) {
+        HotspotShareDialog(
+            enabled = hotspotShareEnabled,
+            onToggle = {
+                viewModel.toggleHotspotShare { _, msg ->
+                    scope.launch { snackbarHostState.showSnackbar(msg) }
+                }
+            },
+            onDismiss = { showHotspotDialog = false }
+        )
+    }
+
+    if (showTrafficAuditDialog) {
+        val currentGroup = groupTabs.getOrNull(selectedCategoryIndex)?.first ?: ""
+        val subMeta = viewModel.subscriptionMeta.collectAsState().value[currentGroup]
+        TrafficAuditDialog(
+            stats = trafficAuditStats,
+            subMeta = subMeta,
+            onDismiss = { showTrafficAuditDialog = false }
+        )
+    }
+
     // Import preview dialog
     uiState.importPreview?.let { preview ->
         AlertDialog(
@@ -4442,11 +4508,23 @@ private fun ConnectionStatusStrip(
                             )
                             Spacer(modifier = Modifier.height(2.dp))
                             val totalText = "Total: ${TrafficStats.formatBytes(combinedTotal)}"
-                            Text(
-                                text = totalText,
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.clickable { showTrafficAuditDialog = true }
+                            ) {
+                                Text(
+                                    text = totalText,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Spacer(Modifier.width(4.dp))
+                                Icon(
+                                    Icons.Default.Speed,
+                                    contentDescription = "Traffic Audit",
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(12.dp)
+                                )
+                            }
                             Spacer(modifier = Modifier.height(2.dp))
                         }
 
@@ -4927,4 +5005,178 @@ private val IRAN_PRESET = listOf("ir", "digikala.com", "aparat.com", "snapp.ir",
 private fun mergeDomainLines(current: String, incoming: String): String {
     fun parse(t: String) = t.split('\n', ',', ' ', '\t', '\r').map { it.trim().lowercase() }.filter { it.isNotEmpty() }
     return (parse(current) + parse(incoming)).distinct().joinToString("\n")
+}
+
+@Composable
+private fun HotspotShareDialog(
+    enabled: Boolean,
+    onToggle: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    val shareable = remember { app.slipnet.util.HotspotManager.detectShareableIp() }
+    val ip = shareable?.first ?: "192.168.43.1"
+    val isHotspot = shareable?.second ?: false
+    val clipboardManager = androidx.compose.ui.platform.LocalClipboardManager.current
+    val socksText = "$ip:10808"
+    val httpText = "$ip:8080"
+    val copyAll = "HTTP Proxy: $httpText\nSOCKS5 Proxy: $socksText"
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Wifi, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                Spacer(Modifier.width(8.dp))
+                Text("اشتراک اینترنت هات‌اسپات")
+            }
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = if (enabled) "وضعیت: فعال ✓" else "وضعیت: غیرفعال",
+                        fontWeight = FontWeight.Bold,
+                        color = if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Switch(checked = enabled, onCheckedChange = { onToggle() })
+                }
+                Text(
+                    text = if (isHotspot) "شبکه هات‌اسپات شناسایی شد ($ip)." else "هات‌اسپات گوشی را فعال کرده و دستگاه‌های دیگر را وصل کنید.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                ) {
+                    Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text("تنظیمات اتصال سایر دستگاه‌ها:", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                        Text("• آدرس IP سرور: $ip", style = MaterialTheme.typography.bodySmall)
+                        Text("• پروکسی HTTP: $httpText", style = MaterialTheme.typography.bodySmall)
+                        Text("• پروکسی SOCKS5: $socksText", style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+                Text(
+                    text = "💡 در دستگاه‌های روت‌شده (Root)، ترافیک هات‌اسپات خودکار از تونل عبور داده می‌شود و نیازی به ست کردن دستی پروکسی روی سایر دستگاه‌ها نیست.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                clipboardManager.setText(AnnotatedString(copyAll))
+            }) {
+                Text("کپی مشخصات پروکسی")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("بستن")
+            }
+        }
+    )
+}
+
+@Composable
+private fun TrafficAuditDialog(
+    stats: app.slipnet.util.TrafficAuditStats,
+    subMeta: app.slipnet.util.SubMeta?,
+    onDismiss: () -> Unit
+) {
+    fun fmt(bytes: Long): String {
+        return when {
+            bytes >= 1073741824L -> String.format(java.util.Locale.US, "%.2f GB", bytes / 1073741824.0)
+            bytes >= 1048576L -> String.format(java.util.Locale.US, "%.1f MB", bytes / 1048576.0)
+            bytes >= 1024L -> String.format(java.util.Locale.US, "%.0f KB", bytes / 1024.0)
+            else -> "$bytes B"
+        }
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Speed, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                Spacer(Modifier.width(8.dp))
+                Text("شفافیت مصرف و محاسبه ضریب")
+            }
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    text = "ترافیک واقعی عبور کرده از این کلاینت:",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Bold
+                )
+
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                ) {
+                    Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text("۱ ساعت اخیر:", style = MaterialTheme.typography.bodySmall)
+                            Text(fmt(stats.pastHourBytes), fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                        }
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text("امروز:", style = MaterialTheme.typography.bodySmall)
+                            Text(fmt(stats.todayBytes), fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                        }
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text("۷ روز اخیر (هفته):", style = MaterialTheme.typography.bodySmall)
+                            Text(fmt(stats.thisWeekBytes), fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                        }
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text("۳۰ روز اخیر (ماه):", style = MaterialTheme.typography.bodySmall)
+                            Text(fmt(stats.thisMonthBytes), fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                        }
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text("کل مصرف ثبت شده:", style = MaterialTheme.typography.bodySmall)
+                            Text(fmt(stats.allTimeBytes), fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+
+                if (subMeta != null && subMeta.usedBytes > 0 && stats.todayBytes > 0) {
+                    val panelGb = subMeta.usedBytes / 1073741824.0
+                    val realGb = stats.todayBytes / 1073741824.0
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f))
+                    ) {
+                        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text("تحلیل ضریب اشتراک (Multiplier Check):", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                            Text("مصرف ثبت‌شده در پنل: ${String.format(java.util.Locale.US, "%.2f GB", panelGb)}", style = MaterialTheme.typography.bodySmall)
+                            Text("مصرف واقعی اندازه گرفته‌شده: ${fmt(stats.todayBytes)}", style = MaterialTheme.typography.bodySmall)
+                            val ratio = if (realGb > 0.05) panelGb / realGb else 1.0
+                            if (ratio > 1.25) {
+                                Text(
+                                    text = "⚠️ ضریب احتمالی فروشنده: ${String.format(java.util.Locale.US, "%.1fx", ratio)} (مصرف شما بیش از حد مجاز کسر می‌شود)",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.error,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            } else {
+                                Text(
+                                    text = "✓ ضریب منصفانه (۱.۰x - بدون دستکاری مشکوک)",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("تایید")
+            }
+        }
+    )
 }
