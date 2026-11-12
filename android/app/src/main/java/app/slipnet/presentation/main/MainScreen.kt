@@ -2253,6 +2253,7 @@ ProfileListItem(
                     showResolverSheet = true
                 },
                 onToggleConnection = { requestConnectOrToggle() },
+                onShowTrafficAudit = { showTrafficAuditDialog = true },
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .padding(bottom = 12.dp + navBarPadding.calculateBottomPadding())
@@ -4343,6 +4344,7 @@ private fun ConnectionStatusStrip(
     onPingConnected: () -> Unit = {},
     onShowResolvers: () -> Unit = {},
     onToggleConnection: () -> Unit = {},
+    onShowTrafficAudit: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val isConnected = connectionState is ConnectionState.Connected
@@ -4510,7 +4512,7 @@ private fun ConnectionStatusStrip(
                             val totalText = "Total: ${TrafficStats.formatBytes(combinedTotal)}"
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.clickable { showTrafficAuditDialog = true }
+                                modifier = Modifier.clickable { onShowTrafficAudit() }
                             ) {
                                 Text(
                                     text = totalText,
