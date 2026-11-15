@@ -773,29 +773,36 @@ class MainViewModel @Inject constructor(
     val hotspotShareEnabled: StateFlow<Boolean> = preferencesDataStore.hotspotShareEnabled
         .stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
-    val trafficAuditStats: StateFlow<app.slipnet.util.TrafficAuditStats> = preferencesDataStore.trafficAuditStats
-        .stateIn(viewModelScope, SharingStarted.Eagerly, app.slipnet.util.TrafficAuditStats())
+    /** Bumps whenever the traffic ledger changes; UI recomputes reports from it. */
+    val trafficLedgerVersion: StateFlow<Long> = app.slipnet.util.TrafficLedger.version
 
+    fun trafficReport(scope: String) = app.slipnet.util.TrafficLedger.report(scope)
+    fun panelCheck(group: String) = app.slipnet.util.TrafficLedger.panelCheck(group)
+    fun resetTrafficLedger(scope: String? = null) = app.slipnet.util.TrafficLedger.reset(scope)
+
+    /** One-tap hotspot sharing. Applies immediately if a tunnel is already up. */
     fun toggleHotspotShare(onStatus: ((Boolean, String) -> Unit)? = null) {
         viewModelScope.launch {
-            val current = hotspotShareEnabled.value
-            val target = !current
+            val target = !hotspotShareEnabled.value
             preferencesDataStore.setHotspotShareEnabled(target)
-            withContext(Dispatchers.IO) {
-                val port = preferencesDataStore.httpProxyPort.first()
-                if (target) {
-                    val rooted = app.slipnet.util.HotspotManager.enableRootTransparentTether(port)
-                    val ip = app.slipnet.util.HotspotManager.detectShareableIp()?.first ?: "192.168.43.1"
-                    withContext(Dispatchers.Main) {
-                        onStatus?.invoke(true, if (rooted) "اشتراک‌گذاری خودکار فعال شد (Root Transparent)" else "پروکسی هات‌اسپات روی $ip:$port فعال شد")
-                    }
+            val connected = uiState.value.connectionState is ConnectionState.Connected
+            val msg = withContext(Dispatchers.IO) {
+                if (!target) {
+                    app.slipnet.util.HotspotShare.deactivate()
+                    "Hotspot sharing off"
+                } else if (!connected) {
+                    "Hotspot sharing armed — it starts when you connect"
                 } else {
-                    app.slipnet.util.HotspotManager.disableRootTransparentTether(port)
-                    withContext(Dispatchers.Main) {
-                        onStatus?.invoke(false, "اشتراک‌گذاری هات‌اسپات غیرفعال شد")
+                    val proxyOnly = preferencesDataStore.proxyOnlyMode.first()
+                    val err = app.slipnet.util.HotspotShare.activate(preferencesDataStore, vpnMode = !proxyOnly)
+                    when {
+                        err != null -> "Hotspot sharing failed: $err"
+                        app.slipnet.util.HotspotShare.rootActive -> "Hotspot clients are routed through the tunnel (root)"
+                        else -> "Hotspot sharing on: ${app.slipnet.util.HotspotRelay.shareIp()}"
                     }
                 }
             }
+            onStatus?.invoke(target, msg)
         }
     }
 
@@ -851,6 +858,7 @@ class MainViewModel @Inject constructor(
                     if (kept.isEmpty()) return@withContext 0 to "Remarks filter matched no configs"
                     val total = mergeSubscriptionProfiles(group, kept)
                     preferencesDataStore.saveSubscriptionMeta(group, meta.copy(lastUpdated = System.currentTimeMillis(), lastCount = total, usedBytes = usedB, totalBytes = totalB, expireEpochSec = expireS))
+                    if (usedB >= 0) app.slipnet.util.TrafficLedger.onPanelUsage(group, usedB)
                     total to null
                 }
                 result is ImportResult.Error -> 0 to result.message

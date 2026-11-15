@@ -1397,6 +1397,7 @@ class VpnRepositoryImpl @Inject constructor(
     }
 
     fun resetSpeedTracking() {
+        try { app.slipnet.util.TrafficLedger.flush() } catch (_: Exception) {}
         prevBytesSent = 0L
         prevBytesReceived = 0L
         prevTimestamp = 0L
@@ -1502,11 +1503,14 @@ class VpnRepositoryImpl @Inject constructor(
             upSpeed = ((sent - prevBytesSent).coerceAtLeast(0) * 1000 / elapsedMs)
             downSpeed = ((received - prevBytesReceived).coerceAtLeast(0) * 1000 / elapsedMs)
         }
-        val deltaBytes = (sent - prevBytesSent).coerceAtLeast(0) + (received - prevBytesReceived).coerceAtLeast(0)
-        if (deltaBytes > 0 && prevTimestamp > 0) {
-            scope.launch {
+        // Real measured traffic -> ledger (per config / per subscription / global).
+        if (prevTimestamp > 0) {
+            val dUp = (sent - prevBytesSent).coerceAtLeast(0)
+            val dDown = (received - prevBytesReceived).coerceAtLeast(0)
+            if (dUp + dDown > 0) {
+                val p = (_connectionState.value as? ConnectionState.Connected)?.profile ?: connectedProfile
                 try {
-                    preferencesDataStore.recordTrafficDelta(deltaBytes)
+                    app.slipnet.util.TrafficLedger.record(dUp, dDown, p?.id, p?.subscriptionGroup)
                 } catch (_: Exception) {}
             }
         }

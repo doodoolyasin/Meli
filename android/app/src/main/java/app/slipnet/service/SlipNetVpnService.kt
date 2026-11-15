@@ -4221,6 +4221,18 @@ class SlipNetVpnService : VpnService() {
             }
         }
 
+        // Hotspot sharing: expose this tunnel to devices on the hotspot.
+        serviceScope.launch {
+            try {
+                if (preferencesDataStore.hotspotShareEnabled.first()) {
+                    kotlinx.coroutines.delay(800) // let HTTP proxy bind first
+                    app.slipnet.util.HotspotShare.activate(preferencesDataStore, vpnMode = !isProxyOnly)
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Hotspot share start failed: ${e.message}")
+            }
+        }
+
         // Start health monitoring and network change detection
         startHealthCheck()
         registerNetworkCallback()
@@ -5806,6 +5818,7 @@ class SlipNetVpnService : VpnService() {
      */
     @Synchronized
     private fun stopCurrentProxy() {
+        try { app.slipnet.util.HotspotShare.deactivate() } catch (_: Exception) {}
         // Always stop HTTP proxy (it chains through whatever SOCKS5 proxy is running)
         HttpProxyServer.stop()
 

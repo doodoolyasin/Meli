@@ -402,7 +402,6 @@ fun MainScreen(
     var showHotspotDialog by remember { mutableStateOf(false) }
     var showTrafficAuditDialog by remember { mutableStateOf(false) }
     val hotspotShareEnabled by viewModel.hotspotShareEnabled.collectAsState()
-    val trafficAuditStats by viewModel.trafficAuditStats.collectAsState()
     var showLogSheet by remember { mutableStateOf(false) }
     var showOverflowMenu by remember { mutableStateOf(false) }
     var showSubscriptionGroupsDialog by remember { mutableStateOf(false) }
@@ -1197,14 +1196,7 @@ fun MainScreen(
                             }
                         } else if (!isSearchActive) {
                             IconButton(onClick = {
-                                if (!hotspotShareEnabled) {
-                                    viewModel.toggleHotspotShare { _, msg ->
-                                        scope.launch { snackbarHostState.showSnackbar(msg) }
-                                    }
-                                    showHotspotDialog = true
-                                } else {
-                                    showHotspotDialog = true
-                                }
+                                showHotspotDialog = true
                             }) {
                                 Icon(
                                     Icons.Default.Wifi,
@@ -3198,6 +3190,7 @@ ProfileListItem(
     if (showHotspotDialog) {
         HotspotShareDialog(
             enabled = hotspotShareEnabled,
+            connected = uiState.connectionState is ConnectionState.Connected,
             onToggle = {
                 viewModel.toggleHotspotShare { _, msg ->
                     scope.launch { snackbarHostState.showSnackbar(msg) }
@@ -3208,11 +3201,12 @@ ProfileListItem(
     }
 
     if (showTrafficAuditDialog) {
-        val currentGroup = groupTabs.getOrNull(selectedCategoryIndex)?.first ?: ""
-        val subMeta = viewModel.subscriptionMeta.collectAsState().value[currentGroup]
+        val subMetaAll by viewModel.subscriptionMeta.collectAsState()
         TrafficAuditDialog(
-            stats = trafficAuditStats,
-            subMeta = subMeta,
+            viewModel = viewModel,
+            activeProfile = (uiState.connectionState as? ConnectionState.Connected)?.profile ?: uiState.activeProfile,
+            initialGroup = (groupTabs.getOrNull(selectedCategoryIndex)?.first ?: "").takeIf { it in subMetaAll.keys } ?: "",
+            subscriptionMeta = subMetaAll,
             onDismiss = { showTrafficAuditDialog = false }
         )
     }
@@ -5012,16 +5006,20 @@ private fun mergeDomainLines(current: String, incoming: String): String {
 @Composable
 private fun HotspotShareDialog(
     enabled: Boolean,
+    connected: Boolean,
     onToggle: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    val shareable = remember { app.slipnet.util.HotspotManager.detectShareableIp() }
-    val ip = shareable?.first ?: "192.168.43.1"
-    val isHotspot = shareable?.second ?: false
     val clipboardManager = androidx.compose.ui.platform.LocalClipboardManager.current
-    val socksText = "$ip:10808"
-    val httpText = "$ip:8080"
-    val copyAll = "HTTP Proxy: $httpText\nSOCKS5 Proxy: $socksText"
+    var tick by remember { mutableStateOf(0) }
+    LaunchedEffect(Unit) { while (true) { kotlinx.coroutines.delay(2000); tick++ } }
+    val hotspot = remember(tick) { app.slipnet.util.HotspotRelay.detectHotspot() }
+    val ip = remember(tick) { app.slipnet.util.HotspotRelay.shareIp() }
+    val relayUp = remember(tick) { app.slipnet.util.HotspotRelay.isRunning() }
+    val rootOn = app.slipnet.util.HotspotShare.rootActive
+    val pac = "http://$ip:${app.slipnet.util.HotspotRelay.HTTP_PORT}/proxy.pac"
+    val httpP = "$ip:${app.slipnet.util.HotspotRelay.HTTP_PORT}"
+    val socksP = "$ip:${app.slipnet.util.HotspotRelay.SOCKS_PORT}"
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -5029,73 +5027,109 @@ private fun HotspotShareDialog(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.Wifi, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                 Spacer(Modifier.width(8.dp))
-                Text("اشتراک اینترنت هات‌اسپات")
+                Text("Share tunnel over hotspot")
             }
         },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = if (enabled) "وضعیت: فعال ✓" else "وضعیت: غیرفعال",
-                        fontWeight = FontWeight.Bold,
-                        color = if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Share through tunnel", fontWeight = FontWeight.Bold)
+                        Text(
+                            when {
+                                !enabled -> "Off"
+                                !connected -> "Armed — starts on connect"
+                                rootOn -> "Active · transparent (root)"
+                                relayUp -> "Active · proxy mode"
+                                else -> "Starting…"
+                            },
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (enabled && (relayUp || rootOn)) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                     Switch(checked = enabled, onCheckedChange = { onToggle() })
                 }
                 Text(
-                    text = if (isHotspot) "شبکه هات‌اسپات شناسایی شد ($ip)." else "هات‌اسپات گوشی را فعال کرده و دستگاه‌های دیگر را وصل کنید.",
+                    if (hotspot != null) "Hotspot detected: ${hotspot.first} ($ip)"
+                    else "Hotspot not detected. Turn on the phone's hotspot, then come back.",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = if (hotspot != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
                 )
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-                ) {
-                    Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text("تنظیمات اتصال سایر دستگاه‌ها:", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
-                        Text("• آدرس IP سرور: $ip", style = MaterialTheme.typography.bodySmall)
-                        Text("• پروکسی HTTP: $httpText", style = MaterialTheme.typography.bodySmall)
-                        Text("• پروکسی SOCKS5: $socksText", style = MaterialTheme.typography.bodySmall)
-                    }
+                if (enabled && relayUp) {
+                    Text("Clients served now: ${app.slipnet.util.HotspotRelay.activeClients} · relayed ${TrafficStats.formatBytes(app.slipnet.util.HotspotRelay.bytesRelayed)}",
+                        style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-                Text(
-                    text = "💡 در دستگاه‌های روت‌شده (Root)، ترافیک هات‌اسپات خودکار از تونل عبور داده می‌شود و نیازی به ست کردن دستی پروکسی روی سایر دستگاه‌ها نیست.",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                if (rootOn) {
+                    Text("Rooted phone: every device on the hotspot is routed into the tunnel automatically. Nothing to set up on them.",
+                        style = MaterialTheme.typography.bodySmall)
+                } else {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                    ) {
+                        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text("On the other device (no VPN app needed):", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                            Text("1. Connect to this phone's hotspot", style = MaterialTheme.typography.bodySmall)
+                            Text("2. Wi-Fi network → Proxy → Auto, URL:", style = MaterialTheme.typography.bodySmall)
+                            Text(pac, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                            Text("   or Proxy → Manual: $httpP", style = MaterialTheme.typography.bodySmall)
+                            Text("SOCKS5 (apps/PC/Telegram): $socksP", style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                    Text("Android can't push hotspot packets into a non-root VPN, so clients use this phone as a proxy. Root phones get fully transparent sharing.",
+                        style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             }
         },
         confirmButton = {
-            TextButton(onClick = {
-                clipboardManager.setText(AnnotatedString(copyAll))
-            }) {
-                Text("کپی مشخصات پروکسی")
-            }
+            TextButton(onClick = { clipboardManager.setText(AnnotatedString("PAC: $pac\nHTTP: $httpP\nSOCKS5: $socksP")) }) { Text("Copy") }
         },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("بستن")
-            }
-        }
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Close") } }
     )
 }
 
 @Composable
 private fun TrafficAuditDialog(
-    stats: app.slipnet.util.TrafficAuditStats,
-    subMeta: app.slipnet.util.SubMeta?,
+    viewModel: MainViewModel,
+    activeProfile: ServerProfile?,
+    initialGroup: String,
+    subscriptionMeta: Map<String, app.slipnet.util.SubMeta>,
     onDismiss: () -> Unit
 ) {
-    fun fmt(bytes: Long): String {
-        return when {
-            bytes >= 1073741824L -> String.format(java.util.Locale.US, "%.2f GB", bytes / 1073741824.0)
-            bytes >= 1048576L -> String.format(java.util.Locale.US, "%.1f MB", bytes / 1048576.0)
-            bytes >= 1024L -> String.format(java.util.Locale.US, "%.0f KB", bytes / 1024.0)
-            else -> "$bytes B"
+    val version by viewModel.trafficLedgerVersion.collectAsState()
+    val scopes = remember(activeProfile, subscriptionMeta) {
+        buildList {
+            add("all" to "All traffic")
+            activeProfile?.let { add("cfg:${it.id}" to "Config: ${it.name.take(28)}") }
+            val groups = (subscriptionMeta.keys + listOfNotNull(initialGroup.takeIf { it.isNotBlank() }, activeProfile?.subscriptionGroup?.takeIf { it.isNotBlank() })).distinct()
+            groups.forEach { add("sub:$it" to "Sub: ${it.take(28)}") }
+        }
+    }
+    var scope by remember {
+        mutableStateOf(
+            when {
+                initialGroup.isNotBlank() -> "sub:$initialGroup"
+                activeProfile != null -> "cfg:${activeProfile.id}"
+                else -> "all"
+            }
+        )
+    }
+    var tick by remember { mutableStateOf(0) }
+    LaunchedEffect(Unit) { while (true) { kotlinx.coroutines.delay(3000); tick++ } }
+    val r = remember(scope, version, tick) { viewModel.trafficReport(scope) }
+    var menu by remember { mutableStateOf(false) }
+
+    @Composable
+    fun row(label: String, u: app.slipnet.util.TrafficLedger.Usage) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Text(label, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
+            Column(horizontalAlignment = Alignment.End) {
+                Text(TrafficStats.formatBytes(u.total), fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, fontSize = 13.sp)
+                Text("↑${TrafficStats.formatBytes(u.up)}  ↓${TrafficStats.formatBytes(u.down)}", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
         }
     }
 
@@ -5105,80 +5139,81 @@ private fun TrafficAuditDialog(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.Speed, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                 Spacer(Modifier.width(8.dp))
-                Text("شفافیت مصرف و محاسبه ضریب")
+                Text("Real traffic usage")
             }
         },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(
-                    text = "ترافیک واقعی عبور کرده از این کلاینت:",
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.Bold
-                )
-
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Box {
+                    OutlinedButton(onClick = { menu = true }, modifier = Modifier.fillMaxWidth()) {
+                        Text(scopes.firstOrNull { it.first == scope }?.second ?: scope, maxLines = 1)
+                    }
+                    DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                        scopes.forEach { (k, label) ->
+                            DropdownMenuItem(text = { Text(label) }, onClick = { scope = k; menu = false })
+                        }
+                    }
+                }
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
                 ) {
-                    Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text("۱ ساعت اخیر:", style = MaterialTheme.typography.bodySmall)
-                            Text(fmt(stats.pastHourBytes), fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                        }
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text("امروز:", style = MaterialTheme.typography.bodySmall)
-                            Text(fmt(stats.todayBytes), fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                        }
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text("۷ روز اخیر (هفته):", style = MaterialTheme.typography.bodySmall)
-                            Text(fmt(stats.thisWeekBytes), fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                        }
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text("۳۰ روز اخیر (ماه):", style = MaterialTheme.typography.bodySmall)
-                            Text(fmt(stats.thisMonthBytes), fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                        }
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text("کل مصرف ثبت شده:", style = MaterialTheme.typography.bodySmall)
-                            Text(fmt(stats.allTimeBytes), fontWeight = FontWeight.Bold)
-                        }
+                    Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        row("Last hour", r.lastHour)
+                        row("Today", r.today)
+                        row("Last 7 days", r.last7Days)
+                        row("Last 30 days", r.last30Days)
+                        row("This month", r.thisMonth)
+                        HorizontalDivider()
+                        row("All time", r.allTime)
                     }
                 }
+                Text("Measured on this device from bytes that actually passed through the tunnel (sent + received).",
+                    style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
-                if (subMeta != null && subMeta.usedBytes > 0 && stats.todayBytes > 0) {
-                    val panelGb = subMeta.usedBytes / 1073741824.0
-                    val realGb = stats.todayBytes / 1073741824.0
+                if (scope.startsWith("sub:")) {
+                    val group = scope.removePrefix("sub:")
+                    val meta = subscriptionMeta[group]
+                    val chk = viewModel.panelCheck(group)
                     Card(
                         modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f))
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f))
                     ) {
                         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text("تحلیل ضریب اشتراک (Multiplier Check):", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
-                            Text("مصرف ثبت‌شده در پنل: ${String.format(java.util.Locale.US, "%.2f GB", panelGb)}", style = MaterialTheme.typography.bodySmall)
-                            Text("مصرف واقعی اندازه گرفته‌شده: ${fmt(stats.todayBytes)}", style = MaterialTheme.typography.bodySmall)
-                            val ratio = if (realGb > 0.05) panelGb / realGb else 1.0
-                            if (ratio > 1.25) {
-                                Text(
-                                    text = "⚠️ ضریب احتمالی فروشنده: ${String.format(java.util.Locale.US, "%.1fx", ratio)} (مصرف شما بیش از حد مجاز کسر می‌شود)",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.error,
-                                    fontWeight = FontWeight.Bold
-                                )
+                            Text("Panel vs real (multiplier check)", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                            if (meta != null && meta.usedBytes >= 0) {
+                                Text("Panel says used: ${TrafficStats.formatBytes(meta.usedBytes)}" +
+                                    (if (meta.totalBytes > 0) " of ${TrafficStats.formatBytes(meta.totalBytes)}" else ""),
+                                    style = MaterialTheme.typography.bodySmall)
                             } else {
-                                Text(
-                                    text = "✓ ضریب منصفانه (۱.۰x - بدون دستکاری مشکوک)",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
+                                Text("This subscription doesn't report usage (no subscription-userinfo header).", style = MaterialTheme.typography.bodySmall)
+                            }
+                            if (chk == null) {
+                                Text("Use some traffic on this subscription, then press Update subscription. The panel's change is compared with what really passed here.",
+                                    style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            } else {
+                                Text("Since last update: panel +${TrafficStats.formatBytes(chk.panelDelta)} · real +${TrafficStats.formatBytes(chk.measuredDelta)}",
+                                    style = MaterialTheme.typography.bodySmall)
+                                val ratio = chk.ratio
+                                when {
+                                    ratio == null -> Text("Not enough traffic yet for a verdict (need ≥ 20 MB).",
+                                        style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    ratio > 1.3 -> Text(String.format(java.util.Locale.US, "⚠ Seller counts ×%.2f of your real traffic", ratio),
+                                        fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.error)
+                                    ratio < 0.7 -> Text(String.format(java.util.Locale.US, "Panel counts ×%.2f (other devices may share this sub)", ratio),
+                                        style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    else -> Text(String.format(java.util.Locale.US, "✓ Fair: ×%.2f", ratio),
+                                        fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                                }
+                                Text("If the same subscription is used on other devices, the panel will be higher than this phone's real usage.",
+                                    style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
                     }
                 }
             }
         },
-        confirmButton = {
-            TextButton(onClick = onDismiss) {
-                Text("تایید")
-            }
-        }
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Close") } },
+        dismissButton = { TextButton(onClick = { viewModel.resetTrafficLedger(scope) }) { Text("Reset") } }
     )
 }

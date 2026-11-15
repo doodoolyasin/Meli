@@ -1,0 +1,618 @@
+# ==============================================================================
+# MASTER PROMPT: AUDIT AND COMPREHENSIVE REPAIR SPECIFICATION FOR ARYANA NG BACKEND
+# Version: 1.0.0 (Production Release Hardening - Build 137)
+# Target Environment: Android 7.0 - 15 (API 24 - 35), ARM64-v8a / ARMv7 / x86_64
+# Scope: STRICTLY BACKEND ONLY (Core Go, Rust FFI, Kotlin Network Services, C/JNI)
+# ==============================================================================
+
+[ROLE & OBJECTIVE]
+You are a Principal Systems Engineer, Kernel Network Architect, and Mobile Cryptographer.
+Your sole mission is to execute a surgical, zero-regression repair of the backend engine
+for the AryanaNG / SlipNet Android client across its three core language runtimes:
+  1. Kotlin VpnService, Coroutines, Network Dispatchers, and Room Storage Layer.
+  2. Pure Go Core (MasterDNS, StormDNS, AWG Core, vpnproto, dnsparser, dnscache, pacer).
+  3. Rust Native Crates (slipstream-rust, lktunnel-rust, csqtt).
+  4. Native C/JNI Bridges (socket_ops_jni.c, hev_jni.c, hev-socks5-tunnel).
+
+DO NOT touch any Jetpack Compose UI, ViewModels, presentation layouts, or visual components.
+Every fix specified below must be applied with mathematical precision, strict adherence
+to RFC standards, and zero compiler warnings or runtime panics.
+
+================================================================================
+TABLE OF CONTENTS: 30 SYSTEM AUDIT DOMAINS & ACTIONABLE SPECIFICATIONS
+================================================================================
+1.  TCP MSS Clamping & PMTU Blackhole Elimination
+2.  One's Complement Checksum Zero Inversion (RFC 793 / 1624 / 8200)
+3.  Raw IP Packet Fragment Offset Guard (Mid-Fragment TCP Corruption)
+4.  Dual-Stack IPv6 Routing Leak & Safe DNS Blackhole Prevention
+5.  Kill Switch Driver Blackhole Recovery & VpnInterface Persistence
+6.  Rust FFI Exception Safety & Panic Unwinding Boundary (SIGABRT Prevention)
+7.  Android ART CheckJNI Exception Clearing & Pending State Hygiene
+8.  JNI Local Reference Table Overflow Guard (DeleteLocalRef in Loops)
+9.  Orphaned Daemon Process Reaping & Port Lock Reclamation (PR_SET_PDEATHSIG)
+10. Stream Cipher Nonce Directionality & Two-Time Pad Prevention (AES-CTR)
+11. Random Nonce Collision Resilience (XChaCha20-Poly1305 vs ChaCha20)
+12. Constant-Time Cryptographic Verification (Timing Attack Elimination)
+13. Wire Protocol Magic Byte Collision & Chunk Reassembly in DNS Responses
+14. DNS Wire Parser Compression Pointer Loop Guard & Out-of-Bounds Indexing
+15. Base36 Non-Canonical Bit-Overflow Aliasing & Zero Remainder Verification
+16. Decompression Bomb (OOM) Protection in LZ4 / ZSTD Block Engines
+17. AmneziaWG Camouflage Parameter Unsigned Underflow Panic Guard
+18. AmneziaWG Anti-Replay Sliding Window Ring Buffer Reset Cleanliness
+19. SMUX v2 Keepalive Ping/Pong Watchdog Deadlock Elimination
+20. 64-bit Memory Alignment for ARM 32-bit Architecture (SIGBUS Prevention)
+21. Multi-Level Queue (MLQ) Priority Inversion & Heartbeat Starvation Prevention
+22. LeakyBucket Pacer Monotonic Clock Drift & Backward Time Jump Lockup Guard
+23. WebRTC / BaleVPN Trickle ICE Candidate Queueing & Symmetric NAT Traversal
+24. WebRTC DataChannel SCTP Buffer Saturation & Backpressure Throttling
+25. Direct Boot (FBE) Credential Encrypted Storage Boundary Protection
+26. Main Thread Looper Flooding & IPC Notification Throttling in ScanService
+27. DoH HTTP/2 Multiplexing Stream Flow Control Deadlock & Broken Pipe Retry
+28. DNS Cache Poisoning Bailiwick Sanitization & Out-of-Zone Glue Rejection
+29. DNS Negative Cache (NXDOMAIN) Storm & Sliding Window Eviction Quota
+30. TrafficStats 4.3 GB/s Integer Spike Elimination & Monotonic Speed Calculation
+
+================================================================================
+DETAILED AUDIT SPECIFICATIONS AND IMPLEMENTATION INSTRUCTIONS
+================================================================================
+
+--------------------------------------------------------------------------------
+DOMAIN 1: TCP MSS Clamping & PMTU Blackhole Elimination
+--------------------------------------------------------------------------------
+Files:
+  - android/app/src/main/java/app/slipnet/tunnel/TcpPacketBuilder.kt (Lines 170-175, 230-235)
+  - android/app/src/main/java/app/slipnet/tunnel/TunnelConnection.kt (Lines 34, 336-351)
+Defect:
+  The TCP Maximum Segment Size (MSS) option is hardcoded to 1460 in both IPv4 and IPv6
+  SYN-ACK packets. In DNS tunnels with low MTU (e.g., 1200, 1280, or 512 bytes), client
+  browsers negotiate 1460 MSS and emit 1500-byte packets with Don't Fragment (DF=1).
+  The Linux kernel TUN driver rejects packets exceeding its configured MTU with EINVAL/EMSGSIZE.
+  Because TunnelConnection chunks payloads at a fixed MAX_TCP_PAYLOAD = 1460, oversized
+  TLS handshake packets are silently dropped, causing infinite web page loading spinners.
+Fix:
+  1. Pass the active tunnel MTU (`vpnMtu`) into TcpPacketBuilder and TunnelConnection.
+  2. Dynamically compute clamped MSS:
+       IPv4: mss = minOf(clientMss ?: (vpnMtu - 40), vpnMtu - 40)
+       IPv6: mss = minOf(clientMss ?: (vpnMtu - 60), vpnMtu - 60)
+  3. Replace constant MAX_TCP_PAYLOAD with effectiveMss:
+       val effectiveMss = maxOf(480, vpnMtu - 40)
+
+--------------------------------------------------------------------------------
+DOMAIN 2: One's Complement Checksum Zero Inversion (RFC 793 / 1624 / 8200)
+--------------------------------------------------------------------------------
+Files:
+  - android/app/src/main/java/app/slipnet/tunnel/TcpPacketBuilder.kt (Lines 271-276, 319-324, 369-374)
+Defect:
+  In calculateIpChecksum, calculateTcpChecksumV4, and calculateTcpChecksumV6, the 16-bit
+  folded sum is inverted: `return (sum.inv() and 0xFFFF).toInt()`.
+  Per RFC 793 and RFC 8200 Section 8.1, in one's complement arithmetic, an evaluated
+  checksum of 0x0000 MUST be transmitted as 0xFFFF. In TCP and IPv6, a raw 0x0000 checksum
+  is structurally illegal and treated by upstream carrier middleboxes as packet corruption,
+  resulting in silent carrier packet drops.
+Fix:
+  In all three checksum functions, enforce:
+    val checksum = (sum.inv() and 0xFFFF).toInt()
+    return if (checksum == 0) 0xFFFF else checksum
+
+--------------------------------------------------------------------------------
+DOMAIN 3: Raw IP Packet Fragment Offset Guard (Mid-Fragment TCP Corruption)
+--------------------------------------------------------------------------------
+Files:
+  - android/app/src/main/java/app/slipnet/tunnel/IpPacketParser.kt (Lines 118-130)
+Defect:
+  In `parseIpv4`, when protocol == IPPROTO_TCP, `parseTcpHeader(data, ihl)` is executed
+  without checking the Fragment Offset field. In fragmented IP datagrams, bytes following
+  the IHL in non-first fragments (fragOffset > 0) contain raw fragmented payload, NOT a
+  TCP header. Parsing payload as a TCP header interprets random payload bytes as TCP flags;
+  if bit 2 (SYN) or bit 4 (RST) is set, active sessions are immediately reset or corrupted.
+Fix:
+  Extract flags and fragment offset from IPv4 header bytes 6-7:
+    val flagsAndFrag = ((data[6].toInt() and 0xFF) shl 8) or (data[7].toInt() and 0xFF)
+    val fragOffset = (flagsAndFrag and 0x1FFF) * 8
+    val tcpHeader = if (protocol == Protocol.TCP && fragOffset == 0 && data.size >= ihl + 20) {
+        parseTcpHeader(data, ihl)
+    } else null
+
+--------------------------------------------------------------------------------
+DOMAIN 4: Dual-Stack IPv6 Routing Leak & Safe DNS Blackhole Prevention
+--------------------------------------------------------------------------------
+Files:
+  - android/app/src/main/java/app/slipnet/service/SlipNetVpnService.kt (Lines 6048-6070)
+Defect:
+  1. IPv6 address and route binding is conditioned on `if (blockIpv6)`. On dual-stack
+     mobile carriers (e.g., Irancell/MCI), if this flag is disabled, the system kernel
+     routes all IPv6 AAAA lookups and application traffic outside the VPN tunnel.
+  2. Hardcoded public DNS `178.22.122.100` (Shecan) is injected into builder.addDnsServer.
+     When the tunnel is active, this overrides encrypted DNS and routes blocked domains
+     to Iranian domestic landing pages (10.10.34.34).
+Fix:
+  1. Always capture IPv6 traffic into the TUN interface to prevent leaks:
+       builder.addAddress("fd00::1", 128)
+       builder.addRoute("::", 0)
+  2. Remove 178.22.122.100 completely. Bind DNS strictly to the local loopback DNS proxy
+     or upstream authenticated encrypted resolvers (127.0.0.1 / configured secure DNS).
+
+--------------------------------------------------------------------------------
+DOMAIN 5: Kill Switch Driver Blackhole Recovery & VpnInterface Persistence
+--------------------------------------------------------------------------------
+Files:
+  - android/app/src/main/java/app/slipnet/service/SlipNetVpnService.kt (Lines 6475-6505)
+Defect:
+  When entering kill switch mode (`enterKillSwitchMode`), `HevSocks5Tunnel.stop()` is
+  invoked while preserving `vpnInterface`. However, during network recovery,
+  `handleNetworkChange` checks `else if (HevSocks5Tunnel.isRunning())`. If the driver
+  was stopped, this condition evaluates to false, leaving `vpnInterface` open with NO
+  packet processor running. The device is trapped in an irrecoverable blackhole.
+Fix:
+  In `handleNetworkChange`, add an explicit branch:
+    if (!HevSocks5Tunnel.isRunning() && vpnInterface != null) {
+        val fd = vpnInterface?.fd ?: -1
+        if (fd >= 0) {
+            HevSocks5Tunnel.startWithFd(configPath, fd)
+        }
+    }
+
+--------------------------------------------------------------------------------
+DOMAIN 6: Rust FFI Exception Safety & Panic Unwinding Boundary (SIGABRT Prevention)
+--------------------------------------------------------------------------------
+Files:
+  - android/app/src/main/rust/slipstream-rust/crates/slipstream-client/src/meli.rs (Lines 722-836)
+  - android/app/src/main/rust/slipstream-rust/crates/slipstream-client/src/android.rs (Lines 204, 625-665)
+  - android/app/src/main/rust/slipstream-rust/crates/slipstream-client/src/streams.rs (Lines 686-791)
+Defect:
+  Rust `extern "C"` / `extern "system"` entrypoints lack `std::panic::catch_unwind`. In Rust
+  2021 edition and LLVM 17+, any unwinding panic traversing an FFI boundary immediately triggers
+  `std::process::abort()`, terminating Android with signal SIGABRT.
+  Specifically, in `meli.rs:835`:
+    `env.new_string(err).unwrap_or_else(|_| env.new_string("").unwrap())`
+  Calling `.unwrap()` on JNI calls panics upon Out-Of-Memory or pending exceptions.
+Fix:
+  Enclose all FFI function bodies in `std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| { ... }))`.
+  Return null pointers or defined negative error codes on failure. Remove all `.unwrap()` calls.
+
+--------------------------------------------------------------------------------
+DOMAIN 7: Android ART CheckJNI Exception Clearing & Pending State Hygiene
+--------------------------------------------------------------------------------
+Files:
+  - android/app/src/main/rust/slipstream-rust/crates/slipstream-client/src/android.rs (Lines 67-76, 314-331)
+Defect:
+  In `init_bridge_class`, when `env.find_class(class_name)` fails (e.g. ProGuard / R8 renaming
+  or ClassLoader mismatch), a pending `NoClassDefFoundError` is retained on the JNI thread.
+  In `meli.rs:736`, `env.get_string(&domain)` is called immediately after while an exception
+  is pending. Android ART terminates the process: `JNI WARNING: JNI method called with exception pending`.
+Fix:
+  Check for errors and explicitly clear pending exceptions:
+    match env.find_class(class_name) {
+        Ok(cls) => { ... }
+        Err(_) => {
+            let _ = env.exception_clear();
+        }
+    }
+
+--------------------------------------------------------------------------------
+DOMAIN 8: JNI Local Reference Table Overflow Guard (DeleteLocalRef in Loops)
+--------------------------------------------------------------------------------
+Files:
+  - android/app/src/main/rust/slipstream-rust/crates/slipstream-client/src/android.rs (Lines 427-444)
+Defect:
+  When iterating over `resolver_hosts` in a loop, `env.get_object_array_element` and
+  `env.get_string` allocate local references in Android ART's thread-local table.
+  Because `jni-rs` `JObject` does not auto-delete local refs on Drop, processing lists
+  exceeds ART's 512-entry local reference limit, crashing with:
+  `JNI ERROR (app bug): local reference table overflow (max=512)`.
+Fix:
+  In every loop iteration, explicitly delete local references before the next turn:
+    unsafe {
+        env.delete_local_ref(host_jstr);
+        env.delete_local_ref(host_obj);
+    }
+
+--------------------------------------------------------------------------------
+DOMAIN 9: Orphaned Daemon Process Reaping & Port Lock Reclamation (PR_SET_PDEATHSIG)
+--------------------------------------------------------------------------------
+Files:
+  - android/awgcore/main.go (Line 1 et seq.)
+  - android/app/src/main/java/app/slipnet/SlipNetApp.kt
+  - android/app/src/main/java/app/slipnet/tunnel/SingBoxBridge.kt
+  - android/app/src/main/java/app/slipnet/tunnel/NativeCore.kt
+Defect:
+  When the JVM is terminated via SIGKILL (Android Low Memory Killer or task swipe), child
+  executables launched via ProcessBuilder (`libsingbox.so`, `libawg.so`, `libnaive.so`)
+  are re-parented to PID 1 (`/init`). They continue running and hold local ports (10808, 10880)
+  bound. When the app restarts, `net.Listen` fails with `bind: address already in use` (EADDRINUSE).
+Fix:
+  1. In Go child daemons, register parent death signal in `init()`:
+       syscall.Syscall(syscall.SYS_PRCTL, syscall.PR_SET_PDEATHSIG, uintptr(syscall.SIGKILL), 0)
+       go func() {
+           b := make([]byte, 1)
+           for {
+               if _, err := os.Stdin.Read(b); err != nil {
+                   os.Exit(0)
+               }
+           }
+       }()
+  2. In `SlipNetApp.onCreate()`, scan `/proc` for processes matching daemon names under
+     the app's Linux UID and send SIGKILL before starting services.
+
+--------------------------------------------------------------------------------
+DOMAIN 10: Stream Cipher Nonce Directionality & Two-Time Pad Prevention (AES-CTR)
+--------------------------------------------------------------------------------
+Files:
+  - pkg/tunnel/tunnel.go (Lines 122-123, 436-437)
+  - pkg/tunnel/proto/proto.go (Lines 103-112)
+Defect:
+  In `pkg/tunnel`, client request chunks and server response chunks derive an identical
+  AES-CTR IV using `DeriveIV(sessionID, seq, 0)`.
+  In AES-CTR stream cipher mode, identical IVs with an identical key produce identical
+  keystreams ($C_{req} \oplus C_{resp} = P_{req} \oplus P_{resp}$), completely stripping
+  encryption and leaking plaintexts to any passive eavesdropper.
+Fix:
+  Introduce a directional salt in `DeriveIV`:
+    func DeriveIV(sessionID uint8, seq uint16, frag uint8, isDownlink bool) []byte {
+        iv := make([]byte, 16)
+        if isDownlink {
+            iv[0] = 0xD0 // Downlink domain separation
+        } else {
+            iv[0] = 0x0D // Uplink domain separation
+        }
+        iv[1] = sessionID
+        binary.BigEndian.PutUint16(iv[2:4], seq)
+        iv[4] = frag
+        ...
+    }
+
+--------------------------------------------------------------------------------
+DOMAIN 11: Random Nonce Collision Resilience (XChaCha20-Poly1305 vs ChaCha20)
+--------------------------------------------------------------------------------
+Files:
+  - internal/security/codec.go (Lines 258-284)
+Defect:
+  ChaCha20-Poly1305 and AES-GCM use 96-bit random nonces generated via `rand.Read(nonce)`.
+  Per NIST SP 800-38D and birthday paradox bounds, generating random 96-bit nonces under
+  a static shared key reaches high collision probability after $2^{32}$ packets.
+  A single nonce reuse in Poly1305/GHASH exposes the internal authentication key,
+  allowing arbitrary message forgery.
+Fix:
+  Switch high-throughput tunnels to **XChaCha20-Poly1305** with 192-bit (24-byte) nonces
+  via `golang.org/x/crypto/chacha20poly1305.NewX(key)`, where random nonce collisions
+  are mathematically impossible ($2^{-96}$ bound).
+
+--------------------------------------------------------------------------------
+DOMAIN 12: Constant-Time Cryptographic Verification (Timing Attack Elimination)
+--------------------------------------------------------------------------------
+Files:
+  - internal/client/session.go (Lines 145-155)
+  - internal/security/fingerprint.go
+Defect:
+  Session handshake verification codes and authentication tokens are verified using
+  `bytes.Equal(sessionAccept.VerifyCode[:], verifyCode[:])`.
+  `bytes.Equal` short-circuits on the first byte mismatch, creating a side-channel timing
+  leak that enables network adversaries to brute-force session verify codes byte-by-byte.
+Fix:
+  Replace all token and MAC comparisons with `crypto/subtle`:
+    if subtle.ConstantTimeCompare(sessionAccept.VerifyCode[:], verifyCode[:]) != 1 {
+        return ErrSessionInitFailed
+    }
+
+--------------------------------------------------------------------------------
+DOMAIN 13: Wire Protocol Magic Byte Collision & Chunk Reassembly in DNS Responses
+--------------------------------------------------------------------------------
+Files:
+  - internal/dnsparser/transport.go (Lines 657-719)
+Defect:
+  In `assembleVPNResponse`, when upstream resolvers duplicate single TXT responses
+  (`len(rawAnswers) == 2`), chunk 0 detection checks `if raw[0] == 0x00`.
+  For initial session packets (`PACKET_SESSION_ACCEPT`, `PACKET_MTU_UP_RES`), SessionID is 0.
+  Byte 1 (PacketType 0x06) is misparsed as `totalExpected = 6`. The packet is dropped
+  with `ErrTXTAnswerMalformed`, preventing VPN session establishment.
+Fix:
+  Deduplicate identical TXT answers before parsing. Verify chunk markers using an explicit
+  framing prefix rather than relying on raw SessionID bytes.
+
+--------------------------------------------------------------------------------
+DOMAIN 14: DNS Wire Parser Compression Pointer Loop Guard & Out-of-Bounds Indexing
+--------------------------------------------------------------------------------
+Files:
+  - internal/dnsparser/parser.go (Lines 321-363)
+  - internal/dnsparser/transport.go (Lines 212-250)
+Defect:
+  1. In `walkName`, offset validation lacks a negative guard: `if offset >= dataLen`.
+     Passing a negative offset causes an immediate runtime panic: `slice bounds out of range [-1]`.
+  2. In `BuildTXTResponsePacket`, response length pre-calculates 2 bytes for compressed names.
+     If `firstAnswerNameOffset > 0x3FFF`, compression is disabled and full name bytes are written,
+     overflowing the pre-allocated buffer and panicking at `response[offset:offset+2]`.
+Fix:
+  1. Add negative check in `walkName`: `if offset < 0 || offset >= dataLen`.
+  2. In `BuildTXTResponsePacket`, include `&& firstAnswerNameOffset <= 0x3FFF` in the size
+     calculation loop so buffer allocation always matches exact written bytes.
+
+--------------------------------------------------------------------------------
+DOMAIN 15: Base36 Non-Canonical Bit-Overflow Aliasing & Zero Remainder Verification
+--------------------------------------------------------------------------------
+Files:
+  - internal/basecodec/lowerbase36.go (Lines 108-117, 152-161)
+Defect:
+  11 Base36 characters represent values up to $36^{11}-1 \approx 1.31 \times 10^{17}$, whereas
+  7 bytes of data hold a maximum of $2^{56}-1 \approx 7.20 \times 10^{16}$.
+  When decoding, the accumulator `val` is shifted right by 8 for each byte, but the residual
+  bits in `val` are never checked. Non-canonical strings (e.g. "zz" vs "0f") decode to identical
+  plaintexts, enabling signature malleability and cache poisoning.
+Fix:
+  After extracting all block bytes, assert that no residual bits remain:
+    if val != 0 {
+        return nil, ErrInvalidLowerBase36
+    }
+
+--------------------------------------------------------------------------------
+DOMAIN 16: Decompression Bomb (OOM) Protection in LZ4 / ZSTD Block Engines
+--------------------------------------------------------------------------------
+Files:
+  - internal/compression/types.go (Lines 24, 289-301)
+Defect:
+  In `decompressLZ4`, an uncompressed size header up to 10 MB (`origSize <= maxDecompressedSize`)
+  triggers an immediate heap allocation: `out := make([]byte, origSize)` before validating
+  compressed data integrity. An 8-byte UDP packet can force 10 MB RAM allocations, crashing
+  mobile devices via Out-Of-Memory (LMK).
+Fix:
+  1. Reduce max single-packet decompressed size from 10 MB to 128 KB (`maxDecompressedSize = 128 * 1024`).
+  2. Enforce the maximum LZ4 expansion ratio (255:1):
+       if origSize > uint32(len(data)-4) * 256 {
+           return nil, ErrInvalidLZ4Ratio
+       }
+  3. Validate buffer capacities before returning to `deflateBufferPool` to prevent pool bloating.
+
+--------------------------------------------------------------------------------
+DOMAIN 17: AmneziaWG Camouflage Parameter Unsigned Underflow Panic Guard
+--------------------------------------------------------------------------------
+Files:
+  - work/awg/device/noise-protocol.go (Line 639)
+  - work/awg/device/uapi.go (Lines 355-381)
+Defect:
+  In `JunkPackets()`, packet length is computed as `make([]byte, min + fastrandn(max - min))`.
+  Because `min` and `max` are `uint32`, if $J_{min} > J_{max}$ or if $J_{max}$ is uninitialized,
+  `max - min` underflows to $\sim 4.29 \times 10^9$. Calling `make([]byte, ...)` panics with
+  `makeslice: len out of range` or crashes the process via OOM.
+Fix:
+  Validate parameters in UAPI and clamp in noise-protocol:
+    if max < min {
+        min, max = max, min
+    }
+    buf := make([]byte, min + fastrandn(max - min + 1))
+
+--------------------------------------------------------------------------------
+DOMAIN 18: AmneziaWG Anti-Replay Sliding Window Ring Buffer Reset Cleanliness
+--------------------------------------------------------------------------------
+Files:
+  - work/awg/replay/replay.go (Lines 30-33)
+Defect:
+  `replay.Filter.Reset()` only clears index 0 of its 128-block ring:
+    `f.last = 0; f.ring[0] = 0`
+  Blocks 1..127 retain bitmasks from previous sessions. Upon session rekeying, legitimate
+  sequential packets arriving in subsequent blocks match stale bits and are discarded as replays.
+Fix:
+  Fully clear the entire ring buffer:
+    func (f *Filter) Reset() {
+        f.last = 0
+        clear(f.ring[:])
+    }
+
+--------------------------------------------------------------------------------
+DOMAIN 19: SMUX v2 Keepalive Ping/Pong Watchdog Deadlock Elimination
+--------------------------------------------------------------------------------
+Files:
+  - internal/streamutil/ (and external xtaci/smux integration)
+Defect:
+  In SMUX v2, `writeFrameInternal` queues ping frames into `shaper` and blocks on `<-resultCh`
+  without a deadline. If the underlying network transport stalls, the single keepalive goroutine
+  hangs forever. The timeout channel (`<-tickerTimeout.C`) is never read, disabling the session
+  inactivity watchdog and leaving frozen dead sessions hanging forever.
+Fix:
+  Ensure `writeFrameInternal` enforces a strict deadline on the second select:
+    select {
+    case result := <-resultCh:
+        return result.n, result.err
+    case <-deadline:
+        return 0, ErrTimeout
+    case <-s.die:
+        return 0, io.ErrClosedPipe
+    }
+
+--------------------------------------------------------------------------------
+DOMAIN 20: 64-bit Memory Alignment for ARM 32-bit Architecture (SIGBUS Prevention)
+--------------------------------------------------------------------------------
+Files:
+  - internal/udpserver/session.go (Lines 164-180)
+  - android/qwdtt/go_client/dispatcher.go (Lines 106-118)
+Defect:
+  In `sessionRecord`, 64-bit fields (`lastActivityUnixNano`, `reuseUntilUnixNano`) follow
+  unpadded 8-bit and 32-bit fields. On 32-bit ARM (ARMv7 / armeabi-v7a), struct offsets
+  evaluate to offset 164 (164 % 8 = 4). Invoking `atomic.StoreInt64` triggers a hardware
+  unaligned access fault, crashing with signal **SIGBUS**.
+Fix:
+  Migrate from primitive `int64` + `atomic.StoreInt64` to `atomic.Int64` (Go 1.19+), or
+  reorder the struct so all 64-bit atomic fields are placed at the very top (Offset 0).
+
+--------------------------------------------------------------------------------
+DOMAIN 21: Multi-Level Queue (MLQ) Priority Inversion & Heartbeat Starvation Prevention
+--------------------------------------------------------------------------------
+Files:
+  - internal/enums/packet_priority.go (Lines 75-78)
+  - internal/client/dispatcher.go (Lines 172-196)
+Defect:
+  PACKET_PING and PACKET_PONG are assigned `PacketPriorityIdle` (Priority 5). In `dispatcher.go`,
+  stream 0 is skipped if any other stream has pending data (`if hasOtherWork { continue }`).
+  During active downloads, stream 0 is starved for minutes. Ping packets are never sent,
+  causing mobile carrier NAT mapping tables (20-30s timeout) to expire and kill the tunnel.
+Fix:
+  1. Elevate PACKET_PING and PACKET_PONG to `PacketPriorityHigh` (Priority 1 or 2).
+  2. Remove the `hasOtherWork` lockout in `dispatcher.go` to guarantee that keepalive
+     pings interleave fairly regardless of bulk data traffic.
+
+--------------------------------------------------------------------------------
+DOMAIN 22: LeakyBucket Pacer Monotonic Clock Drift & Backward Time Jump Lockup Guard
+--------------------------------------------------------------------------------
+Files:
+  - pkg/pacer/pacer.go (Lines 31-37, 64-69)
+Defect:
+  In `Allow(n)`, `elapsed := now.Sub(b.last).Seconds()` is added directly: `b.tokens += elapsed * b.rate`.
+  If system time jumps backward (via NTP or cellular time sync), `elapsed` is negative,
+  plunging `tokens` into large negative values and blocking all packet transmission for seconds or minutes.
+Fix:
+  Use monotonic time calculations and clamp negative elapsed values:
+    if elapsed < 0 {
+        b.last = now
+        elapsed = 0
+    }
+    b.tokens = min(b.capacity, b.tokens + elapsed * b.rate)
+    b.last = now
+
+--------------------------------------------------------------------------------
+DOMAIN 23: WebRTC / BaleVPN Trickle ICE Candidate Queueing & Symmetric NAT Traversal
+--------------------------------------------------------------------------------
+Files:
+  - android/balevpn/lktunnel-rust/lktunnel/src/rtc.rs (Lines 378-392, 529-540)
+Defect:
+  1. Trickle ICE candidates arriving over WebSocket prior to completion of `set_remote_description`
+     return `ErrNoRemoteDescription` and are silently discarded instead of queued.
+  2. On network handover (cellular <-> Wi-Fi), `Disconnected` state is ignored under the false
+     assumption that webrtc-rs recovers autonomously. In mobile CGNAT networks, local IP changes
+     require an explicit `ice_restart`, without which candidate gathering permanently freezes.
+Fix:
+  1. Maintain a `pending_ice_candidates: Vec<RTCIceCandidateInit>` queue; flush it immediately
+     after `set_remote_description.await` succeeds.
+  2. Trigger an explicit WebRTC renegotiation with `ice_restart: true` upon network handover.
+
+--------------------------------------------------------------------------------
+DOMAIN 24: WebRTC DataChannel SCTP Buffer Saturation & Backpressure Throttling
+--------------------------------------------------------------------------------
+Files:
+  - pkg/bale/bale.go (Lines 275-293)
+  - pkg/bale/channel.go (Lines 58-72)
+Defect:
+  `DataChannel.Send()` is non-blocking and queues bytes in userspace SCTP buffers.
+  The sender loops over SOCKS TCP reads and pushes 16 KB chunks at gigabit local speeds
+  without checking `DataChannel.BufferedAmount()`. In restricted networks, buffers expand
+  unbounded to hundreds of megabytes until the process is aborted by the Android LMK.
+Fix:
+  Implement backpressure using `SetBufferedAmountLowThreshold(64 * 1024)`:
+  Pause reading from the local TCP socket whenever `BufferedAmount() > 256 * 1024`,
+  and resume only upon receiving the `OnBufferedAmountLow` callback.
+
+--------------------------------------------------------------------------------
+DOMAIN 25: Direct Boot (FBE) Credential Encrypted Storage Boundary Protection
+--------------------------------------------------------------------------------
+Files:
+  - android/app/src/main/java/app/slipnet/service/BootReceiver.kt (Lines 47-53)
+  - android/app/src/main/AndroidManifest.xml
+Defect:
+  `BootReceiver` accesses default DataStore and Room SQLite database on `LOCKED_BOOT_COMPLETED`
+  or before the user first enters their lockscreen PIN. In Android 7+ File-Based Encryption (FBE),
+  Credential Encrypted (CE) storage is locked by the kernel until user authentication, throwing
+  an immediate fatal crash: `android.database.sqlite.SQLiteCantOpenDatabaseException`.
+Fix:
+  1. Check `val userManager = context.getSystemService(UserManager::class.java)`
+     `if (!userManager.isUserUnlocked) return`.
+  2. Only read preferences and database profiles after user unlock is confirmed, or migrate
+     necessary auto-connect boot flags to `context.createDeviceProtectedStorageContext()`.
+
+--------------------------------------------------------------------------------
+DOMAIN 26: Main Thread Looper Flooding & IPC Notification Throttling in ScanService
+--------------------------------------------------------------------------------
+Files:
+  - android/app/src/main/java/app/slipnet/service/ScanService.kt (Lines 36, 67-85)
+Defect:
+  `ScanService` observes `ScanStateHolder.state` on `Dispatchers.Main`. During DNS sweeps with
+  50-100 parallel workers, state emissions occur hundreds of times per second. Invoking
+  blocking `notificationManager.notify` on the UI thread's Looper for every probe emission
+  floods Android's IPC binder and triggers an application ANR (Application Not Responding).
+Fix:
+  Shift observation to background dispatchers and throttle updates:
+    ScanStateHolder.state
+        .sample(500L) // Limit to at most 2 updates per second
+        .flowOn(Dispatchers.Default)
+        .collect { s -> ... }
+
+--------------------------------------------------------------------------------
+DOMAIN 27: DoH HTTP/2 Multiplexing Stream Flow Control Deadlock & Broken Pipe Retry
+--------------------------------------------------------------------------------
+Files:
+  - android/app/src/main/java/app/slipnet/tunnel/DnsDoHProxy.kt (Lines 68, 84-126, 168-175)
+  - android/app/src/main/java/app/slipnet/tunnel/DohBridge.kt
+Defect:
+  1. Concurrently executing 32 DoH queries over a single HTTP/2 connection exhausts the
+     65,535-byte connection-level flow control window (Stream 0) when responses arrive with
+     large DNSSEC padding, deadlocking reader and writer coroutines until socket timeout.
+  2. Stale connection pool sockets cause instant `Broken pipe` or `SocketException` on mobile
+     carriers with aggressive 20s NAT drop timeouts.
+Fix:
+  1. Limit in-flight queries to 16 using a concurrency `Semaphore(16)`.
+  2. Implement an automatic retry loop: on first IO failure, evict stale pool connections
+     via `client.connectionPool.evictAll()` and retry once immediately over a clean socket.
+  3. Enable `pingInterval(15, TimeUnit.SECONDS)` in OkHttpClient to keep carrier NAT active.
+
+--------------------------------------------------------------------------------
+DOMAIN 28: DNS Cache Poisoning Bailiwick Sanitization & Out-of-Zone Glue Rejection
+--------------------------------------------------------------------------------
+Files:
+  - internal/dnscache/store.go (Lines 219-253)
+  - internal/client/dns_listener.go (Lines 258-270)
+Defect:
+  Upstream raw DNS responses are cached without checking bailiwick authority rules (RFC 2181 / 5452).
+  An upstream response for `attacker.com` containing spoofed Glue records in the `Additional`
+  section for `target-bank.com` is cached and served verbatim to local clients, poisoning
+  device DNS resolution.
+Fix:
+  Before storing responses in `localDNSCache`, strip all non-OPT records from the `Additional`
+  section. Strictly match the response Question section (`QNAME`, `QTYPE`, `QCLASS`) against
+  the original outgoing client query.
+
+--------------------------------------------------------------------------------
+DOMAIN 29: DNS Negative Cache (NXDOMAIN) Storm & Sliding Window Eviction Quota
+--------------------------------------------------------------------------------
+Files:
+  - internal/dnscache/store.go (Lines 36-45, 320-342, 524-534)
+Defect:
+  NXDOMAIN responses are cached for the full 1-hour TTL and refreshed on lookups via sliding window.
+  Random subdomain attacks (e.g. `uuid.example.com`) flood cache shards, evicting legitimate
+  cached domains (Google, Telegram) and causing catastrophic resolver performance collapse.
+Fix:
+  1. Cap negative response (NXDOMAIN / NODATA) TTL to at most 30 seconds based on `CreatedAt`
+     (do NOT extend via `LastUsedAt`).
+  2. Enforce a strict quota: negative entries must not occupy more than 20% of any cache shard.
+
+--------------------------------------------------------------------------------
+DOMAIN 30: TrafficStats 4.3 GB/s Integer Spike Elimination & Monotonic Speed Calculation
+--------------------------------------------------------------------------------
+Files:
+  - android/app/src/main/java/app/slipnet/data/repository/VpnRepositoryImpl.kt (Lines 1455-1507)
+  - android/app/src/main/java/app/slipnet/tunnel/XrayBridge.kt
+  - android/stormdns/internal/client/traffic_stats.go (Lines 68-76)
+Defect:
+  1. In `VpnRepositoryImpl`, when `isSessionReady()` glitches to false for 1 second, `sent` and
+     `received` are set to 0L, resetting `prevBytesReceived = 0L`. When the session recovers
+     with cumulative bytes (e.g. 4.3 GB), subtracting 0L yields an instantaneous false throughput
+     speed of **4.3 GB/s**.
+  2. `XrayBridge` never resets its internal `rxTotal` / `txTotal` on disconnect, injecting
+     stale cumulative gigabytes into subsequent new connections.
+  3. In Go `traffic_stats.go`, subtracting `uint64` counters (`currentTX - lastTX`) underflows
+     to $1.84 \times 10^{19}$ if counters are reset mid-session.
+Fix:
+  1. In `VpnRepositoryImpl`, use monotonic clock `SystemClock.elapsedRealtime()`. If cumulative
+     counters drop (`sent < prevBytesSent || received < prevBytesReceived`), set instantaneous
+     speed to 0L and resynchronize baselines.
+  2. Implement `XrayBridge.resetTrafficStats()` and invoke it on every `disconnect()`.
+  3. In Go, verify `if currentTX >= lastTX` before subtraction.
+
+================================================================================
+VERIFICATION & TEST EXECUTION CONTRACT
+================================================================================
+1. Verify Go packages and race detector locally:
+     go test -v -race ./internal/... ./pkg/...
+2. Build Android native libraries and verify zero unresolved FFI symbols:
+     cargo check --manifest-path android/app/src/main/rust/slipstream-rust/Cargo.toml
+3. Verify Kotlin compilation:
+     ./gradlew :app:compileFullReleaseKotlin
+4. Ensure zero UI changes, zero presentation regression, and 100% backend stability.
+# ==============================================================================
+# END OF MASTER AUDIT & REPAIR SPECIFICATION
+# ==============================================================================
