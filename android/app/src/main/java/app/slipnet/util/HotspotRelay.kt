@@ -34,8 +34,12 @@ object HotspotRelay {
     private val running = AtomicBoolean(false)
     private val servers = mutableListOf<ServerSocket>()
 
-    private val relayed = java.util.concurrent.atomic.AtomicLong(0L)
-    val bytesRelayed: Long get() = relayed.get()
+    private val relayedUp = java.util.concurrent.atomic.AtomicLong(0L)
+    private val relayedDown = java.util.concurrent.atomic.AtomicLong(0L)
+    /** Cumulative bytes client->tunnel / tunnel->client. Monotonic for the process lifetime. */
+    val bytesUp: Long get() = relayedUp.get()
+    val bytesDown: Long get() = relayedDown.get()
+    val bytesRelayed: Long get() = relayedUp.get() + relayedDown.get()
     @Volatile var activeClients: Int = 0
         private set
 
@@ -45,8 +49,9 @@ object HotspotRelay {
     fun start(socksTarget: Int, httpTarget: Int): Result<Unit> {
         stop()
         return try {
-            servers += listen(SOCKS_PORT, socksTarget, servePac = false)
-            servers += listen(HTTP_PORT, httpTarget, servePac = true)
+            // If the user's own proxy already sits on a relay port, don't fight it for the bind.
+            if (socksTarget != SOCKS_PORT) servers += listen(SOCKS_PORT, socksTarget, servePac = false)
+            if (httpTarget != HTTP_PORT) servers += listen(HTTP_PORT, httpTarget, servePac = true)
             running.set(true)
             Log.i(TAG, "Relay up: :$SOCKS_PORT->$socksTarget, :$HTTP_PORT->$httpTarget")
             Result.success(Unit)
@@ -104,11 +109,13 @@ object HotspotRelay {
             Socket().use { up ->
                 up.tcpNoDelay = true
                 up.connect(InetSocketAddress("127.0.0.1", target), 5000)
-                val t = Thread({ pump(up.getInputStream(), client.getOutputStream()); try { client.shutdownOutput() } catch (_: Exception) {} }, "relay-down")
+                val t = Thread({ pump(up.getInputStream(), client.getOutputStream(), relayedDown); try { client.shutdownOutput() } catch (_: Exception) {} }, "relay-down")
                 t.isDaemon = true; t.start()
-                pump(cin, up.getOutputStream())
+                pump(cin, up.getOutputStream(), relayedUp)
                 try { up.shutdownOutput() } catch (_: Exception) {}
-                t.join(60_000)
+                // No timeout: a half-closed client may still be receiving a long download.
+                // The down pump ends as soon as the upstream proxy closes its side.
+                t.join()
             }
         } catch (_: Exception) {
         } finally {
@@ -117,14 +124,14 @@ object HotspotRelay {
         }
     }
 
-    private fun pump(i: InputStream, o: OutputStream) {
+    private fun pump(i: InputStream, o: OutputStream, counter: java.util.concurrent.atomic.AtomicLong) {
         val buf = ByteArray(16384)
         try {
             while (true) {
                 val n = i.read(buf)
                 if (n < 0) break
                 o.write(buf, 0, n); o.flush()
-                relayed.addAndGet(n.toLong())
+                counter.addAndGet(n.toLong())
             }
         } catch (_: Exception) {}
     }
@@ -151,8 +158,7 @@ object HotspotRelay {
         else if (ra !is Inet4Address) false
         else {
             val r = ra.address
-            NetworkInterface.getNetworkInterfaces()?.toList().orEmpty()
-                .filter { it.isUp && !it.isLoopback && HOTSPOT_PREFIXES.any { p -> it.name.startsWith(p) } }
+            hotspotInterfaces()
                 .flatMap { it.interfaceAddresses.orEmpty() }
                 .any { ia ->
                     val a = ia.address as? Inet4Address ?: return@any false
@@ -169,10 +175,24 @@ object HotspotRelay {
 
     private val HOTSPOT_PREFIXES = listOf("ap", "swlan", "softap", "wlan1", "wlan2", "wigig", "rndis", "usb", "ncm", "bt-pan", "eth")
 
+    /**
+     * Tethering interfaces. Besides the usual ap0/swlan0/wlan1/rndis names, many phones run the
+     * hotspot on wlan0 itself when Wi-Fi client mode is off; there the phone is the gateway (.1).
+     */
+    private fun hotspotInterfaces(): List<NetworkInterface> = try {
+        NetworkInterface.getNetworkInterfaces()?.toList().orEmpty()
+            .filter { it.isUp && !it.isLoopback }
+            .filter { nif ->
+                HOTSPOT_PREFIXES.any { p -> nif.name.startsWith(p) } ||
+                    (nif.name.startsWith("wlan") && nif.inetAddresses.toList().any {
+                        it is Inet4Address && it.isSiteLocalAddress && (it.address[3].toInt() and 255) == 1
+                    })
+            }
+    } catch (_: Exception) { emptyList() }
+
     /** (interface name, IPv4) of the tethering interface, or null if no hotspot is up. */
     fun detectHotspot(): Pair<String, String>? = try {
-        NetworkInterface.getNetworkInterfaces()?.toList().orEmpty()
-            .filter { it.isUp && !it.isLoopback && HOTSPOT_PREFIXES.any { p -> it.name.startsWith(p) } }
+        hotspotInterfaces()
             .firstNotNullOfOrNull { nif ->
                 nif.inetAddresses.toList().firstOrNull { it is Inet4Address }?.hostAddress?.let { nif.name to it }
             }
@@ -198,38 +218,64 @@ object HotspotRelay {
     } catch (_: Exception) { false }
 
     /** Route all hotspot clients through tun. Returns null on success or an error message. */
+    /** "a.b.c.d/len" network of the hotspot interface, used for the return route. */
+    private fun subnetOf(ifName: String): String? = try {
+        NetworkInterface.getByName(ifName)?.interfaceAddresses.orEmpty()
+            .firstOrNull { it.address is Inet4Address }?.let { ia ->
+                val plen = ia.networkPrefixLength.toInt().coerceIn(1, 32)
+                val b = ia.address.address
+                val v = ((b[0].toInt() and 255) shl 24) or ((b[1].toInt() and 255) shl 16) or
+                    ((b[2].toInt() and 255) shl 8) or (b[3].toInt() and 255)
+                val n = v and (-1 shl (32 - plen))
+                "${(n ushr 24) and 255}.${(n ushr 16) and 255}.${(n ushr 8) and 255}.${n and 255}/$plen"
+            }
+    } catch (_: Exception) { null }
+
+    @Volatile var appliedFor: Pair<String, String>? = null
+        private set
+
     fun applyRootRouting(): String? {
         val hs = detectHotspot()?.first ?: return "Hotspot interface not found — turn the hotspot on first"
         val tun = tunName() ?: return "Tunnel (tun) interface not found — connect in VPN mode first"
+        val net = subnetOf(hs) ?: return "Hotspot subnet not found"
         clearRootRouting()
+        val c = "-m comment --comment aryana_hs"
         val script = listOf(
-            "sysctl -w net.ipv4.ip_forward=1",
+            "sysctl -w net.ipv4.ip_forward=1 >/dev/null",
             "ip route replace default dev $tun table $ROUTE_TABLE",
+            // Return path: de-NATed replies coming out of tun must reach the hotspot subnet,
+            // otherwise Android's per-network tables drop them.
+            "ip route replace $net dev $hs table $ROUTE_TABLE",
             "ip rule add iif $hs lookup $ROUTE_TABLE priority $RULE_PRIORITY",
-            "iptables -w -t nat -A POSTROUTING -o $tun -j MASQUERADE -m comment --comment aryana_hs",
-            "iptables -w -I FORWARD -i $hs -o $tun -j ACCEPT -m comment --comment aryana_hs",
-            "iptables -w -I FORWARD -i $tun -o $hs -m state --state RELATED,ESTABLISHED -j ACCEPT -m comment --comment aryana_hs",
+            "ip rule add iif $tun to $net lookup $ROUTE_TABLE priority ${RULE_PRIORITY + 1}",
+            "iptables -w -t nat -I POSTROUTING -s $net -o $tun $c -j MASQUERADE",
+            "iptables -w -I FORWARD -i $hs -o $tun $c -j ACCEPT",
+            "iptables -w -I FORWARD -i $tun -o $hs -m state --state RELATED,ESTABLISHED $c -j ACCEPT",
             // Client DNS must also leave through the tunnel, not the carrier resolver.
-            "iptables -w -t nat -I PREROUTING -i $hs -p udp --dport 53 -j DNAT --to-destination 1.1.1.1:53 -m comment --comment aryana_hs",
-            "iptables -w -t nat -I PREROUTING -i $hs -p tcp --dport 53 -j DNAT --to-destination 1.1.1.1:53 -m comment --comment aryana_hs"
+            "iptables -w -t nat -I PREROUTING -i $hs -p udp --dport 53 $c -j DNAT --to-destination 1.1.1.1:53",
+            "iptables -w -t nat -I PREROUTING -i $hs -p tcp --dport 53 $c -j DNAT --to-destination 1.1.1.1:53",
+            // The tunnel is IPv4-only here; block forwarded IPv6 so clients can't bypass it.
+            "(ip6tables -w -I FORWARD -i $hs $c -j DROP || true)"
         ).joinToString(" && ")
         return try {
             val p = Runtime.getRuntime().exec(arrayOf("su", "-c", script))
             val err = p.errorStream.bufferedReader().readText()
-            if (p.waitFor() == 0) null else "Root routing failed: ${err.take(200)}"
+            if (p.waitFor() == 0) { appliedFor = hs to tun; null } else "Root routing failed: ${err.take(200)}"
         } catch (e: Exception) { "Root routing failed: ${e.message}" }
     }
 
     fun clearRootRouting() {
         val script = """
-            ip rule del lookup $ROUTE_TABLE priority $RULE_PRIORITY 2>/dev/null
+            i=0; while ip rule del lookup $ROUTE_TABLE 2>/dev/null && [ ${'$'}i -lt 20 ]; do i=${'$'}((i+1)); done
             ip route flush table $ROUTE_TABLE 2>/dev/null
             for t in nat filter; do
-              iptables -w -t ${'$'}t -S 2>/dev/null | grep aryana_hs | sed 's/^-A/-D/;s/^-I/-D/' | while read r; do iptables -w -t ${'$'}t ${'$'}r; done
+              iptables -w -t ${'$'}t -S 2>/dev/null | grep aryana_hs | sed 's/^-A/-D/' | while read r; do eval iptables -w -t ${'$'}t ${'$'}r; done
             done
+            ip6tables -w -S FORWARD 2>/dev/null | grep aryana_hs | sed 's/^-A/-D/' | while read r; do eval ip6tables -w ${'$'}r; done
             true
         """.trimIndent()
         try { Runtime.getRuntime().exec(arrayOf("su", "-c", script)).waitFor() } catch (_: Exception) {}
+        appliedFor = null
     }
 }
 
@@ -240,6 +286,9 @@ object HotspotShare {
         private set
     @Volatile var lastError: String? = null
         private set
+    @Volatile private var startedHttp = false
+    @Volatile private var watcher: Thread? = null
+    @Volatile private var rootCapable = false
 
     /** Bring sharing up for the currently running tunnel. Safe to call repeatedly. */
     suspend fun activate(prefs: app.slipnet.data.local.datastore.PreferencesDataStore, vpnMode: Boolean): String? {
@@ -248,27 +297,53 @@ object HotspotShare {
         // The HTTP front-end is needed for PAC/HTTP clients even if the user disabled it.
         if (!app.slipnet.tunnel.HttpProxyServer.isRunning()) {
             val authOn = prefs.proxyAuthEnabled.first()
-            app.slipnet.tunnel.HttpProxyServer.start(
+            startedHttp = app.slipnet.tunnel.HttpProxyServer.start(
                 socksHost = "127.0.0.1", socksPort = socksPort,
                 listenHost = "127.0.0.1", listenPort = httpPort,
                 socksAuthUsername = if (authOn) prefs.proxyAuthUsername.first().ifEmpty { null } else null,
                 socksAuthPassword = if (authOn) prefs.proxyAuthPassword.first().ifEmpty { null } else null
-            )
+            ).isSuccess
         }
         val r = HotspotRelay.start(socksPort, httpPort)
         lastError = r.exceptionOrNull()?.message
         rootActive = false
-        if (vpnMode && HotspotRelay.hasRoot()) {
+        rootCapable = vpnMode && HotspotRelay.hasRoot()
+        if (rootCapable) {
             val err = HotspotRelay.applyRootRouting()
             rootActive = err == null
             if (err != null) android.util.Log.w(TAG, err)
+            startWatcher()
         }
         return lastError
     }
 
+    /**
+     * Hotspot is often switched on *after* connecting, and Android can recreate the AP
+     * interface (new name/subnet) at any time. Re-apply root routing whenever that changes.
+     */
+    private fun startWatcher() {
+        if (watcher?.isAlive == true) return
+        watcher = Thread({
+            while (rootCapable && HotspotRelay.isRunning()) {
+                try { Thread.sleep(4000) } catch (_: InterruptedException) { break }
+                if (!rootCapable) break
+                val hs = HotspotRelay.detectHotspot()?.first
+                val applied = HotspotRelay.appliedFor
+                if (hs != null && applied?.first != hs) {
+                    rootActive = HotspotRelay.applyRootRouting() == null
+                } else if (hs == null && applied != null) {
+                    HotspotRelay.clearRootRouting(); rootActive = false
+                }
+            }
+        }, "hotspot-root-watch").apply { isDaemon = true; start() }
+    }
+
     fun deactivate() {
+        rootCapable = false
+        watcher?.interrupt(); watcher = null
         HotspotRelay.stop()
-        if (rootActive) HotspotRelay.clearRootRouting()
+        if (rootActive || HotspotRelay.appliedFor != null) HotspotRelay.clearRootRouting()
         rootActive = false
+        if (startedHttp) { startedHttp = false; try { app.slipnet.tunnel.HttpProxyServer.stop() } catch (_: Exception) {} }
     }
 }

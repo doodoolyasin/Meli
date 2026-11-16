@@ -283,6 +283,10 @@ class VpnRepositoryImpl @Inject constructor(
     private var prevBytesSent = 0L
     private var prevBytesReceived = 0L
     private var prevTimestamp = 0L
+    // Hotspot relay byte counters at the last tick (relay talks to the SOCKS port directly,
+    // so TUN-based counters never see that traffic).
+    private var prevRelayUp = -1L
+    private var prevRelayDown = -1L
 
     private var connectedProfile: ServerProfile? = null
     private var currentTunFd: ParcelFileDescriptor? = null
@@ -1401,6 +1405,8 @@ class VpnRepositoryImpl @Inject constructor(
         prevBytesSent = 0L
         prevBytesReceived = 0L
         prevTimestamp = 0L
+        prevRelayUp = -1L
+        prevRelayDown = -1L
         _trafficStats.value = TrafficStats.EMPTY
     }
 
@@ -1411,6 +1417,23 @@ class VpnRepositoryImpl @Inject constructor(
         var received = 0L
         var pktSent = 0L
         var pktReceived = 0L
+        // True when the counters come from the TUN device (hev), which excludes relay traffic.
+        val tunBased = when (currentTunnelType) {
+            TunnelType.XRAY, TunnelType.SHADOWSOCKS, TunnelType.VMESS, TunnelType.HYSTERIA2 ->
+                app.slipnet.tunnel.SingBoxBridge.isRunning() || app.slipnet.tunnel.NativeCore.isRunning()
+            TunnelType.MASTERDNS, TunnelType.STORMDNS, TunnelType.COTTENDNS,
+            TunnelType.SOAR, TunnelType.MELI -> true
+            TunnelType.SLIPSTREAM, TunnelType.DNSTT, TunnelType.NOIZDNS, TunnelType.VAYDNS,
+            TunnelType.NOOSHDAROO, TunnelType.QWDTT,
+            TunnelType.SSH, TunnelType.DNSTT_SSH, TunnelType.NOIZDNS_SSH,
+            TunnelType.SLIPSTREAM_SSH, TunnelType.NAIVE_SSH, TunnelType.VAYDNS_SSH,
+            TunnelType.NOOSHDAROO_SSH, TunnelType.QWDTT_SSH,
+            TunnelType.MASTERDNS_SSH, TunnelType.STORMDNS_SSH,
+            TunnelType.COTTENDNS_SSH, TunnelType.SOAR_SSH, TunnelType.MELI_SSH,
+            TunnelType.SOCKS5, TunnelType.VLESS, TunnelType.VLESS_REALITY, TunnelType.TROJAN,
+            TunnelType.NAIVE, TunnelType.DOH -> false
+            else -> true
+        }
 
         when (currentTunnelType) {
             TunnelType.SLIPSTREAM -> {
@@ -1524,6 +1547,21 @@ class VpnRepositoryImpl @Inject constructor(
                     app.slipnet.util.TrafficLedger.record(dUp, dDown, p?.id, p?.subscriptionGroup)
                 } catch (_: Exception) {}
             }
+        }
+        // Hotspot clients served via the relay: count them too, or the multiplier check would
+        // blame the seller for traffic this phone actually forwarded.
+        run {
+            val ru = app.slipnet.util.HotspotRelay.bytesUp
+            val rd = app.slipnet.util.HotspotRelay.bytesDown
+            if (tunBased && prevRelayUp >= 0 && prevRelayDown >= 0) {
+                val du = (ru - prevRelayUp).coerceAtLeast(0)
+                val dd = (rd - prevRelayDown).coerceAtLeast(0)
+                if (du + dd > 0) {
+                    val p = (_connectionState.value as? ConnectionState.Connected)?.profile ?: connectedProfile
+                    try { app.slipnet.util.TrafficLedger.record(du, dd, p?.id, p?.subscriptionGroup) } catch (_: Exception) {}
+                }
+            }
+            prevRelayUp = ru; prevRelayDown = rd
         }
 
         prevBytesSent = sent
