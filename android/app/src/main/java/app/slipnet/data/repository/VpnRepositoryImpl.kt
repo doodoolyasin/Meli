@@ -1438,8 +1438,18 @@ class VpnRepositoryImpl @Inject constructor(
                 received = Socks5ProxyBridge.getTunnelRxBytes()
             }
             TunnelType.XRAY, TunnelType.SHADOWSOCKS, TunnelType.VMESS, TunnelType.HYSTERIA2 -> {
-                sent = app.slipnet.tunnel.XrayBridge.getTxBytes()
-                received = app.slipnet.tunnel.XrayBridge.getRxBytes()
+                if (app.slipnet.tunnel.SingBoxBridge.isRunning() || app.slipnet.tunnel.NativeCore.isRunning()) {
+                    // sing-box / AmneziaWG / Psiphon expose no byte counters; use the TUN counters
+                    // (VPN mode). Without this, those profiles were never counted at all.
+                    val st = HevSocks5Tunnel.getStats()
+                    if (st != null && st.rxBytes > 0) {
+                        sent = st.txBytes; received = st.rxBytes
+                        pktSent = st.txPackets; pktReceived = st.rxPackets
+                    }
+                } else {
+                    sent = app.slipnet.tunnel.XrayBridge.getTxBytes()
+                    received = app.slipnet.tunnel.XrayBridge.getRxBytes()
+                }
             }
             TunnelType.VLESS, TunnelType.VLESS_REALITY, TunnelType.TROJAN -> {
                 sent = VlessBridge.getTunnelTxBytes()
@@ -1505,8 +1515,9 @@ class VpnRepositoryImpl @Inject constructor(
         }
         // Real measured traffic -> ledger (per config / per subscription / global).
         if (prevTimestamp > 0) {
-            val dUp = (sent - prevBytesSent).coerceAtLeast(0)
-            val dDown = (received - prevBytesReceived).coerceAtLeast(0)
+            // Bridge counters restart from 0 after a reconnect: then the whole new value is fresh traffic.
+            val dUp = if (sent >= prevBytesSent) sent - prevBytesSent else sent
+            val dDown = if (received >= prevBytesReceived) received - prevBytesReceived else received
             if (dUp + dDown > 0) {
                 val p = (_connectionState.value as? ConnectionState.Connected)?.profile ?: connectedProfile
                 try {

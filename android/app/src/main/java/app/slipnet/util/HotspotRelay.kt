@@ -34,8 +34,8 @@ object HotspotRelay {
     private val running = AtomicBoolean(false)
     private val servers = mutableListOf<ServerSocket>()
 
-    @Volatile var bytesRelayed: Long = 0L
-        private set
+    private val relayed = java.util.concurrent.atomic.AtomicLong(0L)
+    val bytesRelayed: Long get() = relayed.get()
     @Volatile var activeClients: Int = 0
         private set
 
@@ -72,6 +72,9 @@ object HotspotRelay {
         Thread({
             while (!ss.isClosed) {
                 val c = try { ss.accept() } catch (_: Exception) { break }
+                // Never act as an open proxy for the upstream Wi-Fi/carrier network:
+                // only devices on our own hotspot/tether subnet (or loopback) are served.
+                if (!isAllowedClient(c)) { try { c.close() } catch (_: Exception) {}; continue }
                 Thread({ handle(c, target, servePac) }, "hotspot-relay-conn").apply { isDaemon = true; start() }
             }
         }, "hotspot-relay-$port").apply { isDaemon = true; start() }
@@ -86,7 +89,12 @@ object HotspotRelay {
             if (servePac) {
                 cin.mark(64)
                 val head = ByteArray(24)
-                val n = cin.read(head)
+                var n = 0
+                client.soTimeout = 3000
+                try {
+                    while (n < 14) { val k = cin.read(head, n, head.size - n); if (k < 0) break; n += k }
+                } catch (_: java.net.SocketTimeoutException) {}
+                client.soTimeout = 0
                 cin.reset()
                 if (n > 0 && String(head, 0, n, Charsets.ISO_8859_1).startsWith("GET /proxy.pac")) {
                     servePacFile(client)
@@ -116,7 +124,7 @@ object HotspotRelay {
                 val n = i.read(buf)
                 if (n < 0) break
                 o.write(buf, 0, n); o.flush()
-                bytesRelayed += n
+                relayed.addAndGet(n.toLong())
             }
         } catch (_: Exception) {}
     }
@@ -124,9 +132,10 @@ object HotspotRelay {
     private fun servePacFile(client: Socket) {
         val ip = (client.localAddress?.hostAddress ?: "192.168.43.1").substringBefore('%')
         val pac = """function FindProxyForURL(url, host) {
+  // No dnsResolve(): it would leak every hostname to the carrier DNS and stall on poisoning.
   if (isPlainHostName(host) || shExpMatch(host, "*.local") ||
-      isInNet(dnsResolve(host), "192.168.0.0", "255.255.0.0") ||
-      isInNet(dnsResolve(host), "10.0.0.0", "255.0.0.0")) return "DIRECT";
+      shExpMatch(host, "192.168.*") || shExpMatch(host, "10.*") ||
+      shExpMatch(host, "127.*")) return "DIRECT";
   return "PROXY $ip:$HTTP_PORT; SOCKS5 $ip:$SOCKS_PORT; SOCKS $ip:$SOCKS_PORT";
 }
 """
@@ -135,6 +144,26 @@ object HotspotRelay {
             "Content-Length: ${body.size}\r\nConnection: close\r\n\r\n"
         client.getOutputStream().apply { write(hdr.toByteArray()); write(body); flush() }
     }
+
+    private fun isAllowedClient(c: Socket): Boolean = try {
+        val ra = c.inetAddress
+        if (ra.isLoopbackAddress) true
+        else if (ra !is Inet4Address) false
+        else {
+            val r = ra.address
+            NetworkInterface.getNetworkInterfaces()?.toList().orEmpty()
+                .filter { it.isUp && !it.isLoopback && HOTSPOT_PREFIXES.any { p -> it.name.startsWith(p) } }
+                .flatMap { it.interfaceAddresses.orEmpty() }
+                .any { ia ->
+                    val a = ia.address as? Inet4Address ?: return@any false
+                    val plen = ia.networkPrefixLength.toInt().coerceIn(0, 32)
+                    val mask = if (plen == 0) 0 else (-1 shl (32 - plen))
+                    fun i(b: ByteArray) = ((b[0].toInt() and 255) shl 24) or ((b[1].toInt() and 255) shl 16) or
+                        ((b[2].toInt() and 255) shl 8) or (b[3].toInt() and 255)
+                    (i(a.address) and mask) == (i(r) and mask)
+                }
+        }
+    } catch (_: Exception) { false }
 
     // ── Interface detection ────────────────────────────────────────────
 

@@ -159,7 +159,10 @@ object TrafficLedger {
 
     @Synchronized
     fun reset(scope: String? = null) {
-        if (scope == null) { scopes.clear(); panelSnap.clear(); lastCheck.clear() } else scopes.remove(scope)
+        if (scope == null) { scopes.clear(); panelSnap.clear(); lastCheck.clear() } else {
+            scopes.remove(scope)
+            if (scope.startsWith("sub:")) scope.removePrefix("sub:").let { panelSnap.remove(it); lastCheck.remove(it) }
+        }
         dirty = true
         flush()
     }

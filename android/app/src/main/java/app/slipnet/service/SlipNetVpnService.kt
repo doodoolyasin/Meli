@@ -4222,16 +4222,7 @@ class SlipNetVpnService : VpnService() {
         }
 
         // Hotspot sharing: expose this tunnel to devices on the hotspot.
-        serviceScope.launch {
-            try {
-                if (preferencesDataStore.hotspotShareEnabled.first()) {
-                    kotlinx.coroutines.delay(800) // let HTTP proxy bind first
-                    app.slipnet.util.HotspotShare.activate(preferencesDataStore, vpnMode = !isProxyOnly)
-                }
-            } catch (e: Exception) {
-                Log.w(TAG, "Hotspot share start failed: ${e.message}")
-            }
-        }
+        startHotspotShareIfEnabled()
 
         // Start health monitoring and network change detection
         startHealthCheck()
@@ -5787,6 +5778,9 @@ class SlipNetVpnService : VpnService() {
                     }
                 }
 
+                // stopCurrentProxy() tore down hotspot sharing; bring it back for the new tunnel.
+                startHotspotShareIfEnabled()
+
                 // Restart health check
                 startHealthCheck()
 
@@ -5816,6 +5810,24 @@ class SlipNetVpnService : VpnService() {
      * Stops SSH first if enabled, then the DNS tunnel.
      * Synchronized to prevent double-stop from onDestroy + coroutine cleanup.
      */
+    /**
+     * Socket binds, `su` and iptables block, and `su` may wait on a root prompt,
+     * so this must never run on the main thread.
+     */
+    private fun startHotspotShareIfEnabled() {
+        serviceScope.launch(Dispatchers.IO) {
+            try {
+                if (preferencesDataStore.hotspotShareEnabled.first()) {
+                    kotlinx.coroutines.delay(800) // let HTTP proxy bind first
+                    val err = app.slipnet.util.HotspotShare.activate(preferencesDataStore, vpnMode = !isProxyOnly)
+                    if (err != null) Log.w(TAG, "Hotspot share: $err")
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Hotspot share start failed: ${e.message}")
+            }
+        }
+    }
+
     @Synchronized
     private fun stopCurrentProxy() {
         try { app.slipnet.util.HotspotShare.deactivate() } catch (_: Exception) {}
